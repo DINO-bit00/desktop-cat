@@ -1,9 +1,9 @@
 """
 NyangBuddy Modern Pixel-Art Sprite Engine — 4-Frame Fluid Edition
 High-framerate 32x32 kawaii chubby pixel cat with 4-frame walk cycles,
-breathing idles, dynamic 8-direction eye follow, keyboard kneading,
-overheat steam mode, paper unroll scroll reaction, petting/purr reactions,
-and custom accessories (Boss Oyen shades & chain).
+breathing idles, dynamic 8-direction eye follow, keyboard kneading on 3D mechanical keycaps,
+overheat steam mode, official Comnyang paper unroll scroll reaction, petting/purr reactions,
+and mochi drag with swaying tail.
 """
 
 from PIL import Image, ImageDraw
@@ -291,7 +291,6 @@ def _draw_walk_side(p: dict, frame_idx: int, flip_left: bool = False) -> Image.I
     return img
 
 
-# ─── 3. KEYBOARD KNEADING (4-FRAME LAPTOP TYPING) ──────────────────────────
 # ─── 3. KEYBOARD KNEADING (3D MECHANICAL KEYCAPS STEPPING) ─────────────────
 def _draw_knead_work(p: dict, frame_idx: int) -> Image.Image:
     """
@@ -665,22 +664,37 @@ def _draw_sleep_loaf(p: dict, frame_idx: int) -> Image.Image:
 
 # ─── 8. MOCHI DRAG & DANGLING ──────────────────────────────────────────────
 def _draw_mochi_drag(p: dict, frame_idx: int) -> Image.Image:
-    """Elongated dangling cat with swinging paws when dragged."""
+    """Elongated dangling cat with swinging paws and swaying tail when dragged."""
     img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
 
     O = p["fur_main"]
+    S = p["fur_shade"]
     W = p["fur_belly"]
-    K = p["outline"]
+    K = (18, 18, 22, 255)
+    E = p["inner_ear"]
 
+    # ── 1. Animated Dangling & Swaying Tail (Behind back legs) ──
+    tail_sway = [-2, 0, 2, 0][frame_idx % 4]
+    tail_tip_x = 15 + tail_sway * 3
+    tail_mid_x = 15 + tail_sway * 2
+
+    d.line([(15, 23), (tail_mid_x, 27), (tail_tip_x, 30)], fill=O, width=2)
+    d.line([(15, 24), (tail_mid_x + (1 if tail_sway >= 0 else -1), 27), (tail_tip_x, 31)], fill=K)
+    d.line([(tail_mid_x, 26), (tail_mid_x + 1, 26)], fill=S)
+
+    # ── 2. Dangling Body & Scruff Clasp ──
     d.polygon([(14, 2), (16, 0), (18, 2)], fill=K)
     d.ellipse([9, 2, 22, 13], fill=O, outline=K)
     d.polygon([(9, 3), (9, 0), (12, 3)], fill=O, outline=K)
     d.polygon([(19, 3), (22, 0), (22, 3)], fill=O, outline=K)
+    img.putpixel((10, 2), E)
+    img.putpixel((21, 2), E)
 
     if p.get("has_shades", False):
         d.rectangle([10, 5, 21, 8], fill=(18, 18, 22, 255), outline=K)
         img.putpixel((12, 6), (255, 255, 255, 255))
+        img.putpixel((18, 6), (255, 255, 255, 255))
     else:
         d.ellipse([11, 5, 14, 8], fill=(255, 255, 255, 255), outline=K)
         d.ellipse([17, 5, 20, 8], fill=(255, 255, 255, 255), outline=K)
@@ -690,6 +704,7 @@ def _draw_mochi_drag(p: dict, frame_idx: int) -> Image.Image:
     d.ellipse([10, 12, 21, 26], fill=O, outline=K)
     d.ellipse([12, 13, 19, 24], fill=W)
 
+    # ── 3. Dangling Front & Hind Paws ──
     paw_swing = -1 if frame_idx in (0, 1) else 1
     d.rectangle([8 + paw_swing, 26, 12 + paw_swing, 30], fill=W, outline=K)
     d.rectangle([19 - paw_swing, 26, 23 - paw_swing, 30], fill=W, outline=K)
