@@ -14,9 +14,15 @@ Aplikasi **Desktop Companion / Virtual Pet Kucing** berbasis Python yang dibuat 
 
 ## ✨ Fitur-Fitur Utama
 
-* **🐾 Karakter & Pixel Art Kucing:**
-  * Pilihan Skin: **Si Oyen (Orange Tabby)**, **Belang Tiga (Calico)**, **Si Tuxedo (Black & White)**, **Abu-Abu (Grey Tabby)**, dan **Si Putih (Snow White)**.
-  * Ragam Animasi: *Idle*, *Jalan (Wander)*, *Tidur (Sleep)*, *Ngoding/Kneading (Work)*, *Dielus (Pet/Purr)*, *Melompat Senang (Celebrate)*, *Berpikir (Thinking)*.
+* **🐾 Karakter & Pixel Art Kucing (7 Pilihan Skin):**
+  * 🐱 **Si Kalung Biru (Mochi)**: Kucing abu-abu chibi dengan kepala miring menggemaskan dan kalung biru toska cerah.
+  * 🕶️ **Boss Oyen (Kacamata Hitam)**: Kucing oyen gembul bergaya keren dengan kacamata hitam swag dan kumis khas.
+  * 🦁 **Si Oyen (Orange Tabby)**: Kucing oyen klasik yang ceria dan aktif.
+  * 🎨 **Belang Tiga (Calico / Mi-ke)**: Kucing tiga warna pembawa keberuntungan.
+  * 🎩 **Si Tuxedo (Black & White)**: Kucing hitam elegan dengan dada dan kaos kaki putih.
+  * 🩶 **Abu-Abu (Grey Tabby)**: Kucing abu-abu lembut bermata biru.
+  * ❄️ **Si Putih (Snow White)**: Kucing putih salju bersih dan anggun.
+  * Ragam Animasi: *Idle*, *Jalan (Wander)*, *Tidur (Sleep)*, *Ngoding/Kneading (Work)*, *Dielus (Pet/Purr)*, *Melompat Senang (Celebrate)*, *Berpikir (Thinking)*, *Bergelantungan (Drag)*, *Mendarat Membal (Land)*.
 * **✨ Interaksi Mengambang, Bebas & Transparan:**
   * Jendela tanpa bingkai (*frameless*), latar transparan, dan **Always on Top** (menggunakan Win32 API).
   * **Bebas Diletakkan di Mana Saja:** Kucing bisa kamu taruh di pojok atas, tengah layar, atas browser, samping IDE, atau di atas taskbar (posisi tersimpan otomatis!).

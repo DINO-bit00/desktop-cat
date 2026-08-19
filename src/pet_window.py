@@ -340,22 +340,53 @@ class DesktopPet(QWidget):
 
     def _on_pet_clicked(self):
         if self.pomodoro.is_active and self.pomodoro.mode == "work":
-            quotes = [
-                "Fokus dulu ya nya! Semangat! 💪",
-                "Ngebut terus kodenya nya~ 🔥",
-                "Kerja bagus! Nanti kita istirahat bareng nya~ ✨"
-            ]
+            if self.skin == "boss_oyen":
+                quotes = [
+                    "Tetap fokus, boss. Jangan terdistraksi 😎",
+                    "Gaskeun kodenya, boss! 💻🕶️",
+                    "Beresin dulu tugasnya baru santai, boss! 🔥"
+                ]
+            elif self.skin == "mochi":
+                quotes = [
+                    "Semangat fokusnya nya! Aku temenin dari sini~ 🐾",
+                    "Kepala miring tanda aku mantau kodenya nya! 👀",
+                    "Kerja bagus nya! Sedikit lagi selesai~ ✨"
+                ]
+            else:
+                quotes = [
+                    "Fokus dulu ya nya! Semangat! 💪",
+                    "Ngebut terus kodenya nya~ 🔥",
+                    "Kerja bagus! Nanti kita istirahat bareng nya~ ✨"
+                ]
             self.say(random.choice(quotes), 3000)
             return
 
         self.set_state("pet", duration_seconds=3)
-        purrs = [
-            "Purrr... Senang dielus nya~ ❤️",
-            "Meooow~! Semangat ya hari ini! ✨",
-            "Nyang~ Mau ditemenin ngoding apa santai nih? 😸",
-            "Purrr purrr... Kucing senang, kerjaan lancar! 🐾",
-            "Meow! Jangan lupa regangkan tanganmu ya~ 🧘"
-        ]
+
+        if self.skin == "boss_oyen":
+            purrs = [
+                "Kerja santai, hasil maksimal. Santai aja, boss 😎",
+                "Kacamata hitam biar ga silau liat masa depan cerahmu 🕶️✨",
+                "Gaya nomor satu, ngoding nomor dua, boss! 🐾",
+                "Mew... Mau traktir snack apa hari ini, boss? 🍗",
+                "Jangan lupa kopi hitamnya, boss ☕🕶️"
+            ]
+        elif self.skin == "mochi":
+            purrs = [
+                "Mew! Kalung biruku berkilau kan nya? 🐾",
+                "Kepala miring tanda aku lagi penasaran nya~ 😸",
+                "Purrr... Senang banget dielus kamu nya! ❤️",
+                "Chibi kitten siap nemenin kamu seharian nya! ✨",
+                "Meow~! Jangan lupa istirahat kalau capek ya~ 🧘"
+            ]
+        else:
+            purrs = [
+                "Purrr... Senang dielus nya~ ❤️",
+                "Meooow~! Semangat ya hari ini! ✨",
+                "Nyang~ Mau ditemenin ngoding apa santai nih? 😸",
+                "Purrr purrr... Kucing senang, kerjaan lancar! 🐾",
+                "Meow! Jangan lupa regangkan tanganmu ya~ 🧘"
+            ]
         self.say(random.choice(purrs), 3500)
 
     def _play_sound_blip(self, freq=1200, dur=60):
@@ -506,8 +537,13 @@ class DesktopPet(QWidget):
         self.settings["skin"] = skin_key
         save_settings(self.settings)
         self.update()
-        pet_name = PALETTES[skin_key]["name"]
-        self.say(f"Ganti kostum ke {pet_name} nya! 🐾")
+        if skin_key == "boss_oyen":
+            self.say("Boss Oyen siap mengawal produktivitasmu, boss! 😎🕶️")
+        elif skin_key == "mochi":
+            self.say("Mochi si kalung biru siap nemenin kamu nya! 🐾✨")
+        else:
+            pet_name = PALETTES[skin_key]["name"]
+            self.say(f"Ganti kostum ke {pet_name} nya! 🐾")
 
     def _toggle_wander(self, checked):
         self.settings["wander_mode"] = checked
