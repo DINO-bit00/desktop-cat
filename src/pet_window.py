@@ -60,17 +60,18 @@ class DesktopPet(QWidget):
 
         # State Machine
         self.skin = self.settings.get("skin", "oyen")
-        self.state = "idle"         # idle, walk_left, walk_right, sleep, work, pet, celebrate, thinking
+        self.state = "idle"         # idle, walk_left, walk_right, sleep, work, pet, celebrate, thinking, drag, land
         self.target_state = "idle"
+        self.pre_drag_state = "idle"
         self.frame_index = 0
         self.state_ticks = 0
         self.max_state_ticks = 20
 
         # Movement & Dragging
         self.is_dragging = False
+        self.has_dragged = False
         self.drag_start_pos = QPoint()
-        self.velocity_x = 0
-        self.is_falling = False
+        self.drag_start_global_pos = QPoint()
 
         # Frame Pixmap Cache
         self.pixmap_cache = {}
@@ -100,7 +101,7 @@ class DesktopPet(QWidget):
         self.physics_timer.timeout.connect(self._update_behavior)
         self.physics_timer.start(50)
 
-        # Position at bottom-right of primary screen
+        # Position on screen
         self._snap_to_initial_position()
 
         # Say hello at startup
@@ -112,7 +113,7 @@ class DesktopPet(QWidget):
     def _load_skin_sprites(self, skin_name):
         self.skin = skin_name
         self.pixmap_cache.clear()
-        states = ["idle", "walk_left", "walk_right", "sleep", "work", "pet", "celebrate", "thinking"]
+        states = ["idle", "walk_left", "walk_right", "sleep", "work", "pet", "celebrate", "thinking", "drag", "land"]
 
         for st in states:
             self.pixmap_cache[st] = []
@@ -143,8 +144,19 @@ class DesktopPet(QWidget):
 
     def _snap_to_initial_position(self):
         screen_geo = self._get_current_screen_geometry()
-        x = screen_geo.right() - self.sprite_size - 60
-        y = screen_geo.bottom() - self.sprite_size
+
+        saved_x = self.settings.get("pos_x")
+        saved_y = self.settings.get("pos_y")
+
+        if saved_x is not None and saved_y is not None:
+            # Clamp saved position to keep on-screen
+            x = max(screen_geo.left(), min(saved_x, screen_geo.right() - self.sprite_size))
+            y = max(screen_geo.top(), min(saved_y, screen_geo.bottom() - self.sprite_size))
+        else:
+            # Default: bottom-right corner
+            x = screen_geo.right() - self.sprite_size - 60
+            y = screen_geo.bottom() - self.sprite_size - 20
+
         self.move(x, y)
         self._update_bubble_position()
 
@@ -184,21 +196,11 @@ class DesktopPet(QWidget):
             set_win32_topmost(self)
 
         screen_geo = self._get_current_screen_geometry()
-        floor_y = screen_geo.bottom() - self.sprite_size
-
-        # Simple Gravity
         curr_x = self.x()
         curr_y = self.y()
 
-        if curr_y < floor_y:
-            # Fall gently to the floor
-            new_y = min(floor_y, curr_y + 4)
-            self.move(curr_x, new_y)
-            self._update_bubble_position()
-            return
-
-        # Autonomous Wander Logic
-        if not self.settings.get("wander_mode", True) or self.pomodoro.is_active or self.state in ["work", "sleep", "thinking", "pet"]:
+        # Autonomous Wander Logic (Horizontal at current height)
+        if not self.settings.get("wander_mode", True) or self.pomodoro.is_active or self.state in ["work", "sleep", "thinking", "pet", "drag", "land"]:
             return
 
         self.state_ticks += 1
@@ -215,7 +217,7 @@ class DesktopPet(QWidget):
                 self.max_state_ticks = random.randint(40, 90)
             self.state = new_action
 
-        # Handle Walking physics
+        # Handle Walking physics along current height/shelf
         if self.state == "walk_left":
             new_x = curr_x - 2
             if new_x <= screen_geo.left():
@@ -241,12 +243,20 @@ class DesktopPet(QWidget):
             painter.drawPixmap(0, 0, pixmap)
 
     # -------------------------------------------------------------
-    # Mouse & Drag Interactions
+    # Mouse & Drag Interactions (With Dangling Animation!)
     # -------------------------------------------------------------
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.is_dragging = True
+            self.has_dragged = False
             self.drag_start_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            self.drag_start_global_pos = event.globalPosition().toPoint()
+            self.pre_drag_state = self.state if self.state not in ["drag", "land"] else "idle"
+            
+            # Switch to dangling / drag state immediately
+            self.set_state("drag")
+            self.anim_timer.setInterval(110)  # Faster energetic wiggling during drag
+            self._play_sound_blip(freq=1350, dur=40)
             event.accept()
         elif event.button() == Qt.MouseButton.RightButton:
             self._show_context_menu(event.globalPosition().toPoint())
@@ -254,16 +264,56 @@ class DesktopPet(QWidget):
 
     def mouseMoveEvent(self, event):
         if self.is_dragging and event.buttons() == Qt.MouseButton.LeftButton:
-            new_pos = event.globalPosition().toPoint() - self.drag_start_pos
-            self.move(new_pos)
+            global_pt = event.globalPosition().toPoint()
+            move_dist = (global_pt - self.drag_start_global_pos).manhattanLength()
+            if move_dist > 4:
+                self.has_dragged = True
+
+            new_pos = global_pt - self.drag_start_pos
+            screen_geo = self._get_current_screen_geometry()
+
+            # Keep window safely on-screen
+            clamped_x = max(screen_geo.left() - 10, min(new_pos.x(), screen_geo.right() - self.sprite_size + 10))
+            clamped_y = max(screen_geo.top() - 5, min(new_pos.y(), screen_geo.bottom() - self.sprite_size + 5))
+
+            self.move(clamped_x, clamped_y)
             self._update_bubble_position()
+
+            # Advance frame dynamically on drag
+            self.frame_index = (self.frame_index + 1) % 4
+            self.update()
             event.accept()
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.is_dragging = False
-            # If it was a quick click without dragging, treat as petting!
-            self._on_pet_clicked()
+            self.anim_timer.setInterval(200)  # Restore standard animation interval
+
+            if self.has_dragged:
+                # Save new position to settings so it remembers anywhere it is placed
+                self.settings["pos_x"] = self.x()
+                self.settings["pos_y"] = self.y()
+                save_settings(self.settings)
+
+                # Play cute landing / settle squish bounce
+                self.set_state("land")
+                self._play_sound_blip(freq=950, dur=50)
+                QTimer.singleShot(350, lambda: self.set_state("idle"))
+
+                # Occasional happy dialogue when dropped at a new place
+                if random.random() < 0.35:
+                    landing_quotes = [
+                        "Duduk di sini ya nya~ 🐾",
+                        "Spot baru yang nyaman nya! 😸",
+                        "Siap mantau dari sini nya~ ✨",
+                        "Tempat yang bagus nya! 📍"
+                    ]
+                    QTimer.singleShot(400, lambda: self.say(random.choice(landing_quotes), 3000))
+            else:
+                # Simple click without dragging -> pet the cat!
+                self.set_state(self.pre_drag_state)
+                self._on_pet_clicked()
+
             event.accept()
 
     def mouseDoubleClickEvent(self, event):

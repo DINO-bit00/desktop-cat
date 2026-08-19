@@ -365,7 +365,101 @@ def render_cat_frame(skin_key="oyen", state="idle", frame_idx=0):
             draw_pixel(d, 14 + i * 3, 2, (52, 152, 219, 255))
 
     # -------------------------------------------------------------
-    # 7. DEFAULT: IDLE (Sitting, blinking, tail wagging)
+    # 8. STATE: DRAG / PICKED UP (Dangling in mid-air when moved)
+    # -------------------------------------------------------------
+    elif state in ["drag", "picked_up", "dangle"]:
+        # Cat picked up by scruff / dangling with paws kicking and tail swaying
+        leg_phase = frame_idx % 4
+        tail_phase = frame_idx % 4
+
+        # Tail swaying with momentum
+        if tail_phase == 0:
+            d.arc([3, 14, 13, 26], start=120, end=300, fill=outline, width=2)
+            d.arc([3, 14, 13, 26], start=120, end=300, fill=base, width=1)
+        elif tail_phase == 2:
+            d.arc([19, 14, 29, 26], start=240, end=60, fill=outline, width=2)
+            d.arc([19, 14, 29, 26], start=240, end=60, fill=base, width=1)
+        else:
+            d.arc([11, 16, 21, 28], start=220, end=320, fill=outline, width=2)
+            d.arc([11, 16, 21, 28], start=220, end=320, fill=base, width=1)
+
+        # Elongated dangling body
+        d.ellipse([10, 8, 22, 24], fill=base, outline=outline)
+        d.ellipse([12, 11, 20, 22], fill=belly)
+
+        # Head (Surprised dangling face)
+        d.ellipse([8, 2, 24, 14], fill=base, outline=outline)
+        # Ears pulled up
+        d.polygon([(9, 4), (11, -1), (14, 4)], fill=base, outline=outline)
+        d.polygon([(10, 3), (11, 1), (13, 3)], fill=inner_ear)
+        d.polygon([(18, 4), (21, -1), (23, 4)], fill=base, outline=outline)
+        d.polygon([(19, 3), (21, 1), (22, 3)], fill=inner_ear)
+
+        # Big surprised wide eyes (o o)
+        d.rectangle([10, 5, 14, 9], fill=eye_col, outline=outline)
+        d.rectangle([18, 5, 22, 9], fill=eye_col, outline=outline)
+        draw_pixel(d, 12, 6, pupil_col)
+        draw_pixel(d, 20, 6, pupil_col)
+        draw_pixel(d, 11, 6, (255, 255, 255, 255))
+        draw_pixel(d, 19, 6, (255, 255, 255, 255))
+
+        # Cute small open mouth (:o)
+        draw_pixel(d, 16, 10, nose_col)
+        d.ellipse([15, 11, 17, 13], fill=(255, 120, 140, 255), outline=outline)
+
+        # Front paws hanging up/forward
+        d.ellipse([6, 9, 10, 14], fill=paw_col, outline=outline)
+        d.ellipse([22, 9, 26, 14], fill=paw_col, outline=outline)
+
+        # Back legs kicking / dangling
+        if leg_phase == 0:
+            d.ellipse([10, 21, 13, 26], fill=paw_col, outline=outline)
+            d.ellipse([19, 23, 22, 28], fill=paw_col, outline=outline)
+        elif leg_phase == 1:
+            d.ellipse([10, 23, 13, 28], fill=paw_col, outline=outline)
+            d.ellipse([19, 23, 22, 28], fill=paw_col, outline=outline)
+        elif leg_phase == 2:
+            d.ellipse([10, 23, 13, 28], fill=paw_col, outline=outline)
+            d.ellipse([19, 21, 22, 26], fill=paw_col, outline=outline)
+        else:
+            d.ellipse([9, 22, 12, 27], fill=paw_col, outline=outline)
+            d.ellipse([20, 22, 23, 27], fill=paw_col, outline=outline)
+
+        # Wind / motion marks when moving
+        if frame_idx % 2 == 1:
+            draw_pixel(d, 4, 12, (200, 220, 255, 180))
+            draw_pixel(d, 27, 12, (200, 220, 255, 180))
+
+    # -------------------------------------------------------------
+    # 9. STATE: LAND / DROP (Squish & settle when placed)
+    # -------------------------------------------------------------
+    elif state in ["land", "drop"]:
+        if frame_idx in [0, 1]:
+            # Squished flat landing
+            d.ellipse([5, 14, 27, 27], fill=base, outline=outline)
+            d.ellipse([9, 17, 23, 26], fill=belly)
+            # Head squished
+            d.ellipse([8, 8, 24, 19], fill=base, outline=outline)
+            # Closed happy squinting eyes (> <)
+            d.line([(11, 12), (14, 13)], fill=outline, width=1)
+            d.line([(11, 14), (14, 13)], fill=outline, width=1)
+            d.line([(21, 12), (18, 13)], fill=outline, width=1)
+            d.line([(21, 14), (18, 13)], fill=outline, width=1)
+            # Paws flat
+            d.ellipse([7, 23, 12, 27], fill=paw_col, outline=outline)
+            d.ellipse([20, 23, 25, 27], fill=paw_col, outline=outline)
+        else:
+            # Rebound back to normal
+            d.ellipse([7, 12, 25, 26], fill=base, outline=outline)
+            d.ellipse([11, 15, 21, 25], fill=belly)
+            d.ellipse([7, 5, 25, 18], fill=base, outline=outline)
+            d.rectangle([11, 8, 15, 12], fill=eye_col, outline=outline)
+            d.rectangle([17, 8, 21, 12], fill=eye_col, outline=outline)
+            d.ellipse([10, 23, 14, 27], fill=paw_col, outline=outline)
+            d.ellipse([18, 23, 22, 27], fill=paw_col, outline=outline)
+
+    # -------------------------------------------------------------
+    # 10. DEFAULT: IDLE (Sitting, blinking, tail wagging)
     # -------------------------------------------------------------
     else:
         blink = (frame_idx == 2)
@@ -423,7 +517,7 @@ def render_cat_frame(skin_key="oyen", state="idle", frame_idx=0):
 
 def pregenerate_all_sprites(output_dir="assets/sprites"):
     os.makedirs(output_dir, exist_ok=True)
-    states = ["idle", "walk_left", "walk_right", "sleep", "work", "pet", "jump", "thinking"]
+    states = ["idle", "walk_left", "walk_right", "sleep", "work", "pet", "jump", "thinking", "drag", "land"]
     for skin in PALETTES.keys():
         skin_dir = os.path.join(output_dir, skin)
         os.makedirs(skin_dir, exist_ok=True)
