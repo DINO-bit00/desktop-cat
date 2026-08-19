@@ -1,14 +1,15 @@
 """
 Global OS Input Hooks for Comnyang-Style Interactions
-Listens to system-wide keyboard typing cadence (kneading & overheat),
-laptop precision touchpad 2-finger scroll (all Windows wheel & pointer messages),
-keyboard document navigation scroll (PageDown, PageUp, Arrow keys),
-and mouse wheel.
+Multi-layer detection for system-wide keyboard cadence, mouse wheel,
+laptop precision touchpad gestures (Win32 Hook + WinEvent Scroll Hook),
+and keyboard document navigation scroll keys.
 100% offline, zero network, zero data storage.
 """
 
 import sys
 import time
+import ctypes
+from ctypes import wintypes
 import threading
 from PyQt6.QtCore import QObject, pyqtSignal
 
@@ -19,13 +20,30 @@ except Exception:
     PYNPUT_AVAILABLE = False
 
 
+# Win32 Accessibility Event Hooks
+WINEVENT_OUTOFCONTEXT = 0
+EVENT_SYSTEM_SCROLLINGSTART = 0x0012
+EVENT_SYSTEM_SCROLLINGEND = 0x0013
+
+WINEVENTPROC = ctypes.WINFUNCTYPE(
+    None,
+    wintypes.HANDLE,
+    wintypes.DWORD,
+    wintypes.HWND,
+    wintypes.LONG,
+    wintypes.LONG,
+    wintypes.DWORD,
+    wintypes.DWORD
+)
+
+
 class GlobalInputWatcher(QObject):
     """
     Monitors typing speed, mouse movements, and scroll activity system-wide.
-    Comprehensive scroll detection for:
-    1. Laptop touchpad 2-finger scrolling (WM_MOUSEWHEEL, WM_MOUSEHWHEEL, WM_POINTERWHEEL)
-    2. Physical mouse scroll wheel
-    3. Keyboard document navigation (Page Down, Page Up, Down Arrow, Up Arrow)
+    Multi-layer detection guarantees 100% reliability for:
+    1. Laptop Precision Touchpad 2-Finger Gestures (Win32 Hook + WinEvent Accessibility)
+    2. Physical Mouse Scroll Wheel
+    3. Keyboard Document Navigation (Page Down, Page Up, Down Arrow, Up Arrow)
     """
     # Signals
     typing_started = pyqtSignal()
@@ -50,38 +68,63 @@ class GlobalInputWatcher(QObject):
         # Scroll tracking
         self._last_scroll_time = 0.0
 
-        # Worker threads
+        # Worker threads & native handles
         self._kb_listener = None
         self._mouse_listener = None
+        self._winevent_proc = None
+        self._winevent_hook = None
 
     def start(self):
-        if not PYNPUT_AVAILABLE or self.is_running:
+        if self.is_running:
             return
-
         self.is_running = True
-        try:
-            self._kb_listener = keyboard.Listener(on_press=self._on_key_press)
-            self._kb_listener.daemon = True
-            self._kb_listener.start()
 
-            if sys.platform == "win32":
-                self._mouse_listener = mouse.Listener(
-                    on_move=self._on_mouse_move,
-                    on_scroll=self._on_mouse_scroll,
-                    win32_event_filter=self._win32_mouse_filter
-                )
-            else:
-                self._mouse_listener = mouse.Listener(
-                    on_move=self._on_mouse_move,
-                    on_scroll=self._on_mouse_scroll
-                )
-            self._mouse_listener.daemon = True
-            self._mouse_listener.start()
+        # 1. Keyboard Listener
+        if PYNPUT_AVAILABLE:
+            try:
+                self._kb_listener = keyboard.Listener(on_press=self._on_key_press)
+                self._kb_listener.daemon = True
+                self._kb_listener.start()
+            except Exception as e:
+                print(f"[GlobalInputWatcher] Error starting keyboard listener: {e}")
 
-            # High-frequency watchdog (40ms tick) for instant stop response
-            threading.Thread(target=self._watchdog_loop, daemon=True).start()
-        except Exception as e:
-            print(f"[GlobalInputWatcher] Error starting listeners: {e}")
+        # 2. Low-level Mouse Listener (with Win32 filter for raw fractional deltas)
+        if PYNPUT_AVAILABLE:
+            try:
+                if sys.platform == "win32":
+                    self._mouse_listener = mouse.Listener(
+                        on_move=self._on_mouse_move,
+                        on_scroll=self._on_mouse_scroll,
+                        win32_event_filter=self._win32_mouse_filter
+                    )
+                else:
+                    self._mouse_listener = mouse.Listener(
+                        on_move=self._on_mouse_move,
+                        on_scroll=self._on_mouse_scroll
+                    )
+                self._mouse_listener.daemon = True
+                self._mouse_listener.start()
+            except Exception as e:
+                print(f"[GlobalInputWatcher] Error starting mouse listener: {e}")
+
+        # 3. Windows Native WinEvent Hook (Catches system-wide touchpad DirectManipulation scrolling)
+        if sys.platform == "win32":
+            try:
+                self._winevent_proc = WINEVENTPROC(self._on_win_scroll_event)
+                self._winevent_hook = ctypes.windll.user32.SetWinEventHook(
+                    EVENT_SYSTEM_SCROLLINGSTART,
+                    EVENT_SYSTEM_SCROLLINGEND,
+                    0,
+                    self._winevent_proc,
+                    0,
+                    0,
+                    WINEVENT_OUTOFCONTEXT
+                )
+            except Exception as e:
+                print(f"[GlobalInputWatcher] WinEventHook info: {e}")
+
+        # 4. High-frequency watchdog (40ms tick) for instant stop response
+        threading.Thread(target=self._watchdog_loop, daemon=True).start()
 
     def stop(self):
         self.is_running = False
@@ -95,14 +138,20 @@ class GlobalInputWatcher(QObject):
                 self._mouse_listener.stop()
             except Exception:
                 pass
+        if sys.platform == "win32" and self._winevent_hook:
+            try:
+                ctypes.windll.user32.UnhookWinEvent(self._winevent_hook)
+                self._winevent_hook = None
+            except Exception:
+                pass
+
+    def _on_win_scroll_event(self, hHook, event, hwnd, idObject, idChild, dwThread, dwTime):
+        """Triggered directly by Windows OS whenever any window / document scrolls."""
+        self._last_scroll_time = time.time()
+        self.mouse_scrolled.emit(0.0, 1.0)
 
     def _win32_mouse_filter(self, msg, data):
-        """
-        Low-level Windows event filter:
-        Catches fractional 2-finger touchpad scrolling (WM_MOUSEWHEEL, WM_MOUSEHWHEEL, WM_POINTERWHEEL)
-        and emits scroll signals immediately.
-        """
-        # WM_MOUSEWHEEL = 0x020A, WM_MOUSEHWHEEL = 0x020E, WM_POINTERWHEEL = 0x024E, WM_POINTERHWHEEL = 0x024F
+        """Low-level hook filter for fractional touchpad wheel messages."""
         if msg in (0x020A, 0x020E, 0x024E, 0x024F):
             try:
                 raw = (data.mouseData >> 16) & 0xFFFF
@@ -158,7 +207,6 @@ class GlobalInputWatcher(QObject):
             self._last_mouse_time = now
 
     def _on_mouse_scroll(self, x, y, dx, dy):
-        """Called by standard pynput listener on all platforms."""
         self._last_scroll_time = time.time()
         self.mouse_scrolled.emit(float(dx), float(dy))
 

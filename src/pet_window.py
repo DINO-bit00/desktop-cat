@@ -147,6 +147,9 @@ class DesktopPet(QWidget):
         # Position on screen
         self._snap_to_initial_position()
 
+        # Register OS RawInput device sink for system-wide touchpad events
+        self._register_raw_input()
+
         # Say hello at startup
         QTimer.singleShot(600, self._say_welcome)
 
@@ -909,6 +912,58 @@ class DesktopPet(QWidget):
             self.settings["sticky_note"] = text
             save_settings(self.settings)
             self.say(f"Target: \"{text}\" - Aku pantau terus ya nya! 🎯", 6000)
+
+    def _register_raw_input(self):
+        """Register OS RawInput device sink for system-wide touchpad and mouse messages."""
+        if sys.platform == "win32":
+            try:
+                from ctypes import wintypes
+                hwnd = int(self.winId())
+
+                class RAWINPUTDEVICE(ctypes.Structure):
+                    _fields_ = [
+                        ('usUsagePage', wintypes.USHORT),
+                        ('usUsage', wintypes.USHORT),
+                        ('dwFlags', wintypes.DWORD),
+                        ('hwndTarget', wintypes.HWND)
+                    ]
+
+                RIDEV_INPUTSINK = 0x00000100
+                devs = (RAWINPUTDEVICE * 2)()
+                # Generic Mouse
+                devs[0].usUsagePage = 1
+                devs[0].usUsage = 2
+                devs[0].dwFlags = RIDEV_INPUTSINK
+                devs[0].hwndTarget = hwnd
+                # Touchpad / Digitizer
+                devs[1].usUsagePage = 0x000D
+                devs[1].usUsage = 5
+                devs[1].dwFlags = RIDEV_INPUTSINK
+                devs[1].hwndTarget = hwnd
+
+                ctypes.windll.user32.RegisterRawInputDevices(devs, len(devs), ctypes.sizeof(RAWINPUTDEVICE))
+            except Exception:
+                pass
+
+    def nativeEvent(self, eventType, message):
+        """Intercept native OS messages including WM_INPUT for global touchpad scroll."""
+        if sys.platform == "win32":
+            try:
+                from ctypes import wintypes
+                msg = wintypes.MSG.from_address(message.__int__())
+                if msg.message == 0x00FF:  # WM_INPUT
+                    raw_size = wintypes.UINT(48)
+                    buf = ctypes.create_string_buffer(48)
+                    if ctypes.windll.user32.GetRawInputData(ctypes.c_void_p(msg.lParam), 0x10000003, buf, ctypes.byref(raw_size), 16) > 0:
+                        dw_type = int.from_bytes(buf.raw[0:4], byteorder='little')
+                        if dw_type == 0:  # Mouse / Touchpad
+                            button_flags = int.from_bytes(buf.raw[16:18], byteorder='little')
+                            # RI_MOUSE_WHEEL (0x0400) or RI_MOUSE_HWHEEL (0x0800)
+                            if (button_flags & 0x0400) or (button_flags & 0x0800):
+                                self._on_global_scroll(0.0, 1.0)
+            except Exception:
+                pass
+        return super().nativeEvent(eventType, message)
 
     def close_app(self):
         self.input_watcher.stop()
