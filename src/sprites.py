@@ -3,7 +3,7 @@ NyangBuddy Modern Pixel-Art Sprite Engine — 4-Frame Fluid Edition
 High-framerate 32x32 kawaii chubby pixel cat with 4-frame walk cycles,
 breathing idles, dynamic 8-direction eye follow, keyboard kneading on 3D mechanical keycaps,
 overheat steam mode, official Comnyang paper unroll scroll reaction, petting/purr reactions,
-and mochi drag with cute animated side tail.
+and mochi drag with sleek lower flank animated tail.
 """
 
 from PIL import Image, ImageDraw
@@ -662,9 +662,9 @@ def _draw_sleep_loaf(p: dict, frame_idx: int) -> Image.Image:
     return img
 
 
-# ─── 8. MOCHI DRAG & DANGLING (WITH SIDE TAIL) ─────────────────────────────
+# ─── 8. MOCHI DRAG & DANGLING (SLEEK LOWER FLANK TAIL) ─────────────────────
 def _draw_mochi_drag(p: dict, frame_idx: int) -> Image.Image:
-    """Elongated dangling cat with swinging paws and animated side tail when dragged."""
+    """Elongated dangling cat with swinging paws and sleek animated tail at lower flank."""
     img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
 
@@ -674,17 +674,16 @@ def _draw_mochi_drag(p: dict, frame_idx: int) -> Image.Image:
     K = (18, 18, 22, 255)
     E = p["inner_ear"]
 
-    # ── 1. Animated Side-Curled Tail (On right flank) ──
-    t_flick = [-2, 0, 2, 0][frame_idx % 4]
-    t_tip_y = 11 + t_flick
-    t_mid_x = 26 + (1 if t_flick > 0 else 0)
-
-    d.polygon([
-        (20, 21), (24, 18), (t_mid_x, 14), (t_mid_x - 1, t_tip_y), (t_mid_x - 3, t_tip_y),
-        (23, 15), (20, 19)
-    ], fill=O, outline=K)
-    d.line([(24, 17), (t_mid_x - 1, 16)], fill=S)
-    d.line([(23, 14), (t_mid_x - 2, 13)], fill=S)
+    # ── 1. Sleek Low Side-Curled Tail (Lower flank x: 19..27, y: 17..24) ──
+    flick_y = [-1, 0, 1, 0][frame_idx % 4]
+    tail_pts_outer = [
+        (19, 23), (22, 24), (25, 24 + flick_y), (27, 22 + flick_y),
+        (27, 18 + flick_y), (25, 17 + flick_y), (24, 18 + flick_y),
+        (25, 20 + flick_y), (23, 22 + flick_y), (19, 21)
+    ]
+    d.polygon(tail_pts_outer, fill=O, outline=K)
+    d.line([(22, 23), (24, 23 + flick_y)], fill=S)
+    d.line([(25, 21 + flick_y), (26, 20 + flick_y)], fill=S)
 
     # ── 2. Dangling Head & Body ──
     d.polygon([(14, 2), (16, 0), (18, 2)], fill=K)
