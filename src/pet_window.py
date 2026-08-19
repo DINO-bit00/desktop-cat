@@ -104,6 +104,7 @@ class DesktopPet(QWidget):
         self.scroll_reset_timer = QTimer(self)
         self.scroll_reset_timer.setSingleShot(True)
         self.scroll_reset_timer.timeout.connect(self._on_scroll_timeout)
+        self._scroll_delta_accum = 0.0
 
         # Frame Pixmap Cache
         self.pixmap_cache = {}
@@ -428,22 +429,34 @@ class DesktopPet(QWidget):
         if self.state == "overheat":
             self.set_state("work")
 
-    def _on_global_scroll(self, dy):
+    def _on_global_scroll(self, dx, dy):
         """
         Comnyang Feature #10: Paper Unroll!
         Spinning the paper roll with paws as user scrolls documents / pages.
+        Fully supports high-precision laptop 2-finger touchpad gestures and mouse wheel.
         """
         if self.state not in ["drag", "pet", "sleep"] and not self.pomodoro.is_active:
             if self.state != "paper_unroll":
                 self.set_state("paper_unroll")
-            # Advance frame dynamically with each scroll notch!
-            self.frame_index = (self.frame_index + 1) % 4
-            self.update()
+            # Accumulate both vertical (dy) and horizontal (dx) touchpad scrolling
+            magnitude = abs(dy) if abs(dy) > 0.0001 else abs(dx)
+            self._scroll_delta_accum += magnitude
+
+            # Advance frame smoothly when accumulated scroll reaches 0.35
+            if self._scroll_delta_accum >= 0.35:
+                steps = max(1, int(self._scroll_delta_accum / 0.35))
+                self._scroll_delta_accum -= steps * 0.35
+                self.frame_index = (self.frame_index + steps) % 4
+                self.update()
+            elif self.state == "paper_unroll":
+                self.update()
+
             # Reset timer: return to idle immediately (350ms) after scrolling ceases
             self.scroll_reset_timer.start(350)
 
     def _on_scroll_timeout(self):
         """Scroll stopped -> return to idle."""
+        self._scroll_delta_accum = 0.0
         if self.state == "paper_unroll":
             self.set_state("idle")
 

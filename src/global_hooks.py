@@ -1,8 +1,8 @@
 """
 Global OS Input Hooks for Comnyang-Style Interactions
 Listens to system-wide keyboard typing cadence (kneading & overheat)
-and mouse scroll wheel (paper unroll reaction) with balanced trigger sensitivity
-and instant pause memory clearing.
+and mouse/touchpad scroll wheel (including 2-finger precision touchpad scroll)
+with balanced trigger sensitivity and instant pause memory clearing.
 100% offline, zero network, zero data storage.
 """
 
@@ -20,15 +20,15 @@ except Exception:
 class GlobalInputWatcher(QObject):
     """
     Monitors typing speed, mouse movements, and scroll activity system-wide.
-    Emits signals with immediate response and balanced responsiveness.
+    Supports high-precision touchpad 2-finger gestures and standard wheel notches.
     """
     # Signals
     typing_started = pyqtSignal()
     typing_stopped = pyqtSignal()
     overheat_started = pyqtSignal()
     overheat_ended = pyqtSignal()
-    mouse_scrolled = pyqtSignal(int)          # dy scroll amount (+1 = up, -1 = down)
-    mouse_moved_fast = pyqtSignal(int, int)   # dx, dy
+    mouse_scrolled = pyqtSignal(float, float)   # dx, dy as floats for laptop touchpads
+    mouse_moved_fast = pyqtSignal(int, int)     # dx, dy
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -96,9 +96,7 @@ class GlobalInputWatcher(QObject):
             self._is_typing = True
             self.typing_started.emit()
 
-        # Balanced Overheat Trigger:
-        # 11 keystrokes in 1.8 seconds (~75 WPM fast typing burst).
-        # Responsive when you type fast naturally, but won't trigger on slow 1-finger typing.
+        # Balanced Overheat Trigger: 11 keys in 1.8s (~75 WPM)
         if len(self._key_count_window) >= 11:
             if not self._is_overheated:
                 self._is_overheated = True
@@ -118,7 +116,8 @@ class GlobalInputWatcher(QObject):
 
     def _on_mouse_scroll(self, x, y, dx, dy):
         self._last_scroll_time = time.time()
-        self.mouse_scrolled.emit(int(dy))
+        # Emit raw float deltas for full laptop 2-finger touchpad support
+        self.mouse_scrolled.emit(float(dx), float(dy))
 
     def _watchdog_loop(self):
         """Monitors typing cooldown and instant cease with clean window resets."""
@@ -129,7 +128,7 @@ class GlobalInputWatcher(QObject):
             # Clean rolling window
             self._key_count_window = [t for t in self._key_count_window if now - t <= 1.8]
 
-            # Check Overheat cool-down (returns to normal kneading when speed drops below 5 keys in 1.8s)
+            # Check Overheat cool-down
             if self._is_overheated and len(self._key_count_window) < 5:
                 self._is_overheated = False
                 self.overheat_ended.emit()
