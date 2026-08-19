@@ -434,12 +434,12 @@ def _draw_overheat(p: dict, frame_idx: int) -> Image.Image:
     return img
 
 
-# ─── 5. PAPER UNROLL (SCROLL REACTION — SPINNING PAPER ROLL) ───────────────
+# ─── 5. PAPER UNROLL (SCROLL REACTION — TOILET PAPER ROLL FRENZY) ───────────
 def _draw_paper_unroll(p: dict, frame_idx: int) -> Image.Image:
     """
-    Comnyang Feature #10: Paper Unroll!
-    When user scrolls pages, cat sits and playfully spins a toilet paper / parchment roll,
-    unspooling a trailing paper ribbon across the floor!
+    Comnyang Feature #10: Toilet Paper Frenzy!
+    When user scrolls pages, cat vigorously claws and unrolls a 3D toilet paper roll,
+    unspooling a trailing perforated paper sheet across the floor with flying paper bits!
     """
     img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
@@ -449,69 +449,92 @@ def _draw_paper_unroll(p: dict, frame_idx: int) -> Image.Image:
     K = p["outline"]
     E = p["inner_ear"]
 
-    # Cat Sitting Contentedly Behind Paper Roll
-    d.ellipse([7, 6, 24, 17], fill=O, outline=K)
-    d.polygon([(7, 6), (7, 1), (12, 6)], fill=O, outline=K)
-    d.polygon([(19, 6), (24, 1), (24, 6)], fill=O, outline=K)
-    img.putpixel((8, 4), E)
-    img.putpixel((23, 4), E)
+    T_white = (252, 254, 255, 255)
+    T_shade = (210, 218, 230, 255)
+    T_line = (185, 195, 210, 255)
+    Core_brown = (145, 115, 90, 255)
 
-    # Excited playful eyes looking down at paper roll
+    # 1. Cat Body sitting behind
+    d.ellipse([10, 12, 27, 27], fill=O, outline=K)
+    d.ellipse([14, 14, 22, 25], fill=W)
+
+    # 2. Cat Head (Playful focused look tilted forward)
+    head_y = 5
+    d.polygon([(11, head_y + 3), (10, head_y - 2), (15, head_y + 3)], fill=O, outline=K)
+    d.polygon([(21, head_y + 3), (25, head_y - 2), (25, head_y + 3)], fill=O, outline=K)
+    img.putpixel((11, head_y + 1), E)
+    img.putpixel((24, head_y + 1), E)
+
+    d.ellipse([9, head_y, 27, head_y + 12], fill=O, outline=K)
+    d.ellipse([13, head_y + 6, 18, head_y + 10], fill=W)
+    d.ellipse([18, head_y + 6, 23, head_y + 10], fill=W)
+    img.putpixel((18, head_y + 6), (225, 75, 55, 255))
+
+    # Eyes or Sunglasses
     if p.get("has_shades", False):
-        d.rectangle([9, 8, 22, 11], fill=(18, 18, 22, 255), outline=K)
-        img.putpixel((11, 9), (255, 255, 255, 255))
+        d.rectangle([11, head_y + 3, 25, head_y + 7], fill=(18, 18, 22, 255), outline=K)
+        img.putpixel((13, head_y + 4), (255, 255, 255, 255))
+        img.putpixel((21, head_y + 4), (255, 255, 255, 255))
     else:
-        d.ellipse([9, 8, 13, 12], fill=(255, 255, 255, 255), outline=K)
-        d.ellipse([18, 8, 22, 12], fill=(255, 255, 255, 255), outline=K)
-        # Pupils looking down
-        img.putpixel((11, 10), (20, 20, 20, 255))
-        img.putpixel((20, 10), (20, 20, 20, 255))
+        # Excited wide eyes looking down at toilet paper roll (* w *)
+        d.ellipse([12, head_y + 3, 16, head_y + 7], fill=(255, 255, 255, 255), outline=K)
+        d.ellipse([20, head_y + 3, 24, head_y + 7], fill=(255, 255, 255, 255), outline=K)
+        img.putpixel((13, head_y + 5), (20, 20, 20, 255))
+        img.putpixel((21, head_y + 5), (20, 20, 20, 255))
 
-    # Muzzle
-    d.ellipse([11, 11, 15, 15], fill=W)
-    d.ellipse([16, 11, 20, 15], fill=W)
-    img.putpixel((15, 11), (225, 75, 55, 255))
+    # 3. Big Iconic Toilet Paper Roll (3D Standing Cylinder on Left)
+    roll_x, roll_y = 3, 15
+    # Cylinder side body
+    d.rectangle([roll_x + 3, roll_y, roll_x + 11, roll_y + 12], fill=T_white, outline=K)
+    # Bottom round edge
+    d.ellipse([roll_x + 3, roll_y + 8, roll_x + 11, roll_y + 13], fill=T_shade, outline=K)
+    # Top round cap
+    d.ellipse([roll_x + 3, roll_y - 1, roll_x + 11, roll_y + 4], fill=T_white, outline=K)
+    # Brown cardboard core hole
+    d.ellipse([roll_x + 5, roll_y, roll_x + 9, roll_y + 3], fill=Core_brown, outline=K)
 
-    # Body
-    d.ellipse([7, 16, 24, 27], fill=O, outline=K)
-
-    # ── Paper Roll (Toilet Paper / Parchment Cylinder) ──
-    paper_white = (250, 252, 255, 255)
-    paper_shade = (215, 220, 230, 255)
-    core_brown = (175, 150, 130, 255)
-
-    # Main Roll Cylinder
-    d.rectangle([10, 19, 21, 24], fill=paper_white, outline=K)
-    # Roll core hole on left
-    d.ellipse([9, 19, 13, 24], fill=core_brown, outline=K)
-
-    # ── Unspooled Trailing Paper Ribbon (Waves dynamically across frames) ──
-    wave_shift = (frame_idx % 4)
-    # Unspooling sheet trailing forward and right
-    ribbon_pts = [
-        (13, 24),
-        (16 + wave_shift, 26),
-        (22 + wave_shift, 27),
-        (28, 29),
-        (22, 29),
-        (16, 28),
-        (12, 25)
+    # 4. Trailing Unspooling Toilet Paper Sheet (Flows down & right across floor)
+    wave = (frame_idx % 4)
+    sheet_pts = [
+        (roll_x + 10, roll_y + 2),
+        (roll_x + 15, roll_y + 6 + (1 if wave in (1, 2) else 0)),
+        (roll_x + 22, roll_y + 11 - (1 if wave in (2, 3) else 0)),
+        (roll_x + 28, roll_y + 14),
+        (roll_x + 27, roll_y + 16),
+        (roll_x + 20, roll_y + 14),
+        (roll_x + 14, roll_y + 9),
+        (roll_x + 10, roll_y + 5)
     ]
-    d.polygon(ribbon_pts, fill=paper_white, outline=K)
+    d.polygon(sheet_pts, fill=T_white, outline=K)
 
-    # ── Alternating Spinning Paws (Batting the roll) ──
+    # Perforation lines on paper sheets
+    if wave % 2 == 0:
+        d.line([(roll_x + 16, roll_y + 7), (roll_x + 15, roll_y + 10)], fill=T_line)
+        d.line([(roll_x + 23, roll_y + 12), (roll_x + 22, roll_y + 15)], fill=T_line)
+
+    # Flying paper shreds
+    if frame_idx in (1, 2):
+        img.putpixel((roll_x + 12, roll_y - 2), T_white)
+        img.putpixel((roll_x + 18, roll_y + 2), T_white)
+    elif frame_idx == 3:
+        img.putpixel((roll_x + 15, roll_y - 1), T_white)
+        img.putpixel((roll_x + 24, roll_y + 8), T_white)
+
+    # 5. Paw Clawing Animations (Alternating paws scratching the roll)
     if frame_idx == 0:
-        d.rectangle([9, 17, 13, 20], fill=W, outline=K)   # Left paw on top of roll
-        d.rectangle([18, 19, 22, 22], fill=W, outline=K)  # Right paw below
+        d.rectangle([roll_x + 5, roll_y + 3, roll_x + 9, roll_y + 6], fill=W, outline=K)
+        d.line([(roll_x + 6, roll_y + 6), (roll_x + 8, roll_y + 6)], fill=K)
+        d.rectangle([roll_x + 11, roll_y - 1, roll_x + 15, roll_y + 2], fill=W, outline=K)
     elif frame_idx == 1:
-        d.rectangle([10, 18, 14, 21], fill=W, outline=K)
-        d.rectangle([17, 18, 21, 21], fill=W, outline=K)
+        d.rectangle([roll_x + 6, roll_y + 5, roll_x + 10, roll_y + 8], fill=W, outline=K)
+        d.rectangle([roll_x + 10, roll_y + 2, roll_x + 14, roll_y + 5], fill=W, outline=K)
     elif frame_idx == 2:
-        d.rectangle([10, 19, 14, 22], fill=W, outline=K)  # Left paw below
-        d.rectangle([18, 17, 22, 20], fill=W, outline=K)  # Right paw on top of roll
+        d.rectangle([roll_x + 6, roll_y - 1, roll_x + 10, roll_y + 2], fill=W, outline=K)
+        d.rectangle([roll_x + 10, roll_y + 3, roll_x + 14, roll_y + 6], fill=W, outline=K)
+        d.line([(roll_x + 11, roll_y + 6), (roll_x + 13, roll_y + 6)], fill=K)
     else:
-        d.rectangle([11, 18, 15, 21], fill=W, outline=K)
-        d.rectangle([17, 18, 21, 21], fill=W, outline=K)
+        d.rectangle([roll_x + 7, roll_y + 2, roll_x + 11, roll_y + 5], fill=W, outline=K)
+        d.rectangle([roll_x + 9, roll_y + 5, roll_x + 13, roll_y + 8], fill=W, outline=K)
 
     return img
 
