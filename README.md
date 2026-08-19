@@ -17,11 +17,11 @@ Aplikasi **Desktop Companion / Virtual Pet Kucing** berbasis Python yang dibuat 
 * **🐾 Karakter & Pixel Art Kucing:**
   * Pilihan Skin: **Si Oyen (Orange Tabby)**, **Belang Tiga (Calico)**, **Si Tuxedo (Black & White)**, **Abu-Abu (Grey Tabby)**, dan **Si Putih (Snow White)**.
   * Ragam Animasi: *Idle*, *Jalan (Wander)*, *Tidur (Sleep)*, *Ngoding/Kneading (Work)*, *Dielus (Pet/Purr)*, *Melompat Senang (Celebrate)*, *Berpikir (Thinking)*.
-* **✨ Interaksi Mengambang & Transparan:**
-  * Jendela tanpa bingkai (*frameless*) & latar belakang transparan.
-  * Bisa digeser (*drag & drop*) ke mana saja di layar atau monitor lain.
-  * Gravitasi lembut: Saat dilepas, kucing akan duduk di atas area taskbar.
-  * Klik kiri untuk mengelus (*petting*) memunculkan balon dialog lucu.
+* **✨ Interaksi Mengambang, Bebas & Transparan:**
+  * Jendela tanpa bingkai (*frameless*), latar transparan, dan **Always on Top** (menggunakan Win32 API).
+  * **Bebas Diletakkan di Mana Saja:** Kucing bisa kamu taruh di pojok atas, tengah layar, atas browser, samping IDE, atau di atas taskbar (posisi tersimpan otomatis!).
+  * **Animasi Saat Digeser / Pindah (*Dangling & Landing*):** Saat kamu klik dan geser (*drag*), kucing akan bergelantungan dengan kaki mengayun lucu dan ekor bergoyang. Saat dilepas (*drop*), kucing akan mendarat dengan animasi membal (*squish bounce*).
+  * Klik kiri biasa untuk mengelus (*petting*) memunculkan balon dialog lucu.
 * **⏱️ Produktivitas & Kesehatan:**
   * **Pomodoro Focus Timer (25m / 50m / Custom):** Saat mode fokus aktif, kucing akan berubah ke animasi mengetik/bekerja (*work mode*). Ketika selesai, kucing akan melompat gembira (*celebrate*)!
   * **Health & Hydration Reminders:** Pengingat minum air putih dan peregangan postur tubuh berkala.
