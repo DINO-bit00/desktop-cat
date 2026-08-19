@@ -1,8 +1,8 @@
 """
 Global OS Input Hooks for Comnyang-Style Interactions
 Listens to system-wide keyboard typing cadence (kneading & overheat)
-and mouse scroll wheel (paper unroll reaction) with instant zero-lag stop response
-and strict overheat threshold protection.
+and mouse scroll wheel (paper unroll reaction) with balanced trigger sensitivity
+and instant pause memory clearing.
 100% offline, zero network, zero data storage.
 """
 
@@ -20,7 +20,7 @@ except Exception:
 class GlobalInputWatcher(QObject):
     """
     Monitors typing speed, mouse movements, and scroll activity system-wide.
-    Emits signals with immediate response and zero unnecessary delays.
+    Emits signals with immediate response and balanced responsiveness.
     """
     # Signals
     typing_started = pyqtSignal()
@@ -34,7 +34,6 @@ class GlobalInputWatcher(QObject):
         super().__init__(parent)
         self.is_running = False
         self._last_key_time = 0.0
-        self._typing_burst_start = 0.0
         self._key_count_window = []  # timestamps of recent keystrokes
         self._is_typing = False
         self._is_overheated = False
@@ -90,19 +89,17 @@ class GlobalInputWatcher(QObject):
         self._last_key_time = now
         self._key_count_window.append(now)
 
-        # Rolling window of keystrokes in last 1.5 seconds
-        self._key_count_window = [t for t in self._key_count_window if now - t <= 1.5]
+        # Rolling window of keystrokes in last 1.8 seconds
+        self._key_count_window = [t for t in self._key_count_window if now - t <= 1.8]
 
         if not self._is_typing:
             self._is_typing = True
-            self._typing_burst_start = now
             self.typing_started.emit()
 
-        # Strict Overheat Trigger:
-        # Requires:
-        # 1. At least 16 keystrokes in the last 1.5s (>100+ WPM fast furious typing)
-        # 2. Continuous typing sustained for at least 0.7s (prevents accidental trigger from short bursts)
-        if len(self._key_count_window) >= 16 and (now - self._typing_burst_start >= 0.7):
+        # Balanced Overheat Trigger:
+        # 11 keystrokes in 1.8 seconds (~75 WPM fast typing burst).
+        # Responsive when you type fast naturally, but won't trigger on slow 1-finger typing.
+        if len(self._key_count_window) >= 11:
             if not self._is_overheated:
                 self._is_overheated = True
                 self.overheat_started.emit()
@@ -130,10 +127,10 @@ class GlobalInputWatcher(QObject):
             now = time.time()
 
             # Clean rolling window
-            self._key_count_window = [t for t in self._key_count_window if now - t <= 1.5]
+            self._key_count_window = [t for t in self._key_count_window if now - t <= 1.8]
 
-            # Check Overheat cool-down (cools down as soon as speed drops below 8 keys in 1.5s)
-            if self._is_overheated and len(self._key_count_window) < 8:
+            # Check Overheat cool-down (returns to normal kneading when speed drops below 5 keys in 1.8s)
+            if self._is_overheated and len(self._key_count_window) < 5:
                 self._is_overheated = False
                 self.overheat_ended.emit()
 
@@ -141,7 +138,6 @@ class GlobalInputWatcher(QObject):
             if self._is_typing and (now - self._last_key_time > 0.35):
                 self._is_typing = False
                 self._is_overheated = False
-                # CRITICAL: Clear keystroke history window on typing pause so next typing starts fresh!
+                # Clear keystroke memory on pause so next typing session starts fresh!
                 self._key_count_window.clear()
-                self._typing_burst_start = 0.0
                 self.typing_stopped.emit()
