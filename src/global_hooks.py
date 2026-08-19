@@ -1,8 +1,9 @@
 """
 Global OS Input Hooks for Comnyang-Style Interactions
 Listens to system-wide keyboard typing cadence (kneading & overheat),
-laptop precision touchpad 2-finger scroll (via low-level win32 filter),
-keyboard page navigation scrolling (PgUp/PgDn/Up/Down), and mouse wheel notches.
+laptop precision touchpad 2-finger scroll (all Windows wheel & pointer messages),
+keyboard document navigation scroll (PageDown, PageUp, Arrow keys),
+and mouse wheel.
 100% offline, zero network, zero data storage.
 """
 
@@ -21,17 +22,17 @@ except Exception:
 class GlobalInputWatcher(QObject):
     """
     Monitors typing speed, mouse movements, and scroll activity system-wide.
-    Provides 100% reliable detection for:
-    1. Laptop precision touchpad 2-finger smooth scrolling
+    Comprehensive scroll detection for:
+    1. Laptop touchpad 2-finger scrolling (WM_MOUSEWHEEL, WM_MOUSEHWHEEL, WM_POINTERWHEEL)
     2. Physical mouse scroll wheel
-    3. Keyboard document scrolling (Page Down, Page Up, Down Arrow, Up Arrow)
+    3. Keyboard document navigation (Page Down, Page Up, Down Arrow, Up Arrow)
     """
     # Signals
     typing_started = pyqtSignal()
     typing_stopped = pyqtSignal()
     overheat_started = pyqtSignal()
     overheat_ended = pyqtSignal()
-    mouse_scrolled = pyqtSignal(float, float)   # dx, dy as floats for laptop touchpads
+    mouse_scrolled = pyqtSignal(float, float)   # dx, dy as floats
     mouse_moved_fast = pyqtSignal(int, int)     # dx, dy
 
     def __init__(self, parent=None):
@@ -63,7 +64,6 @@ class GlobalInputWatcher(QObject):
             self._kb_listener.daemon = True
             self._kb_listener.start()
 
-            # On Windows, use win32_event_filter to capture sub-delta precision touchpad 2-finger scrolls
             if sys.platform == "win32":
                 self._mouse_listener = mouse.Listener(
                     on_move=self._on_mouse_move,
@@ -99,22 +99,21 @@ class GlobalInputWatcher(QObject):
     def _win32_mouse_filter(self, msg, data):
         """
         Low-level Windows event filter:
-        Catches high-resolution fractional 2-finger touchpad scrolling (WM_MOUSEWHEEL & WM_MOUSEHWHEEL)
-        which would otherwise be truncated to zero by pynput's integer floor division.
+        Catches fractional 2-finger touchpad scrolling (WM_MOUSEWHEEL, WM_MOUSEHWHEEL, WM_POINTERWHEEL)
+        and emits scroll signals immediately.
         """
-        # WM_MOUSEWHEEL = 0x020A, WM_MOUSEHWHEEL = 0x020E
-        if msg in (0x020A, 0x020E):
+        # WM_MOUSEWHEEL = 0x020A, WM_MOUSEHWHEEL = 0x020E, WM_POINTERWHEEL = 0x024E, WM_POINTERHWHEEL = 0x024F
+        if msg in (0x020A, 0x020E, 0x024E, 0x024F):
             try:
-                raw = data.mouseData >> 16
+                raw = (data.mouseData >> 16) & 0xFFFF
                 if raw > 32767:
                     raw -= 65536
-                float_delta = raw / 120.0
-                if abs(float_delta) > 0.0001:
-                    self._last_scroll_time = time.time()
-                    if msg == 0x020A:
-                        self.mouse_scrolled.emit(0.0, float_delta)
-                    else:
-                        self.mouse_scrolled.emit(float_delta, 0.0)
+                float_delta = raw / 120.0 if raw != 0 else 1.0
+                self._last_scroll_time = time.time()
+                if msg in (0x020A, 0x024E):
+                    self.mouse_scrolled.emit(0.0, float_delta)
+                else:
+                    self.mouse_scrolled.emit(float_delta, 0.0)
             except Exception:
                 pass
         return True
@@ -122,7 +121,7 @@ class GlobalInputWatcher(QObject):
     def _on_key_press(self, key):
         now = time.time()
 
-        # Document / Page Navigation Scroll Keys (trigger Paper Unroll instead of typing)
+        # Keyboard Document Navigation Scroll Keys (trigger Paper Unroll instead of typing)
         if hasattr(keyboard, 'Key'):
             if key in (keyboard.Key.page_down, keyboard.Key.page_up, keyboard.Key.down, keyboard.Key.up):
                 self._last_scroll_time = now
@@ -159,10 +158,9 @@ class GlobalInputWatcher(QObject):
             self._last_mouse_time = now
 
     def _on_mouse_scroll(self, x, y, dx, dy):
-        # Fallback for non-windows platforms or standard mouse wheel
-        if sys.platform != "win32":
-            self._last_scroll_time = time.time()
-            self.mouse_scrolled.emit(float(dx), float(dy))
+        """Called by standard pynput listener on all platforms."""
+        self._last_scroll_time = time.time()
+        self.mouse_scrolled.emit(float(dx), float(dy))
 
     def _watchdog_loop(self):
         """Monitors typing cooldown and instant cease with clean window resets."""

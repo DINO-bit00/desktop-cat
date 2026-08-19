@@ -438,21 +438,11 @@ class DesktopPet(QWidget):
         if self.state not in ["drag", "pet", "sleep"] and not self.pomodoro.is_active:
             if self.state != "paper_unroll":
                 self.set_state("paper_unroll")
-            # Accumulate both vertical (dy) and horizontal (dx) touchpad scrolling
-            magnitude = abs(dy) if abs(dy) > 0.0001 else abs(dx)
-            self._scroll_delta_accum += magnitude
-
-            # Advance frame smoothly when accumulated scroll reaches 0.35
-            if self._scroll_delta_accum >= 0.35:
-                steps = max(1, int(self._scroll_delta_accum / 0.35))
-                self._scroll_delta_accum -= steps * 0.35
-                self.frame_index = (self.frame_index + steps) % 4
-                self.update()
-            elif self.state == "paper_unroll":
-                self.update()
-
-            # Reset timer: return to idle immediately (350ms) after scrolling ceases
-            self.scroll_reset_timer.start(350)
+            # Advance frame dynamically on each scroll event
+            self.frame_index = (self.frame_index + 1) % 4
+            self.update()
+            # Reset timer: return to idle immediately (400ms) after scrolling ceases
+            self.scroll_reset_timer.start(400)
 
     def _on_scroll_timeout(self):
         """Scroll stopped -> return to idle."""
