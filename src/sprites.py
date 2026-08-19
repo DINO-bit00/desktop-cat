@@ -482,59 +482,59 @@ def _draw_paper_unroll(p: dict, frame_idx: int) -> Image.Image:
         img.putpixel((13, head_y + 5), (20, 20, 20, 255))
         img.putpixel((21, head_y + 5), (20, 20, 20, 255))
 
-    # 3. Big Iconic Toilet Paper Roll (3D Standing Cylinder on Left)
-    roll_x, roll_y = 3, 15
+    # 3. Big Iconic Toilet Paper Roll (Placed Higher Up next to head/chest at y = 9)
+    roll_x, roll_y = 3, 9
     # Cylinder side body
-    d.rectangle([roll_x + 3, roll_y, roll_x + 11, roll_y + 12], fill=T_white, outline=K)
+    d.rectangle([roll_x + 2, roll_y + 2, roll_x + 11, roll_y + 15], fill=T_white, outline=K)
     # Bottom round edge
-    d.ellipse([roll_x + 3, roll_y + 8, roll_x + 11, roll_y + 13], fill=T_shade, outline=K)
+    d.ellipse([roll_x + 2, roll_y + 11, roll_x + 11, roll_y + 16], fill=T_shade, outline=K)
     # Top round cap
-    d.ellipse([roll_x + 3, roll_y - 1, roll_x + 11, roll_y + 4], fill=T_white, outline=K)
+    d.ellipse([roll_x + 2, roll_y - 1, roll_x + 11, roll_y + 5], fill=T_white, outline=K)
     # Brown cardboard core hole
-    d.ellipse([roll_x + 5, roll_y, roll_x + 9, roll_y + 3], fill=Core_brown, outline=K)
+    d.ellipse([roll_x + 5, roll_y + 1, roll_x + 9, roll_y + 4], fill=Core_brown, outline=K)
 
-    # 4. Trailing Unspooling Toilet Paper Sheet (Flows down & right across floor)
+    # 4. Trailing Unspooling Toilet Paper Sheet (Cascades down from roll to floor)
     wave = (frame_idx % 4)
     sheet_pts = [
-        (roll_x + 10, roll_y + 2),
-        (roll_x + 15, roll_y + 6 + (1 if wave in (1, 2) else 0)),
-        (roll_x + 22, roll_y + 11 - (1 if wave in (2, 3) else 0)),
-        (roll_x + 28, roll_y + 14),
-        (roll_x + 27, roll_y + 16),
-        (roll_x + 20, roll_y + 14),
-        (roll_x + 14, roll_y + 9),
-        (roll_x + 10, roll_y + 5)
+        (roll_x + 10, roll_y + 3),
+        (roll_x + 16, roll_y + 9 + (1 if wave in (1, 2) else 0)),
+        (roll_x + 23, roll_y + 15 - (1 if wave in (2, 3) else 0)),
+        (roll_x + 28, roll_y + 19),
+        (roll_x + 27, roll_y + 22),
+        (roll_x + 20, roll_y + 19),
+        (roll_x + 14, roll_y + 13),
+        (roll_x + 10, roll_y + 7)
     ]
     d.polygon(sheet_pts, fill=T_white, outline=K)
 
     # Perforation lines on paper sheets
     if wave % 2 == 0:
-        d.line([(roll_x + 16, roll_y + 7), (roll_x + 15, roll_y + 10)], fill=T_line)
-        d.line([(roll_x + 23, roll_y + 12), (roll_x + 22, roll_y + 15)], fill=T_line)
+        d.line([(roll_x + 16, roll_y + 10), (roll_x + 15, roll_y + 14)], fill=T_line)
+        d.line([(roll_x + 23, roll_y + 16), (roll_x + 22, roll_y + 20)], fill=T_line)
 
     # Flying paper shreds
     if frame_idx in (1, 2):
-        img.putpixel((roll_x + 12, roll_y - 2), T_white)
-        img.putpixel((roll_x + 18, roll_y + 2), T_white)
+        img.putpixel((roll_x + 13, roll_y - 1), T_white)
+        img.putpixel((roll_x + 19, roll_y + 4), T_white)
     elif frame_idx == 3:
-        img.putpixel((roll_x + 15, roll_y - 1), T_white)
-        img.putpixel((roll_x + 24, roll_y + 8), T_white)
+        img.putpixel((roll_x + 16, roll_y), T_white)
+        img.putpixel((roll_x + 24, roll_y + 12), T_white)
 
-    # 5. Paw Clawing Animations (Alternating paws scratching the roll)
+    # 5. Paw Clawing Animations (Reaching up and clawing down)
     if frame_idx == 0:
-        d.rectangle([roll_x + 5, roll_y + 3, roll_x + 9, roll_y + 6], fill=W, outline=K)
-        d.line([(roll_x + 6, roll_y + 6), (roll_x + 8, roll_y + 6)], fill=K)
-        d.rectangle([roll_x + 11, roll_y - 1, roll_x + 15, roll_y + 2], fill=W, outline=K)
+        d.rectangle([roll_x + 5, roll_y + 4, roll_x + 9, roll_y + 7], fill=W, outline=K)
+        d.line([(roll_x + 6, roll_y + 7), (roll_x + 8, roll_y + 7)], fill=K)
+        d.rectangle([roll_x + 11, roll_y, roll_x + 15, roll_y + 3], fill=W, outline=K)
     elif frame_idx == 1:
-        d.rectangle([roll_x + 6, roll_y + 5, roll_x + 10, roll_y + 8], fill=W, outline=K)
-        d.rectangle([roll_x + 10, roll_y + 2, roll_x + 14, roll_y + 5], fill=W, outline=K)
-    elif frame_idx == 2:
-        d.rectangle([roll_x + 6, roll_y - 1, roll_x + 10, roll_y + 2], fill=W, outline=K)
+        d.rectangle([roll_x + 6, roll_y + 6, roll_x + 10, roll_y + 9], fill=W, outline=K)
         d.rectangle([roll_x + 10, roll_y + 3, roll_x + 14, roll_y + 6], fill=W, outline=K)
-        d.line([(roll_x + 11, roll_y + 6), (roll_x + 13, roll_y + 6)], fill=K)
+    elif frame_idx == 2:
+        d.rectangle([roll_x + 6, roll_y, roll_x + 10, roll_y + 3], fill=W, outline=K)
+        d.rectangle([roll_x + 10, roll_y + 4, roll_x + 14, roll_y + 7], fill=W, outline=K)
+        d.line([(roll_x + 11, roll_y + 7), (roll_x + 13, roll_y + 7)], fill=K)
     else:
-        d.rectangle([roll_x + 7, roll_y + 2, roll_x + 11, roll_y + 5], fill=W, outline=K)
-        d.rectangle([roll_x + 9, roll_y + 5, roll_x + 13, roll_y + 8], fill=W, outline=K)
+        d.rectangle([roll_x + 7, roll_y + 3, roll_x + 11, roll_y + 6], fill=W, outline=K)
+        d.rectangle([roll_x + 9, roll_y + 6, roll_x + 13, roll_y + 9], fill=W, outline=K)
 
     return img
 
