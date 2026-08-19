@@ -1,8 +1,9 @@
 """
-Main Desktop Pet Window — Comnyang Modern Physics & Interaction Engine (Phase 2)
+Main Desktop Pet Window — Comnyang Modern Physics & Interaction Engine
 Transparent, draggable, animated floating companion with 60 FPS sub-pixel physics,
 realtime 8-direction eye tracking, live mouse hunt pounce, mochi inertia wobble,
-global keyboard kneading, overheat mode with steam puffs, and paper unroll scroll reactions!
+global keyboard kneading, overheat mode, paper unroll scroll reactions,
+and fully customizable character scale (64px - 256px)!
 """
 
 import os
@@ -60,8 +61,8 @@ class DesktopPet(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
         self.setMouseTracking(True)
 
-        # Pet Dimensions
-        self.sprite_size = 128
+        # Customizable Pet Dimensions (Default: 128, range 48 to 256)
+        self.sprite_size = int(self.settings.get("sprite_size", 128))
         self.setFixedSize(self.sprite_size, self.sprite_size)
 
         # Sub-pixel Float Coordinates
@@ -182,6 +183,44 @@ class DesktopPet(QWidget):
         return frames[self.frame_index % len(frames)]
 
     # -------------------------------------------------------------
+    # Dynamic Size Scaling (48px - 256px)
+    # -------------------------------------------------------------
+    def set_sprite_size(self, new_size, show_dialogue=True):
+        """Dynamically resize character while keeping pixel art crisp and centered."""
+        new_size = max(48, min(256, int(new_size)))
+        if new_size == self.sprite_size:
+            return
+
+        old_size = self.sprite_size
+        self.sprite_size = new_size
+        self.settings["sprite_size"] = new_size
+        save_settings(self.settings)
+
+        # Keep center position stable
+        center_x = self.pos_x_f + old_size / 2.0
+        center_y = self.pos_y_f + old_size / 2.0
+        new_x = center_x - new_size / 2.0
+        new_y = center_y - new_size / 2.0
+
+        screen_geo = self._get_current_screen_geometry()
+        self.pos_x_f = max(screen_geo.left(), min(new_x, screen_geo.right() - new_size))
+        self.pos_y_f = max(screen_geo.top(), min(new_y, screen_geo.bottom() - new_size))
+
+        self.setFixedSize(new_size, new_size)
+        self.move(int(self.pos_x_f), int(self.pos_y_f))
+        self._update_bubble_position()
+        self.update()
+
+        self._play_sound_blip(freq=1520, dur=40)
+        if show_dialogue:
+            self.say(f"Ukuran diubah: {new_size}px nya! ✨", 2000)
+
+    def _get_head_rect(self):
+        """Calculate scaled head hitbox for petting interaction."""
+        s = self.sprite_size / 128.0
+        return QRect(int(24 * s), int(10 * s), int(80 * s), int(62 * s))
+
+    # -------------------------------------------------------------
     # Placement & Screen Geometry
     # -------------------------------------------------------------
     def _get_current_screen_geometry(self):
@@ -256,10 +295,10 @@ class DesktopPet(QWidget):
         # ── 1. DYNAMIC 8-DIRECTION EYE FOLLOW ──
         cursor_pos = QCursor.pos()
         dx = cursor_pos.x() - cat_center_x
-        dy = cursor_pos.y() - (cat_center_y - 15)
+        dy = cursor_pos.y() - (cat_center_y - (15 * (self.sprite_size / 128.0)))
         dist = math.hypot(dx, dy)
 
-        if dist > 40:
+        if dist > (40 * (self.sprite_size / 128.0)):
             angle = math.degrees(math.atan2(dy, dx))
             if -22.5 <= angle < 22.5:
                 self.look_dx, self.look_dy = 1, 0
@@ -294,7 +333,7 @@ class DesktopPet(QWidget):
             h_dy = target_y - self.pos_y_f
             h_dist = math.hypot(h_dx, h_dy)
 
-            if h_dist <= 40.0:
+            if h_dist <= (40.0 * (self.sprite_size / 128.0)):
                 self.is_hunting = False
                 self.set_state("land")
                 self._play_sound_blip(freq=1450, dur=40)
@@ -323,7 +362,7 @@ class DesktopPet(QWidget):
         # ── REALTIME PET HEAD ZONE CHECK (Instant Stop When Cursor Leaves Head) ──
         if self.state == "pet":
             local_p = self.mapFromGlobal(QCursor.pos())
-            head_rect = QRect(24, 10, 80, 62)
+            head_rect = self._get_head_rect()
             if not self.rect().contains(local_p) or not head_rect.contains(local_p):
                 self.set_state("idle")
             return
@@ -377,7 +416,7 @@ class DesktopPet(QWidget):
             self.set_state("idle")
 
     def _on_global_overheat_start(self):
-        """Typing super fast (>75 WPM) -> Overheat mode with steam puffs!"""
+        """Typing super fast -> Overheat mode with steam puffs!"""
         if self.state not in ["drag", "land", "pet"]:
             self.set_state("overheat")
             self._play_sound_blip(freq=1650, dur=55)
@@ -423,7 +462,7 @@ class DesktopPet(QWidget):
         cat_center_y = self.pos_y_f + self.sprite_size / 2.0
         dist = math.hypot(mouse_x - cat_center_x, mouse_y - cat_center_y)
 
-        if 120 < dist < 550:
+        if (120 * (self.sprite_size / 128.0)) < dist < (550 * (self.sprite_size / 128.0)):
             self.hunt_cooldown = now
             self.hunt_start_time = now
             self.is_hunting = True
@@ -431,7 +470,7 @@ class DesktopPet(QWidget):
             self._play_sound_blip(freq=1420, dur=35)
 
     # -------------------------------------------------------------
-    # Paint & Render (Nearest-Neighbor + Mochi Tilt & Squish)
+    # Paint & Render (Nearest-Neighbor Crisp Scaling + Mochi Tilt)
     # -------------------------------------------------------------
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -464,8 +503,21 @@ class DesktopPet(QWidget):
             painter.drawPixmap(0, 0, self.sprite_size, self.sprite_size, pixmap)
 
     # -------------------------------------------------------------
-    # Mouse & Drag Interactions (Mochi Drag & Petting)
+    # Mouse & Drag Interactions (Mochi Drag, Petting, & Ctrl+Wheel Zoom)
     # -------------------------------------------------------------
+    def wheelEvent(self, event):
+        """Ctrl + Wheel over cat to zoom in/out realtime."""
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            delta = event.angleDelta().y()
+            if delta > 0:
+                self.set_sprite_size(self.sprite_size + 12, show_dialogue=False)
+            elif delta < 0:
+                self.set_sprite_size(self.sprite_size - 12, show_dialogue=False)
+            self.setToolTip(f"NyangBuddy Size: {self.sprite_size}px (Ctrl+Scroll)")
+            event.accept()
+        else:
+            super().wheelEvent(event)
+
     def mouseMoveEvent(self, event):
         if self.is_dragging and event.buttons() == Qt.MouseButton.LeftButton:
             global_pt = event.globalPosition().toPoint()
@@ -497,7 +549,7 @@ class DesktopPet(QWidget):
         else:
             # Petting / Pat-pat detection: only active directly on cat head!
             local_pos = event.position().toPoint()
-            head_rect = QRect(24, 10, 80, 62)
+            head_rect = self._get_head_rect()
 
             if head_rect.contains(local_pos):
                 if self.state != "pet" and self.state not in ["drag", "land", "work", "overheat"]:
@@ -671,7 +723,7 @@ class DesktopPet(QWidget):
         mins = remaining // 60
         secs = remaining % 60
         title = "Fokus" if mode == "work" else "Break"
-        self.setToolTip(f"NyangBuddy - {title} [{mins:02d}:{secs:02d}]")
+        self.setToolTip(f"NyangBuddy - {title} [{mins:02d}:{secs:02d}] (Ctrl+Scroll: Zoom)")
 
     def _on_reminder(self, text):
         self.say(text, 5000)
@@ -727,9 +779,28 @@ class DesktopPet(QWidget):
             action.setChecked(self.skin == skin_key)
             action.triggered.connect(lambda checked, k=skin_key: self._change_skin(k))
 
+        # 2. Size / Scale Submenu
+        size_menu = menu.addMenu("🔍 Ukuran Karakter (Size)")
+        sizes = [
+            ("🔎 Mini (64px)", 64),
+            ("🐱 Sedang (96px)", 96),
+            ("😺 Standar (128px - Default)", 128),
+            ("🦁 Besar (160px)", 160),
+            ("👑 Jumbo (192px)", 192)
+        ]
+        for label, sz in sizes:
+            act = size_menu.addAction(label)
+            act.setCheckable(True)
+            act.setChecked(self.sprite_size == sz)
+            act.triggered.connect(lambda checked, s=sz: self.set_sprite_size(s))
+
+        size_menu.addSeparator()
+        custom_size_act = size_menu.addAction("📐 Atur Ukuran Bebas (Custom)...")
+        custom_size_act.triggered.connect(self._prompt_custom_size)
+
         menu.addSeparator()
 
-        # 2. Pomodoro Submenu
+        # 3. Pomodoro Submenu
         pom_menu = menu.addMenu("⏱️ Pomodoro Timer")
         if not self.pomodoro.is_active:
             start_25 = pom_menu.addAction("▶️ Mulai Fokus (25 Menit)")
@@ -742,7 +813,7 @@ class DesktopPet(QWidget):
             stop_action = pom_menu.addAction(f"⏹️ Hentikan ({self.pomodoro.format_time()})")
             stop_action.triggered.connect(self.pomodoro.stop)
 
-        # 3. Actions / State Switch
+        # 4. Actions / State Switch
         act_menu = menu.addMenu("🐾 Ganti Gaya / Aksi")
         act_menu.addAction("😺 Duduk Santai (Idle)", lambda: self.set_state("idle"))
         act_menu.addAction("💻 Mode Ngoding/Work", lambda: self.set_state("work"))
@@ -755,11 +826,11 @@ class DesktopPet(QWidget):
 
         menu.addSeparator()
 
-        # 4. Sticky Note / Pinned Focus
+        # 5. Sticky Note / Pinned Focus
         note_action = menu.addAction("📌 Set Target Fokus / Note")
         note_action.triggered.connect(self._prompt_sticky_note)
 
-        # 5. Options
+        # 6. Options
         hunt_act = menu.addAction("🎯 Kejar Kursor Cepat (Mouse Hunt)")
         hunt_act.setCheckable(True)
         hunt_act.setChecked(self.settings.get("mouse_hunt_enabled", True))
@@ -782,7 +853,7 @@ class DesktopPet(QWidget):
 
         menu.addSeparator()
 
-        # 6. Quit
+        # 7. Quit
         quit_act = menu.addAction("❌ Keluar (Close)")
         quit_act.triggered.connect(self.close_app)
 
@@ -800,6 +871,14 @@ class DesktopPet(QWidget):
         else:
             pet_name = PALETTES[skin_key]["name"]
             self.say(f"Ganti kostum ke {pet_name} nya! 🐾")
+
+    def _prompt_custom_size(self):
+        val, ok = QInputDialog.getInt(
+            self, "Ukuran Karakter Kustom", "Masukkan ukuran pixel karakter (48 - 256 px):",
+            value=self.sprite_size, min=48, max=256, step=8
+        )
+        if ok:
+            self.set_sprite_size(val)
 
     def _toggle_mouse_hunt(self, checked):
         self.settings["mouse_hunt_enabled"] = checked
