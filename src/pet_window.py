@@ -433,9 +433,9 @@ class DesktopPet(QWidget):
         """
         Comnyang Feature #10: Paper Unroll!
         Spinning the paper roll with paws as user scrolls documents / pages.
-        Fully supports high-precision laptop 2-finger touchpad gestures and mouse wheel.
+        Wakes up the cat from sleep and responds to all scroll events.
         """
-        if self.state not in ["drag", "pet", "sleep"] and not self.pomodoro.is_active:
+        if self.state not in ["drag", "pet"] and not self.pomodoro.is_active:
             if self.state != "paper_unroll":
                 self.set_state("paper_unroll")
             # Advance frame dynamically on each scroll event
