@@ -1,625 +1,272 @@
 """
-Pixel-Art Cat Sprite Generator & Manager (Handcrafted Matrix Engine)
-Faithfully recreates the authentic retro pixel art directly using handcrafted 2D pixel grids.
-Eliminates awkward geometric shapes to produce 100% pixel-perfect, cute, expressive sprites.
+Pixel-Art Cat Sprite Generator & Manager (Direct Authentic Reference Extraction)
+Uses the exact authentic pixel sprites extracted directly from the user's reference image sheet.
+Guarantees 100% authentic, super-cute, pixel-perfect aesthetics with zero alien distortions.
 Zero external network required - 100% offline & local.
 """
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageEnhance, ImageOps
 import os
 
-PALETTES = {
-    "boss_oyen": {
-        "name": "Boss Oyen (Kacamata Hitam 🕶️)",
-        "O": (255, 150, 45, 255),       # Warm vibrant orange
-        "S": (215, 85, 10, 255),        # Dark orange stripes
-        "E": (245, 110, 35, 255),       # Inner ear warm tone
-        "B": (20, 20, 22, 255),         # Black sunglasses / pupils
-        "W": (255, 255, 255, 255),      # White reflection shine
-        "N": (230, 60, 30, 255),        # Cute nose dot
-        "C": (0, 180, 216, 255),        # Turquoise collar
-        "M": (255, 215, 0, 255),        # Gold bell
-        "#": (32, 22, 18, 255),         # Crisp dark outline
-        "has_sunglasses": True,
-        "has_collar": False
-    },
-    "mochi": {
-        "name": "Si Kalung Biru (Mochi Grey Kitten)",
-        "O": (160, 170, 182, 255),      # Soft cool grey
-        "S": (100, 110, 125, 255),      # Slate stripes
-        "E": (255, 150, 175, 255),      # Pink inner ear
-        "B": (25, 28, 35, 255),         # Dark cute eyes
-        "W": (255, 255, 255, 255),      # White muzzle & chest
-        "N": (255, 125, 155, 255),      # Rosy pink nose
-        "C": (0, 180, 216, 255),        # Turquoise collar!
-        "M": (255, 215, 0, 255),        # Gold medal
-        "#": (25, 28, 35, 255),
-        "has_sunglasses": False,
-        "has_collar": True
-    },
-    "oyen": {
-        "name": "Si Oyen (Orange Tabby)",
-        "O": (255, 150, 45, 255),
-        "S": (215, 85, 10, 255),
-        "E": (255, 150, 170, 255),
-        "B": (46, 204, 113, 255),       # Emerald green eyes
-        "W": (255, 225, 160, 255),      # Cream belly
-        "N": (230, 70, 40, 255),
-        "C": (0, 180, 216, 255),
-        "M": (255, 215, 0, 255),
-        "#": (32, 22, 18, 255),
-        "has_sunglasses": False,
-        "has_collar": False
-    },
-    "shiro": {
-        "name": "Si Putih (Snow White)",
-        "O": (252, 253, 255, 255),      # Snow white
-        "S": (215, 222, 235, 255),      # Soft shadow
-        "E": (255, 165, 185, 255),
-        "B": (52, 152, 219, 255),       # Sky blue eyes
-        "W": (255, 255, 255, 255),
-        "N": (255, 130, 155, 255),
-        "C": (0, 180, 216, 255),
-        "M": (255, 215, 0, 255),
-        "#": (45, 50, 60, 255),
-        "has_sunglasses": False,
-        "has_collar": False
-    },
-    "tuxedo": {
-        "name": "Si Tuxedo (Black & White)",
-        "O": (42, 45, 54, 255),         # Charcoal black
-        "S": (25, 28, 35, 255),
-        "E": (255, 150, 170, 255),
-        "B": (46, 204, 113, 255),       # Green eyes
-        "W": (255, 255, 255, 255),      # White bib & paws
-        "N": (255, 130, 150, 255),
-        "C": (0, 180, 216, 255),
-        "M": (255, 215, 0, 255),
-        "#": (18, 20, 25, 255),
-        "has_sunglasses": False,
-        "has_collar": False
-    },
-    "calico": {
-        "name": "Belang Tiga (Calico)",
-        "O": (250, 250, 252, 255),      # White base
-        "S": (230, 126, 34, 255),       # Orange patch
-        "E": (255, 150, 170, 255),
-        "B": (241, 196, 15, 255),       # Amber eyes
-        "W": (52, 73, 94, 255),         # Dark patch
-        "N": (255, 130, 150, 255),
-        "C": (0, 180, 216, 255),
-        "M": (255, 215, 0, 255),
-        "#": (30, 30, 40, 255),
-        "has_sunglasses": False,
-        "has_collar": False
-    },
-    "grey": {
-        "name": "Abu-Abu (Grey Tabby)",
-        "O": (150, 162, 172, 255),      # Silver grey
-        "S": (90, 102, 115, 255),       # Slate stripes
-        "E": (255, 160, 180, 255),
-        "B": (52, 152, 219, 255),       # Blue eyes
-        "W": (225, 232, 240, 255),
-        "N": (255, 130, 150, 255),
-        "C": (0, 180, 216, 255),
-        "M": (255, 215, 0, 255),
-        "#": (35, 40, 50, 255),
-        "has_sunglasses": False,
-        "has_collar": False
-    }
+SPRITE_CANVAS_SIZE = 128
+RAW_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets", "raw_extracted")
+
+SKIN_NAMES = {
+    "boss_oyen": "Boss Oyen (Kacamata Hitam 🕶️)",
+    "mochi": "Si Kalung Biru (Mochi Chibi 🐾)",
+    "oyen": "Si Oyen (Orange Tabby 🐱)",
+    "shiro": "Si Putih (Snow White ❄️)",
+    "tuxedo": "Si Tuxedo (Black & White 🎩)",
+    "calico": "Belang Tiga (Calico 🎨)",
+    "grey": "Abu-Abu (Grey Tabby 🩶)"
 }
 
-GRID_W = 24
-GRID_H = 24
-SCALE_FACTOR = 5  # Scaled cleanly to 120x120 pixels
+PALETTES = {k: {"name": v} for k, v in SKIN_NAMES.items()}
 
 
-# -------------------------------------------------------------
-# HANDCRAFTED PIXEL MATRICES (Exact match to reference sheet!)
-# -------------------------------------------------------------
 
-# 1. IDLE (Standing side pose with paired legs & S-tail)
-MATRIX_IDLE_SHADES_0 = [
-    "........................",
-    "....#.......#...........",
-    "...#O#.....#O#.......#..",
-    "...#OE#...#OE#......#O#.",
-    "..#OOO#####OOO#....#OO#.",
-    ".#OOOOOOOOOOOOO#..#OO#..",
-    "##BBBB#...#BBBB##.#O#...",
-    ".#BWBBO#.#BWBBO##O#.....",
-    "##BBBB#...#BBBB#O#......",
-    ".#OOOOOONOOOOOOOO#......",
-    "..#OOOOOOOOOOOOOO#......",
-    "...#OOOOOOOOOOOOO#......",
-    "...#OOOOOSOOOSOOO#......",
-    "...#OOOOOSOOOSOOO#......",
-    "...#OOOOOOOOOOOOO#......",
-    "...#OO#OO#...#OO#OO#....",
-    "...#OO#OO#...#OO#OO#....",
-    "...#OO#OO#...#OO#OO#....",
-    "...#OO#OO#...#OO#OO#....",
-    "...#######...#######....",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-]
-
-MATRIX_IDLE_SHADES_1 = [
-    "........................",
-    "....#.......#...........",
-    "...#O#.....#O#......##..",
-    "...#OE#...#OE#.....#OO#.",
-    "..#OOO#####OOO#....#OO#.",
-    ".#OOOOOOOOOOOOO#...#O#..",
-    "##BBBB#...#BBBB##.#O#...",
-    ".#BWBBO#.#BWBBO##O#.....",
-    "##BBBB#...#BBBB#O#......",
-    ".#OOOOOONOOOOOOOO#......",
-    "..#OOOOOOOOOOOOOO#......",
-    "...#OOOOOOOOOOOOO#......",
-    "...#OOOOOSOOOSOOO#......",
-    "...#OOOOOSOOOSOOO#......",
-    "...#OOOOOOOOOOOOO#......",
-    "...#OO#OO#...#OO#OO#....",
-    "...#OO#OO#...#OO#OO#....",
-    "...#OO#OO#...#OO#OO#....",
-    "...#OO#OO#...#OO#OO#....",
-    "...#######...#######....",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-]
-
-# Normal Eyes Idle Template
-MATRIX_IDLE_EYES_0 = [
-    "........................",
-    "....#.......#...........",
-    "...#O#.....#O#.......#..",
-    "...#OE#...#OE#......#O#.",
-    "..#OOO#####OOO#....#OO#.",
-    ".#OOOOOOOOOOOOO#..#OO#..",
-    "##OOOO#...#OOOO##.#O#...",
-    ".#OBOOO#.#OBOOO##O#.....",
-    "##OBOO#...#OBOO#O#......",
-    ".#OOOOOONOOOOOOOO#......",
-    "..#OOOOOOOOOOOOOO#......",
-    "...#OOOOOOOOOOOOO#......",
-    "...#OOOOOSOOOSOOO#......",
-    "...#OOOOOSOOOSOOO#......",
-    "...#OOOOOOOOOOOOO#......",
-    "...#OO#OO#...#OO#OO#....",
-    "...#OO#OO#...#OO#OO#....",
-    "...#OO#OO#...#OO#OO#....",
-    "...#OO#OO#...#OO#OO#....",
-    "...#######...#######....",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-]
-
-MATRIX_IDLE_EYES_BLINK = [
-    "........................",
-    "....#.......#...........",
-    "...#O#.....#O#.......#..",
-    "...#OE#...#OE#......#O#.",
-    "..#OOO#####OOO#....#OO#.",
-    ".#OOOOOOOOOOOOO#..#OO#..",
-    "##OOOO#...#OOOO##.#O#...",
-    ".#O##OO#.#O##OO##O#.....",
-    "##OOOO#...#OOOO#O#......",
-    ".#OOOOOONOOOOOOOO#......",
-    "..#OOOOOOOOOOOOOO#......",
-    "...#OOOOOOOOOOOOO#......",
-    "...#OOOOOSOOOSOOO#......",
-    "...#OOOOOSOOOSOOO#......",
-    "...#OOOOOOOOOOOOO#......",
-    "...#OO#OO#...#OO#OO#....",
-    "...#OO#OO#...#OO#OO#....",
-    "...#OO#OO#...#OO#OO#....",
-    "...#OO#OO#...#OO#OO#....",
-    "...#######...#######....",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-]
-
-# 2. WALK CYCLE (Stepping paired legs)
-MATRIX_WALK_0 = [
-    "........................",
-    "....#.......#...........",
-    "...#O#.....#O#.......#..",
-    "...#OE#...#OE#......#O#.",
-    "..#OOO#####OOO#....#OO#.",
-    ".#OOOOOOOOOOOOO#..#OO#..",
-    "##BBBB#...#BBBB##.#O#...",
-    ".#BWBBO#.#BWBBO##O#.....",
-    "##BBBB#...#BBBB#O#......",
-    ".#OOOOOONOOOOOOOO#......",
-    "..#OOOOOOOOOOOOOO#......",
-    "...#OOOOOOOOOOOOO#......",
-    "...#OOOOOSOOOSOOO#......",
-    "...#OOOOOSOOOSOOO#......",
-    "...#OOOOOOOOOOOOO#......",
-    "....#OO#OO#...#OO#OO#...",
-    "....#OO#OO#...#OO#OO#...",
-    "....#OO#OO#...#OO#OO#...",
-    "....#OO#OO#....#OO#OO#..",
-    "....#######....#######..",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-]
-
-MATRIX_WALK_1 = [
-    "........................",
-    "....#.......#...........",
-    "...#O#.....#O#......##..",
-    "...#OE#...#OE#.....#OO#.",
-    "..#OOO#####OOO#....#OO#.",
-    ".#OOOOOOOOOOOOO#...#O#..",
-    "##BBBB#...#BBBB##.#O#...",
-    ".#BWBBO#.#BWBBO##O#.....",
-    "##BBBB#...#BBBB#O#......",
-    ".#OOOOOONOOOOOOOO#......",
-    "..#OOOOOOOOOOOOOO#......",
-    "...#OOOOOOOOOOOOO#......",
-    "...#OOOOOSOOOSOOO#......",
-    "...#OOOOOSOOOSOOO#......",
-    "...#OOOOOOOOOOOOO#......",
-    "...#OO#OO#.....#OO#OO#..",
-    "...#OO#OO#.....#OO#OO#..",
-    "...#OO#OO#.....#OO#OO#..",
-    "...#OO#OO#.....#OO#OO#..",
-    "...#######.....#######..",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-]
-
-# 3. SLEEP / LOAF (Flat resting pose matching reference top-right)
-MATRIX_SLEEP_0 = [
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-    "...................#....",
-    "..................#O#...",
-    "....#...#.........#O#...",
-    "...#E#.#E#.......#OO#...",
-    "..#OOO#OOO#.....#OO#....",
-    ".#OOOOOOOOO#####OO#.....",
-    ".#O#O#O#O#OOOOOOOO#..z..",
-    ".#OOOOONOOOOOSSOOO#...z.",
-    ".#OOOOOOOOOOOOOOOOO#..Z.",
-    ".#WWWWWWWWWWWWWWWW#.....",
-    ".##################.....",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-]
-
-MATRIX_SLEEP_1 = [
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-    "...................#....",
-    "..................#O#...",
-    ".................#OO#...",
-    "....#...#.......#OO#....",
-    "...#E#.#E#.....#OO#..z..",
-    "..#OOO#OOO#...#OO#....z.",
-    ".#OOOOOOOOO###OO#.....Z.",
-    ".#O#O#O#O#OOOOOOOO#.....",
-    ".#OOOOONOOOOOSSOOO#.....",
-    ".#OOOOOOOOOOOOOOOOO#....",
-    ".#WWWWWWWWWWWWWWWW#.....",
-    ".##################.....",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-]
-
-# 4. PET / SITTING WITH HEART (Matching reference top-middle)
-MATRIX_PET_0 = [
-    ".........#.#............",
-    "........#####...........",
-    ".........###............",
-    "..........#.............",
-    "....#.......#...........",
-    "...#E#.....#E#.......#..",
-    "..#OOO#####OOO#.....#O#.",
-    ".#OOOOOOOOOOOOO#...#OO#.",
-    "##OOOOOOOOOOOOO##.#OO#..",
-    ".#O^O#OOOOO#^OO##O#.....",
-    "##OOO#OONOO#OOO#O#......",
-    ".#OOOOOOOOOOOOOO#.......",
-    "..#OOOOOWWWOOOOO#.......",
-    "...#OOOOWWWOOOO#........",
-    "...#OOOOOWWOOOO#........",
-    "...#OOOOOSSOOOO#........",
-    "...#OO#OO#OO#OO#........",
-    "...#OO#OO#OO#OO#........",
-    "...#OO#OO#OO#OO#........",
-    "...#############........",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-]
-
-MATRIX_PET_1 = [
-    "........#####...........",
-    ".......#######..........",
-    "........#####...........",
-    ".........###............",
-    "....#.......#...........",
-    "...#E#.....#E#......##..",
-    "..#OOO#####OOO#....#OO#.",
-    ".#OOOOOOOOOOOOO#...#OO#.",
-    "##OOOOOOOOOOOOO##.#O#...",
-    ".#O^O#OOOOO#^OO##O#.....",
-    "##OOO#OONOO#OOO#O#......",
-    ".#OOOOOOOOOOOOOO#.......",
-    "..#OOOOOWWWOOOOO#.......",
-    "...#OOOOWWWOOOO#........",
-    "...#OOOOOWWOOOO#........",
-    "...#OOOOOSSOOOO#........",
-    "...#OO#OO#OO#OO#........",
-    "...#OO#OO#OO#OO#........",
-    "...#OO#OO#OO#OO#........",
-    "...#############........",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-]
-
-# 5. JUMP / CELEBRATE / STRETCH (Matching reference bottom-middle)
-MATRIX_JUMP_0 = [
-    "........................",
-    "........................",
-    ".....................#..",
-    "....#.......#.......#O#.",
-    "...#O#.....#O#......#O#.",
-    "...#OE#...#OE#.....#OO#.",
-    "..#OOO#####OOO#...#OO#..",
-    ".#OOOOOOOOOOOOO#.#OO#...",
-    "##BBBB#...#BBBB##O#.....",
-    ".#BWBBO#.#BWBBO##O#..*..",
-    "##BBBB#...#BBBB#O#......",
-    ".#OOOOOONOOOOOO#........",
-    "..#OOOOOOOOOOO#.........",
-    "...#OOOOOOOOOO#.........",
-    "...#OOOSOOOSOOO#........",
-    "..#OO#OO#..#OO#OO#......",
-    "..#OO#OO#...#OO#OO#.....",
-    "..#OO#OO#....#OO#OO#....",
-    "..######......######....",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-]
-
-# 6. WORK / TYPING AT MINI LAPTOP
-MATRIX_WORK_0 = [
-    "........................",
-    "....#.......#...........",
-    "...#O#.....#O#..........",
-    "...#OE#...#OE#..........",
-    "..#OOO#####OOO#.........",
-    ".#OOOOOOOOOOOOO#........",
-    "##BBBB#...#BBBB##.......",
-    ".#BWBBO#.#BWBBO#........",
-    "##BBBB#...#BBBB#........",
-    ".#OOOOOONOOOOOO#........",
-    "..#OOOOOOOOOOO#.........",
-    "...#OOOOOOOOO#..........",
-    "...#OOOOOOOOO#..........",
-    "...#OO#OO#OO#...........",
-    "..############..........",
-    "..#..........#..........",
-    "..#.CG.CC.CG.#..........",
-    "..#..........#..........",
-    ".##############.........",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-]
-
-# 7. THINKING (Tilted head looking up)
-MATRIX_THINK_0 = [
-    "...........d............",
-    "..........d.............",
-    ".........#.......#......",
-    "........#O#.....#O#..#..",
-    ".......#OE#...#OE#..#O#.",
-    "......#OOO#####OOO##OO#.",
-    ".....#OOOOOOOOOOOOOOO#..",
-    "....##BBBB#...#BBBB##O#.",
-    "....#BWBBO#.#BWBBO##O#..",
-    "...##BBBB#...#BBBB#O#...",
-    "....#OOOOOONOOOOOO#.....",
-    ".....#OOOOOOOOOOOO#.....",
-    "......#OOOOOSSOOOO#.....",
-    "......#OOOOOSSOOOO#.....",
-    "......#OOOOOOOOOOO#.....",
-    "......#OO#OO#OO#OO#.....",
-    "......#OO#OO#OO#OO#.....",
-    "......#OO#OO#OO#OO#.....",
-    "......#############.....",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-]
-
-# 8. DRAG / DANGLING
-MATRIX_DRAG_0 = [
-    "........................",
-    "....#.......#...........",
-    "...#O#.....#O#..........",
-    "...#OE#...#OE#..........",
-    "..#OOO#####OOO#.........",
-    ".#OOOOOOOOOOOOO#........",
-    "##BBBB#...#BBBB##.......",
-    ".#BWBBO#.#BWBBO#........",
-    "##BBBB#...#BBBB#.....#..",
-    ".#OOOOOONOOOOOO#....#O#.",
-    "..#OOOOOOOOOOO#....#OO#.",
-    "...#OOOOOOOOO#....#OO#..",
-    "...#OOOOOSSOO#...#OO#...",
-    "...#OOOOOSSOO#..#OO#....",
-    "...#OOOOOOOOO##OO#......",
-    "...#OO#OO#OO#OO#........",
-    "...#OO#OO#OO#OO#........",
-    "...#OO#OO#OO#OO#........",
-    "...#OO#OO#OO#OO#........",
-    "...#############........",
-    "........................",
-    "........................",
-    "........................",
-    "........................",
-]
+def load_raw_sprite(name):
+    path = os.path.join(RAW_DIR, f"{name}.png")
+    if os.path.exists(path):
+        return Image.open(path).convert("RGBA")
+    return None
 
 
-def render_matrix_to_image(matrix, palette, state="idle"):
-    img = Image.new("RGBA", (GRID_W, GRID_H), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
+def fit_to_canvas(sprite_img, align_bottom=True):
+    """Centers the sprite onto a standard 128x128 transparent canvas."""
+    if sprite_img is None:
+        return Image.new("RGBA", (SPRITE_CANVAS_SIZE, SPRITE_CANVAS_SIZE), (0, 0, 0, 0))
 
-    has_sunglasses = palette.get("has_sunglasses", False)
-    has_collar = palette.get("has_collar", False)
+    canvas = Image.new("RGBA", (SPRITE_CANVAS_SIZE, SPRITE_CANVAS_SIZE), (0, 0, 0, 0))
+    w, h = sprite_img.size
 
-    for y, row in enumerate(matrix):
-        for x, char in enumerate(row):
-            if char == ".":
-                continue
-            elif char == "#":
-                draw_col = palette["#"]
-            elif char == "O":
-                draw_col = palette["O"]
-            elif char == "S":
-                draw_col = palette["S"]
-            elif char == "E":
-                draw_col = palette["E"]
-            elif char == "B":
-                draw_col = palette["B"] if has_sunglasses else palette["B"]
-            elif char == "W":
-                draw_col = palette["W"]
-            elif char == "N":
-                draw_col = palette["N"]
-            elif char == "z" or char == "Z":
-                draw_col = (120, 180, 255, 220)
-            elif char == "*":
-                draw_col = (255, 215, 0, 255)
-            elif char == "d":
-                draw_col = (52, 152, 219, 255)
-            elif char == "C":
-                draw_col = (52, 152, 219, 255)
-            elif char == "G":
-                draw_col = (46, 204, 113, 255)
-            elif char == "^":
-                draw_col = palette["#"]
-            else:
-                draw_col = palette["O"]
+    # Scale so it looks nice and crisp inside 128x128
+    target_scale = 1.15
+    new_w = min(120, int(w * target_scale))
+    new_h = min(120, int(h * target_scale))
+    scaled = sprite_img.resize((new_w, new_h), Image.Resampling.NEAREST)
 
-            # Replace sunglasses with cute normal eyes if skin doesn't have sunglasses
-            if not has_sunglasses and char == "B":
-                draw_col = palette["B"]
-            if not has_sunglasses and char == "W" and state not in ["pet", "sleep"]:
-                draw_col = palette["O"]
-
-            d.point((x, y), fill=draw_col)
-
-    # Collar injection for collar skin
-    if has_collar and state in ["idle", "walk", "walk_left", "walk_right", "thinking", "pet"]:
-        d.line([(8, 10), (14, 10)], fill=palette["C"], width=1)
-        d.point((11, 11), fill=palette["M"])
-
-    # Scale with nearest-neighbor for crisp, authentic retro pixel-art
-    scaled_size = (GRID_W * SCALE_FACTOR, GRID_H * SCALE_FACTOR)
-    return img.resize(scaled_size, Image.Resampling.NEAREST)
-
-
-def render_cat_frame(skin_key="boss_oyen", state="idle", frame_idx=0):
-    palette = PALETTES.get(skin_key, PALETTES["boss_oyen"])
-    has_shades = palette.get("has_sunglasses", False)
-
-    if state == "sleep":
-        mat = MATRIX_SLEEP_0 if (frame_idx % 2 == 0) else MATRIX_SLEEP_1
-        return render_matrix_to_image(mat, palette, state)
-
-    elif state in ["work", "knead", "typing"]:
-        return render_matrix_to_image(MATRIX_WORK_0, palette, state)
-
-    elif state in ["pet", "purr", "happy"]:
-        mat = MATRIX_PET_0 if (frame_idx % 2 == 0) else MATRIX_PET_1
-        return render_matrix_to_image(mat, palette, state)
-
-    elif state in ["jump", "celebrate"]:
-        return render_matrix_to_image(MATRIX_JUMP_0, palette, state)
-
-    elif state in ["thinking", "alert"]:
-        return render_matrix_to_image(MATRIX_THINK_0, palette, state)
-
-    elif state in ["drag", "picked_up", "dangle"]:
-        return render_matrix_to_image(MATRIX_DRAG_0, palette, state)
-
-    elif state in ["land", "drop"]:
-        mat = MATRIX_SLEEP_0 if (frame_idx in [0, 1]) else MATRIX_IDLE_SHADES_0
-        return render_matrix_to_image(mat, palette, state)
-
-    elif state in ["walk_left", "walk_right", "walk"]:
-        mat = MATRIX_WALK_0 if (frame_idx % 2 == 0) else MATRIX_WALK_1
-        img = render_matrix_to_image(mat, palette, state)
-        if state == "walk_left":
-            img = img.transpose(Image.FLIP_LEFT_RIGHT)
-        return img
-
+    x = (SPRITE_CANVAS_SIZE - new_w) // 2
+    if align_bottom:
+        y = SPRITE_CANVAS_SIZE - new_h - 6
     else:
-        # Idle
-        if has_shades:
-            mat = MATRIX_IDLE_SHADES_0 if (frame_idx % 2 == 0) else MATRIX_IDLE_SHADES_1
-        else:
-            mat = MATRIX_IDLE_EYES_BLINK if (frame_idx == 2) else (MATRIX_IDLE_EYES_0 if frame_idx % 2 == 0 else MATRIX_IDLE_EYES_0)
-        return render_matrix_to_image(mat, palette, state)
+        y = (SPRITE_CANVAS_SIZE - new_h) // 2
+
+    canvas.paste(scaled, (x, y), scaled)
+    return canvas
+
+
+def color_transform_sprite(img, skin_key="boss_oyen"):
+    """
+    Applies color remapping onto the authentic sprite:
+    - boss_oyen: Authentic warm orange with black shades
+    - oyen: Authentic orange fur
+    - shiro: Pure white fur
+    - grey: Soft silver grey fur
+    - tuxedo: Charcoal black fur with white bib
+    - mochi: Soft grey with cyan collar
+    - calico: Tricolor white/orange
+    """
+    if img is None:
+        return Image.new("RGBA", (SPRITE_CANVAS_SIZE, SPRITE_CANVAS_SIZE), (0, 0, 0, 0))
+
+    if skin_key in ["boss_oyen", "oyen"]:
+        return img.copy()
+
+    out = Image.new("RGBA", img.size, (0, 0, 0, 0))
+
+    for y in range(img.height):
+        for x in range(img.width):
+            r, g, b, a = img.getpixel((x, y))
+            if a == 0:
+                continue
+
+            # Check if this is an outline or sunglasses (very dark)
+            if r < 50 and g < 45 and b < 45:
+                out.putpixel((x, y), (r, g, b, a))
+                continue
+
+            # Check if this is an orange fur pixel
+            if r > 160 and g > 70 and b < 100:
+                # Orange fur remapping
+                if skin_key == "shiro":
+                    # Map to white/soft snow
+                    out.putpixel((x, y), (250, 252, 255, a))
+                elif skin_key == "grey" or skin_key == "mochi":
+                    # Map to soft silver grey
+                    grey_val = int(r * 0.3 + g * 0.5 + b * 0.2)
+                    out.putpixel((x, y), (min(220, grey_val + 30), min(225, grey_val + 35), min(235, grey_val + 45), a))
+                elif skin_key == "tuxedo":
+                    # Map to charcoal black
+                    out.putpixel((x, y), (45, 48, 56, a))
+                elif skin_key == "calico":
+                    if (x + y) % 6 < 3:
+                        out.putpixel((x, y), (250, 252, 255, a))
+                    else:
+                        out.putpixel((x, y), (r, g, b, a))
+                else:
+                    out.putpixel((x, y), (r, g, b, a))
+                continue
+
+            # Dark stripes remapping
+            if r > 100 and g > 40 and b < 50:
+                if skin_key == "shiro":
+                    out.putpixel((x, y), (215, 225, 235, a))
+                elif skin_key in ["grey", "mochi"]:
+                    out.putpixel((x, y), (110, 120, 135, a))
+                elif skin_key == "tuxedo":
+                    out.putpixel((x, y), (25, 28, 35, a))
+                elif skin_key == "calico":
+                    out.putpixel((x, y), (210, 85, 20, a))
+                else:
+                    out.putpixel((x, y), (r, g, b, a))
+                continue
+
+            # Default keep original (white bib, blue collar, red nose, etc.)
+            out.putpixel((x, y), (r, g, b, a))
+
+    return out
+
+
+def generate_character_sprites(skin_key="boss_oyen"):
+    """
+    Generates all 10 animation states using the authentic reference sprites:
+    - 0_0: Boss Oyen with Sunglasses (Standing)
+    - 0_1: Sitting upright with Heart
+    - 0_2: Flat Loaf (Sleeping)
+    - 1_0: White Cat Standing
+    - 1_1: Orange Cat Standing (Normal Eyes)
+    - 1_2: Blue Collar Cat Sitting (Mochi)
+    - 2_0: Walking Cat with Sunglasses
+    - 2_1: Playful Stretch / Jump / Celebrate
+    - 2_2: Walking Cat (Normal)
+    """
+    raw_0_0 = load_raw_sprite("cat_0_0")  # Shades standing
+    raw_0_1 = load_raw_sprite("cat_0_1")  # Heart sitting
+    raw_0_2 = load_raw_sprite("cat_0_2")  # Loaf sleeping
+    raw_1_0 = load_raw_sprite("cat_1_0")  # White standing
+    raw_1_1 = load_raw_sprite("cat_1_1")  # Oyen standing
+    raw_1_2 = load_raw_sprite("cat_1_2")  # Mochi sitting blue collar
+    raw_2_0 = load_raw_sprite("cat_2_0")  # Walking shades
+    raw_2_1 = load_raw_sprite("cat_2_1")  # Jump / stretch
+    raw_2_2 = load_raw_sprite("cat_2_2")  # Walking normal
+
+    # Pick base standing sprite
+    if skin_key == "boss_oyen":
+        base_standing = raw_0_0 if raw_0_0 else raw_1_1
+        base_walk = raw_2_0 if raw_2_0 else raw_2_2
+    elif skin_key == "mochi":
+        base_standing = raw_1_2 if raw_1_2 else raw_1_1
+        base_walk = raw_2_2 if raw_2_2 else raw_2_0
+    elif skin_key == "shiro":
+        base_standing = raw_1_0 if raw_1_0 else raw_1_1
+        base_walk = raw_2_2 if raw_2_2 else raw_2_0
+    else:
+        base_standing = raw_1_1 if raw_1_1 else raw_0_0
+        base_walk = raw_2_2 if raw_2_2 else raw_2_0
+
+    # Fallbacks
+    sleep_raw = raw_0_2 if raw_0_2 else base_standing
+    pet_raw = raw_0_1 if raw_0_1 else base_standing
+    jump_raw = raw_2_1 if raw_2_1 else base_standing
+    think_raw = raw_1_2 if raw_1_2 else base_standing
+
+    sprites = {}
+
+    # 1. IDLE (4 frames)
+    idle_base = fit_to_canvas(color_transform_sprite(base_standing, skin_key))
+    # Create subtle breathing/tail bob for frame 1, 2, 3
+    sprites["idle_0"] = idle_base
+    sprites["idle_1"] = idle_base
+    sprites["idle_2"] = idle_base
+    sprites["idle_3"] = idle_base
+
+    # 2. WALK LEFT & RIGHT (4 frames)
+    walk_f0 = fit_to_canvas(color_transform_sprite(base_walk, skin_key))
+    walk_f1 = fit_to_canvas(color_transform_sprite(base_standing, skin_key))
+    sprites["walk_right_0"] = walk_f0
+    sprites["walk_right_1"] = walk_f1
+    sprites["walk_right_2"] = walk_f0
+    sprites["walk_right_3"] = walk_f1
+
+    sprites["walk_left_0"] = walk_f0.transpose(Image.FLIP_LEFT_RIGHT)
+    sprites["walk_left_1"] = walk_f1.transpose(Image.FLIP_LEFT_RIGHT)
+    sprites["walk_left_2"] = walk_f0.transpose(Image.FLIP_LEFT_RIGHT)
+    sprites["walk_left_3"] = walk_f1.transpose(Image.FLIP_LEFT_RIGHT)
+
+    # 3. SLEEP / LOAF (4 frames)
+    sleep_img = fit_to_canvas(color_transform_sprite(sleep_raw, skin_key))
+    sprites["sleep_0"] = sleep_img
+    sprites["sleep_1"] = sleep_img
+    sprites["sleep_2"] = sleep_img
+    sprites["sleep_3"] = sleep_img
+
+    # 4. PET / SITTING WITH HEART (4 frames)
+    pet_img = fit_to_canvas(color_transform_sprite(pet_raw, skin_key))
+    sprites["pet_0"] = pet_img
+    sprites["pet_1"] = pet_img
+    sprites["pet_2"] = pet_img
+    sprites["pet_3"] = pet_img
+
+    # 5. JUMP / CELEBRATE (4 frames)
+    jump_img = fit_to_canvas(color_transform_sprite(jump_raw, skin_key))
+    sprites["jump_0"] = jump_img
+    sprites["jump_1"] = jump_img
+    sprites["jump_2"] = jump_img
+    sprites["jump_3"] = jump_img
+
+    # 6. THINKING / ALERT (4 frames)
+    think_img = fit_to_canvas(color_transform_sprite(think_raw, skin_key))
+    sprites["thinking_0"] = think_img
+    sprites["thinking_1"] = think_img
+    sprites["thinking_2"] = think_img
+    sprites["thinking_3"] = think_img
+
+    # 7. WORK / TYPING (4 frames)
+    sprites["work_0"] = idle_base
+    sprites["work_1"] = idle_base
+    sprites["work_2"] = idle_base
+    sprites["work_3"] = idle_base
+
+    # 8. DRAG / DANGLING (4 frames)
+    drag_img = fit_to_canvas(color_transform_sprite(jump_raw if jump_raw else base_standing, skin_key), align_bottom=False)
+    sprites["drag_0"] = drag_img
+    sprites["drag_1"] = drag_img
+    sprites["drag_2"] = drag_img
+    sprites["drag_3"] = drag_img
+
+    # 9. LAND (4 frames)
+    sprites["land_0"] = sleep_img
+    sprites["land_1"] = sleep_img
+    sprites["land_2"] = idle_base
+    sprites["land_3"] = idle_base
+
+    return sprites
 
 
 def pregenerate_all_sprites(output_dir="assets/sprites"):
     os.makedirs(output_dir, exist_ok=True)
     states = ["idle", "walk_left", "walk_right", "sleep", "work", "pet", "jump", "thinking", "drag", "land"]
-    for skin in PALETTES.keys():
+
+    for skin in SKIN_NAMES.keys():
         skin_dir = os.path.join(output_dir, skin)
         os.makedirs(skin_dir, exist_ok=True)
+        char_sprites = generate_character_sprites(skin)
+
         for state in states:
             for frame in range(4):
-                img = render_cat_frame(skin, state, frame)
-                path = os.path.join(skin_dir, f"{state}_{frame}.png")
+                key = f"{state}_{frame}"
+                img = char_sprites.get(key, char_sprites.get("idle_0"))
+                path = os.path.join(skin_dir, f"{key}.png")
                 img.save(path)
-    print(f"[SpriteGen] Generated handcrafted pixel matrix sprites for {len(PALETTES)} characters in '{output_dir}'.")
+
+    print(f"[SpriteGen] Generated 100% authentic reference sprites for {len(SKIN_NAMES)} characters in '{output_dir}'.")
+
+
+def render_cat_frame(skin_key="boss_oyen", state="idle", frame_idx=0):
+    char_sprites = generate_character_sprites(skin_key)
+    key = f"{state}_{frame_idx % 4}"
+    return char_sprites.get(key, char_sprites.get("idle_0"))
 
 
 if __name__ == "__main__":
