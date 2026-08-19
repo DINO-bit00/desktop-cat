@@ -531,8 +531,12 @@ class DesktopPet(QWidget):
             self.last_drag_time = now
 
             move_dist = (global_pt - self.drag_start_global_pos).manhattanLength()
-            if move_dist > 4:
-                self.has_dragged = True
+            if move_dist > 5:
+                if not self.has_dragged:
+                    self.has_dragged = True
+                    self.set_state("drag")
+                    self.anim_timer.setInterval(90)
+                    self._play_sound_blip(freq=1350, dur=40)
 
             new_pos = global_pt - self.drag_start_pos
             screen_geo = self._get_current_screen_geometry()
@@ -577,11 +581,6 @@ class DesktopPet(QWidget):
             self.drag_velocity_x = 0.0
             self.mochi_tilt = 0.0
             self.pre_drag_state = self.state if self.state not in ["drag", "land"] else "idle"
-
-            # Switch to dangling mochi drag state
-            self.set_state("drag")
-            self.anim_timer.setInterval(90)
-            self._play_sound_blip(freq=1350, dur=40)
             event.accept()
         elif event.button() == Qt.MouseButton.RightButton:
             self._show_context_menu(event.globalPosition().toPoint())
@@ -612,19 +611,9 @@ class DesktopPet(QWidget):
                     ]
                     QTimer.singleShot(400, lambda: self.say(random.choice(landing_quotes), 3000))
             else:
-                self.set_state(self.pre_drag_state)
+                # Option A: Single left-click only speaks & plays sound without changing animation!
                 self._on_pet_clicked()
 
-            event.accept()
-
-    def mouseDoubleClickEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            if self.pomodoro.is_active:
-                self.pomodoro.stop()
-                self.set_state("idle")
-                self.say("Pomodoro dihentikan nya~ ⏸️")
-            else:
-                self.pomodoro.start_focus()
             event.accept()
 
     # -------------------------------------------------------------
@@ -640,6 +629,7 @@ class DesktopPet(QWidget):
         self.say(f"Halo! Aku {pet_name} siap nemenin kamu kerja nya~ 🐾")
 
     def _on_pet_clicked(self):
+        """Single left-click response: Shows dialogue and cute sound without changing animation."""
         if self.pomodoro.is_active and self.pomodoro.mode == "work":
             if self.skin == "boss_oyen":
                 quotes = [
@@ -662,8 +652,6 @@ class DesktopPet(QWidget):
             self.say(random.choice(quotes), 3000)
             return
 
-        self.set_state("pet", duration_seconds=3)
-
         if self.skin == "boss_oyen":
             purrs = [
                 "Kerja santai, hasil maksimal. Santai aja, boss 😎",
@@ -675,13 +663,13 @@ class DesktopPet(QWidget):
         elif self.skin == "mochi":
             purrs = [
                 "Mew! Kalung biruku berkilau kan nya? 🐾",
-                "Purrr... Senang banget dielus kamu nya! ❤️",
+                "Purrr... Senang banget ditemenin kamu nya! ❤️",
                 "Chibi kitten siap nemenin kamu seharian nya! ✨",
                 "Meow~! Jangan lupa istirahat kalau capek ya~ 🧘"
             ]
         else:
             purrs = [
-                "Purrr... Senang dielus nya~ ❤️",
+                "Purrr... Senang ditemenin kamu nya~ ❤️",
                 "Meooow~! Semangat ya hari ini! ✨",
                 "Nyang~ Mau ditemenin ngoding apa santai nih? 😸",
                 "Purrr purrr... Kucing senang, kerjaan lancar! 🐾",
