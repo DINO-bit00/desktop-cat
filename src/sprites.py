@@ -3,7 +3,7 @@ NyangBuddy Modern Pixel-Art Sprite Engine — 4-Frame Fluid Edition
 High-framerate 32x32 kawaii chubby pixel cat with 4-frame walk cycles,
 breathing idles, dynamic 8-direction eye follow, keyboard kneading on 3D mechanical keycaps,
 overheat steam mode, official Comnyang paper unroll scroll reaction, petting/purr reactions,
-and mochi drag with swaying tail.
+and mochi drag with cute animated side tail.
 """
 
 from PIL import Image, ImageDraw
@@ -662,9 +662,9 @@ def _draw_sleep_loaf(p: dict, frame_idx: int) -> Image.Image:
     return img
 
 
-# ─── 8. MOCHI DRAG & DANGLING ──────────────────────────────────────────────
+# ─── 8. MOCHI DRAG & DANGLING (WITH SIDE TAIL) ─────────────────────────────
 def _draw_mochi_drag(p: dict, frame_idx: int) -> Image.Image:
-    """Elongated dangling cat with swinging paws and swaying tail when dragged."""
+    """Elongated dangling cat with swinging paws and animated side tail when dragged."""
     img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
 
@@ -674,16 +674,19 @@ def _draw_mochi_drag(p: dict, frame_idx: int) -> Image.Image:
     K = (18, 18, 22, 255)
     E = p["inner_ear"]
 
-    # ── 1. Animated Dangling & Swaying Tail (Behind back legs) ──
-    tail_sway = [-2, 0, 2, 0][frame_idx % 4]
-    tail_tip_x = 15 + tail_sway * 3
-    tail_mid_x = 15 + tail_sway * 2
+    # ── 1. Animated Side-Curled Tail (On right flank) ──
+    t_flick = [-2, 0, 2, 0][frame_idx % 4]
+    t_tip_y = 11 + t_flick
+    t_mid_x = 26 + (1 if t_flick > 0 else 0)
 
-    d.line([(15, 23), (tail_mid_x, 27), (tail_tip_x, 30)], fill=O, width=2)
-    d.line([(15, 24), (tail_mid_x + (1 if tail_sway >= 0 else -1), 27), (tail_tip_x, 31)], fill=K)
-    d.line([(tail_mid_x, 26), (tail_mid_x + 1, 26)], fill=S)
+    d.polygon([
+        (20, 21), (24, 18), (t_mid_x, 14), (t_mid_x - 1, t_tip_y), (t_mid_x - 3, t_tip_y),
+        (23, 15), (20, 19)
+    ], fill=O, outline=K)
+    d.line([(24, 17), (t_mid_x - 1, 16)], fill=S)
+    d.line([(23, 14), (t_mid_x - 2, 13)], fill=S)
 
-    # ── 2. Dangling Body & Scruff Clasp ──
+    # ── 2. Dangling Head & Body ──
     d.polygon([(14, 2), (16, 0), (18, 2)], fill=K)
     d.ellipse([9, 2, 22, 13], fill=O, outline=K)
     d.polygon([(9, 3), (9, 0), (12, 3)], fill=O, outline=K)
