@@ -1,7 +1,7 @@
 """
-Global OS Input Hooks for Comnyang-Style Interactions
+Global OS Input Hooks for Comnyang-Style Interactions (Instant-Stop Edition)
 Listens to system-wide keyboard typing cadence (kneading & overheat)
-and mouse scroll wheel (paper unroll reaction) in background threads.
+and mouse scroll wheel (paper unroll reaction) with instant zero-lag stop response.
 100% offline, zero network, zero data storage.
 """
 
@@ -19,7 +19,7 @@ except Exception:
 class GlobalInputWatcher(QObject):
     """
     Monitors typing speed, mouse movements, and scroll activity system-wide.
-    Emits signals safely to the Qt main thread.
+    Emits signals with immediate response and zero unnecessary delays.
     """
     # Signals
     typing_started = pyqtSignal()
@@ -65,7 +65,7 @@ class GlobalInputWatcher(QObject):
             self._mouse_listener.daemon = True
             self._mouse_listener.start()
 
-            # Background checker for typing & overheat decay
+            # High-frequency watchdog (50ms tick) for instant stop response
             threading.Thread(target=self._watchdog_loop, daemon=True).start()
         except Exception as e:
             print(f"[GlobalInputWatcher] Error starting listeners: {e}")
@@ -88,15 +88,15 @@ class GlobalInputWatcher(QObject):
         self._last_key_time = now
         self._key_count_window.append(now)
 
-        # Rolling window of keystrokes in last 2.2 seconds
-        self._key_count_window = [t for t in self._key_count_window if now - t <= 2.2]
+        # Rolling window of keystrokes in last 2.0 seconds
+        self._key_count_window = [t for t in self._key_count_window if now - t <= 2.0]
 
         if not self._is_typing:
             self._is_typing = True
             self.typing_started.emit()
 
-        # Overheat Trigger: >= 14 keystrokes in 2.2s (~75+ WPM fast burst typing)
-        if len(self._key_count_window) >= 14:
+        # Overheat Trigger: >= 12 keystrokes in 2.0s (~70+ WPM fast burst typing)
+        if len(self._key_count_window) >= 12:
             if not self._is_overheated:
                 self._is_overheated = True
                 self.overheat_started.emit()
@@ -118,21 +118,21 @@ class GlobalInputWatcher(QObject):
         self.mouse_scrolled.emit(int(dy))
 
     def _watchdog_loop(self):
-        """Monitors when typing cools down or ceases."""
+        """Monitors when typing cools down or ceases with snappy 50ms polling."""
         while self.is_running:
-            time.sleep(0.25)
+            time.sleep(0.05)  # 50ms fast poll
             now = time.time()
 
             # Clean rolling window
-            self._key_count_window = [t for t in self._key_count_window if now - t <= 2.2]
+            self._key_count_window = [t for t in self._key_count_window if now - t <= 2.0]
 
             # Check Overheat cool-down
-            if self._is_overheated and len(self._key_count_window) < 8:
+            if self._is_overheated and len(self._key_count_window) < 6:
                 self._is_overheated = False
                 self.overheat_ended.emit()
 
-            # Check typing cease (> 1.6 seconds without keys)
-            if self._is_typing and (now - self._last_key_time > 1.6):
+            # Snappy typing cease: Stop animation immediately when no key pressed for > 0.35s
+            if self._is_typing and (now - self._last_key_time > 0.35):
                 self._is_typing = False
                 self._is_overheated = False
                 self.typing_stopped.emit()

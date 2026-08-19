@@ -400,8 +400,8 @@ class DesktopPet(QWidget):
             # Advance frame dynamically with each scroll notch!
             self.frame_index = (self.frame_index + 1) % 4
             self.update()
-            # Reset timer: return to idle 1.2 seconds after scrolling ceases
-            self.scroll_reset_timer.start(1200)
+            # Reset timer: return to idle immediately (350ms) after scrolling ceases
+            self.scroll_reset_timer.start(350)
 
     def _on_scroll_timeout(self):
         """Scroll stopped -> return to idle."""
