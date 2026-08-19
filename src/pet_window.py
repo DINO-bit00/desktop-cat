@@ -44,7 +44,6 @@ class DesktopPet(QWidget):
         # Window configuration: Frameless, transparent, always-on-top, tool window
         flags = (
             Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.SubWindow |
             Qt.WindowType.Tool
         )
         if self.settings.get("stay_on_top", True):
@@ -175,7 +174,7 @@ class DesktopPet(QWidget):
             self.frame_index = 0
             self.state_ticks = 0
             if duration_seconds:
-                self.max_state_ticks = int(duration_seconds * 5)
+                self.max_state_ticks = int(duration_seconds * 20)
             self.update()
 
     def _update_animation(self):
@@ -359,12 +358,12 @@ class DesktopPet(QWidget):
         ]
         self.say(random.choice(purrs), 3500)
 
-    def _play_sound_blip(self):
+    def _play_sound_blip(self, freq=1200, dur=60):
         if not self.settings.get("sound_enabled", True):
             return
         try:
             import winsound
-            winsound.Beep(1200, 60)
+            winsound.Beep(int(freq), int(dur))
         except Exception:
             pass
 
