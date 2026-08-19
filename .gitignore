@@ -1,0 +1,20 @@
+# Python Virtual Environments
+.venv/
+env/
+venv/
+ENV/
+
+# Byte-compiled / optimized files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local Runtime & Trigger States
+.cat_trigger.json
+settings.json
+
+# IDE & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
