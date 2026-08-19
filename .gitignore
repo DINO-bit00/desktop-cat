@@ -19,6 +19,7 @@ settings.json
 .DS_Store
 Thumbs.db
 
-# Local Guidelines (Private)
+# Local Guidelines & Blueprints (Private)
 RULES.md
-
+comnyang_blueprint.md
+*comnyang*.md

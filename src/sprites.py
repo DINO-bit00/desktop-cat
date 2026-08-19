@@ -1,478 +1,670 @@
 """
-Dual-Mode Desktop Pet Pixel-Art Engine (Front-Sitting & Retro-Side-Walk)
-- Idle & Interactive States: Full Frontal Sitting Boss Cat with Thug Shades, Muzzle Puffs, and 4 Bottom Paws (Image 1)
-- Walking State: Classic 8-Bit Retro Side-Profile Walking Cat with Puffy Tail & Stride (Image 2)
-Zero external network required - 100% offline & local.
+NyangBuddy Modern Pixel-Art Sprite Engine — 4-Frame Fluid Edition
+High-framerate 32x32 kawaii chubby pixel cat with 4-frame walk cycles,
+breathing idles, dynamic 8-direction eye follow, keyboard kneading,
+petting/purr reactions, and custom accessories (Boss Oyen shades & chain).
 """
 
 from PIL import Image, ImageDraw
 import os
+from typing import Dict, Tuple, List, Optional
 
-PALETTES = {
+# ─── COLOR PALETTES ─────────────────────────────────────────────────────────
+PALETTES: Dict[str, Dict[str, Tuple[int, int, int, int]]] = {
     "boss_oyen": {
         "name": "Boss Oyen (Kacamata Hitam 🕶️)",
-        "base": (255, 140, 50, 255),       # Vibrant saturated orange (exact match to Image 1)
-        "shadow": (225, 105, 30, 255),     # Darker orange shadow
-        "belly": (255, 240, 220, 255),     # White/cream muzzle & chest
-        "inner_ear": (255, 255, 255, 255), # White inner ear
-        "eye": (20, 20, 25, 255),          # Black shades
-        "pupil": (20, 20, 25, 255),
-        "nose": (165, 75, 45, 255),        # Brown nose
-        "outline": (35, 22, 18, 255),      # Crisp dark brown outline
-        "paw": (255, 255, 255, 255),       # Pure white paws
-        "chain": (255, 205, 20, 255),      # Gold chain
-        "chain_shine": (255, 245, 150, 255),
-        "sunglasses": True,
-        "collar": False
-    },
-    "mochi": {
-        "name": "Si Kalung Biru (Mochi Chibi 🐾)",
-        "base": (175, 185, 195, 255),      # Cool grey
-        "shadow": (125, 135, 148, 255),
-        "belly": (255, 255, 255, 255),     # White muzzle
-        "inner_ear": (255, 170, 190, 255), # Pink inner ear
-        "eye": (30, 35, 42, 255),
-        "pupil": (30, 35, 42, 255),
-        "nose": (255, 130, 155, 255),      # Pink nose
-        "outline": (30, 35, 42, 255),
-        "paw": (255, 255, 255, 255),
-        "chain": (0, 185, 220, 255),       # Turquoise collar
-        "chain_shine": (255, 220, 50, 255),# Gold bell
-        "sunglasses": False,
-        "collar": True
+        "fur_main": (238, 122, 34, 255),    # Vibrant warm orange
+        "fur_shade": (188, 78, 14, 255),    # Dark tiger stripe
+        "fur_belly": (255, 250, 242, 255),  # Creamy white muzzle/belly
+        "inner_ear": (255, 175, 185, 255),  # Pink ear
+        "outline": (26, 18, 12, 255),       # Deep dark outline
+        "eye_iris": (26, 18, 12, 255),      # Hidden by shades
+        "collar": (255, 195, 15, 255),      # Solid gold chain
+        "accent": (255, 235, 90, 255),      # Gold shine
+        "has_shades": True,
+        "has_chain": True,
     },
     "oyen": {
         "name": "Si Oyen (Orange Tabby 🐱)",
-        "base": (255, 140, 50, 255),
-        "shadow": (225, 105, 30, 255),
-        "belly": (255, 240, 220, 255),
-        "inner_ear": (255, 255, 255, 255),
-        "eye": (46, 204, 113, 255),        # Emerald eyes
-        "pupil": (20, 20, 20, 255),
-        "nose": (165, 75, 45, 255),
-        "outline": (35, 22, 18, 255),
-        "paw": (255, 255, 255, 255),
-        "chain": (255, 205, 20, 255),
-        "chain_shine": (255, 245, 150, 255),
-        "sunglasses": False,
-        "collar": False
+        "fur_main": (238, 122, 34, 255),
+        "fur_shade": (188, 78, 14, 255),
+        "fur_belly": (255, 250, 242, 255),
+        "inner_ear": (255, 175, 185, 255),
+        "outline": (26, 18, 12, 255),
+        "eye_iris": (46, 185, 95, 255),     # Emerald green
+        "collar": (235, 55, 75, 255),      # Red collar
+        "accent": (255, 215, 35, 255),     # Gold bell
+        "has_shades": False,
+        "has_chain": False,
+    },
+    "mochi": {
+        "name": "Si Kalung Biru (Mochi 🐾)",
+        "fur_main": (168, 178, 192, 255),  # Soft slate grey
+        "fur_shade": (118, 128, 142, 255), # Dark grey stripe
+        "fur_belly": (250, 252, 255, 255), # Snow white
+        "inner_ear": (255, 170, 188, 255),
+        "outline": (30, 34, 42, 255),
+        "eye_iris": (45, 145, 235, 255),    # Sky blue
+        "collar": (25, 185, 215, 255),     # Turquoise cyan
+        "accent": (255, 215, 35, 255),     # Gold bell
+        "has_shades": False,
+        "has_chain": True,
     },
     "shiro": {
         "name": "Si Putih (Snow White ❄️)",
-        "base": (252, 253, 255, 255),      # White
-        "shadow": (218, 225, 235, 255),
-        "belly": (255, 255, 255, 255),
-        "inner_ear": (255, 175, 195, 255), # Pink
-        "eye": (52, 152, 219, 255),        # Blue eyes
-        "pupil": (20, 20, 30, 255),
-        "nose": (255, 140, 165, 255),
-        "outline": (45, 52, 60, 255),
-        "paw": (255, 255, 255, 255),
-        "chain": (230, 55, 80, 255),       # Red collar
-        "chain_shine": (255, 215, 0, 255),
-        "sunglasses": False,
-        "collar": False
+        "fur_main": (250, 252, 255, 255),  # Pure white
+        "fur_shade": (218, 226, 238, 255), # Soft blue shadow
+        "fur_belly": (255, 255, 255, 255),
+        "inner_ear": (255, 180, 200, 255),
+        "outline": (45, 52, 64, 255),
+        "eye_iris": (52, 148, 235, 255),    # Sapphire
+        "collar": (245, 95, 145, 255),     # Pink
+        "accent": (255, 225, 50, 255),
+        "has_shades": False,
+        "has_chain": False,
     },
     "tuxedo": {
         "name": "Si Tuxedo (Black & White 🎩)",
-        "base": (42, 45, 52, 255),         # Charcoal black
-        "shadow": (28, 30, 35, 255),
-        "belly": (255, 255, 255, 255),     # White bib
+        "fur_main": (38, 42, 52, 255),     # Midnight black
+        "fur_shade": (22, 24, 30, 255),
+        "fur_belly": (252, 254, 255, 255), # White chest & socks
         "inner_ear": (255, 165, 185, 255),
-        "eye": (46, 204, 113, 255),
-        "pupil": (15, 15, 20, 255),
-        "nose": (255, 135, 155, 255),
-        "outline": (20, 22, 26, 255),
-        "paw": (255, 255, 255, 255),
-        "chain": (255, 205, 20, 255),
-        "chain_shine": (255, 245, 150, 255),
-        "sunglasses": False,
-        "collar": False
+        "outline": (14, 16, 22, 255),
+        "eye_iris": (245, 195, 25, 255),    # Amber gold
+        "collar": (225, 45, 55, 255),      # Red bow
+        "accent": (255, 225, 50, 255),
+        "has_shades": False,
+        "has_chain": False,
     },
     "calico": {
         "name": "Belang Tiga (Calico 🎨)",
-        "base": (250, 250, 252, 255),
-        "shadow": (230, 120, 25, 255),
-        "belly": (255, 255, 255, 255),
-        "inner_ear": (255, 160, 180, 255),
-        "eye": (245, 180, 10, 255),
-        "pupil": (20, 20, 20, 255),
-        "nose": (255, 130, 150, 255),
-        "outline": (35, 38, 45, 255),
-        "paw": (255, 255, 255, 255),
-        "chain": (255, 205, 20, 255),
-        "chain_shine": (255, 245, 150, 255),
-        "sunglasses": False,
-        "collar": False
+        "fur_main": (250, 252, 255, 255),  # White
+        "fur_shade": (230, 115, 25, 255),  # Ginger patch
+        "fur_belly": (255, 255, 255, 255),
+        "inner_ear": (255, 172, 190, 255),
+        "outline": (32, 36, 44, 255),
+        "eye_iris": (46, 185, 95, 255),
+        "collar": (180, 75, 230, 255),     # Purple
+        "accent": (255, 215, 35, 255),
+        "has_shades": False,
+        "has_chain": False,
     },
     "grey": {
         "name": "Abu-Abu (Grey Tabby 🩶)",
-        "base": (165, 175, 185, 255),
-        "shadow": (115, 125, 138, 255),
-        "belly": (240, 243, 246, 255),
-        "inner_ear": (255, 165, 185, 255),
-        "eye": (52, 152, 219, 255),
-        "pupil": (20, 20, 30, 255),
-        "nose": (255, 130, 150, 255),
-        "outline": (40, 45, 52, 255),
-        "paw": (255, 255, 255, 255),
-        "chain": (255, 205, 20, 255),
-        "chain_shine": (255, 245, 150, 255),
-        "sunglasses": False,
-        "collar": False
-    }
+        "fur_main": (160, 170, 182, 255),
+        "fur_shade": (105, 115, 128, 255),
+        "fur_belly": (238, 242, 248, 255),
+        "inner_ear": (255, 168, 188, 255),
+        "outline": (36, 42, 52, 255),
+        "eye_iris": (52, 148, 235, 255),
+        "collar": (255, 185, 20, 255),
+        "accent": (255, 230, 80, 255),
+        "has_shades": False,
+        "has_chain": False,
+    },
 }
 
-CANVAS_SIZE = 32
-SCALE_FACTOR = 4  # Generates 128x128 pixel art
+_CACHE: Dict[Tuple[str, str, int, int, int], Image.Image] = {}
 
 
-def create_blank():
-    return Image.new("RGBA", (CANVAS_SIZE, CANVAS_SIZE), (0, 0, 0, 0))
-
-
-def draw_pixel(d, x, y, col):
-    if 0 <= x < CANVAS_SIZE and 0 <= y < CANVAS_SIZE:
-        d.point((x, y), fill=col)
-
-
-def draw_rect(d, x1, y1, x2, y2, fill, outline=None):
-    d.rectangle([x1, y1, x2, y2], fill=fill, outline=outline)
-
-
-# -------------------------------------------------------------------------
-# 1. FRONT-FACING SITTING POSE (Exact match to Image 1: Boss Cat Sitting)
-# -------------------------------------------------------------------------
-def render_front_facing_cat(palette, bob=0, eyes_state="shades", heart=False, sparkle=False, laptop=False):
-    img = create_blank()
+# ─── 1. FRONT-FACING IDLE (BREATHING + EYE FOLLOW) ──────────────────────────
+def _draw_idle_front(p: dict, frame_idx: int, look_dx: int = 0, look_dy: int = 0) -> Image.Image:
+    """
+    Chubby front-facing cat with subtle breathing expansion, tail wagging,
+    and pupil offset tracking the mouse cursor vector (look_dx, look_dy).
+    """
+    img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
 
-    base = palette["base"]
-    shadow = palette["shadow"]
-    inner_ear = palette["inner_ear"]
-    belly = palette["belly"]
-    nose = palette["nose"]
-    outline = palette["outline"]
-    paw = palette["paw"]
-    chain = palette["chain"]
-    chain_shine = palette["chain_shine"]
-    has_shades = palette.get("sunglasses", False)
+    O = p["fur_main"]
+    S = p["fur_shade"]
+    W = p["fur_belly"]
+    K = p["outline"]
+    E = p["inner_ear"]
 
-    y_off = bob
+    # Breathing height offset: frame 0 & 2 = base, frame 1 = inhale (rise 1px), frame 3 = exhale
+    breath_y = -1 if frame_idx == 1 else 0
 
-    # 1. Outer Body & Thighs (Left & Right sitting curves)
-    # Left outer thigh
-    draw_rect(d, 4, 15 + y_off, 9, 27, fill=base, outline=outline)
-    d.line([(4, 15 + y_off), (4, 25)], fill=outline, width=1)
-    # Right outer thigh
-    draw_rect(d, 22, 15 + y_off, 27, 27, fill=base, outline=outline)
-    d.line([(27, 15 + y_off), (27, 25)], fill=outline, width=1)
-
-    # 2. Central Torso & Front Legs (2 straight pillars going down)
-    # Left front leg pillar
-    draw_rect(d, 9, 14 + y_off, 14, 27, fill=base, outline=outline)
-    # Right front leg pillar
-    draw_rect(d, 17, 14 + y_off, 22, 27, fill=base, outline=outline)
-    # Center divider between front legs
-    draw_rect(d, 15, 14 + y_off, 16, 27, fill=shadow, outline=outline)
-
-    # 3. Bottom 4 White Paws in a Row [ Rear Left ] [ Front Left ] [ Front Right ] [ Rear Right ]
-    # Rear Left Paw (x=4..8)
-    draw_rect(d, 4, 25, 8, 28, fill=paw, outline=outline)
-    draw_pixel(d, 6, 26, outline)
-    # Front Left Paw (x=9..14)
-    draw_rect(d, 9, 25, 14, 28, fill=paw, outline=outline)
-    draw_pixel(d, 11, 26, outline)
-    draw_pixel(d, 12, 26, outline)
-    # Front Right Paw (x=17..22)
-    draw_rect(d, 17, 25, 22, 28, fill=paw, outline=outline)
-    draw_pixel(d, 19, 26, outline)
-    draw_pixel(d, 20, 26, outline)
-    # Rear Right Paw (x=23..27)
-    draw_rect(d, 23, 25, 27, 28, fill=paw, outline=outline)
-    draw_pixel(d, 25, 26, outline)
-
-    # 4. White Chest Triangle & Gold Chain / Necklace
-    # White chest patch under chin
-    d.polygon([(11, 13 + y_off), (20, 13 + y_off), (16, 17 + y_off)], fill=belly)
-
-    if not laptop:
-        # Gold Chain Necklace across chest
-        d.line([(9, 14 + y_off), (12, 16 + y_off)], fill=chain, width=2)
-        d.line([(12, 16 + y_off), (19, 16 + y_off)], fill=chain, width=2)
-        d.line([(19, 16 + y_off), (22, 14 + y_off)], fill=chain, width=2)
-
-        # Big Gold "S" Pendant / Medal hanging in center!
-        draw_rect(d, 13, 17 + y_off, 18, 22 + y_off, fill=chain, outline=outline)
-        # S letter pattern in shine
-        draw_pixel(d, 14, 18 + y_off, chain_shine)
-        draw_pixel(d, 15, 18 + y_off, chain_shine)
-        draw_pixel(d, 16, 18 + y_off, chain_shine)
-        draw_pixel(d, 14, 19 + y_off, chain_shine)
-        draw_pixel(d, 15, 20 + y_off, chain_shine)
-        draw_pixel(d, 16, 20 + y_off, chain_shine)
-        draw_pixel(d, 16, 21 + y_off, chain_shine)
-        draw_pixel(d, 15, 21 + y_off, chain_shine)
-        draw_pixel(d, 14, 21 + y_off, chain_shine)
-
-    # 5. Big Round Head (Chubby cheeks, pointy ears)
-    # Left Ear (with white/inner patch)
-    d.polygon([(4, 6 + y_off), (7, 1 + y_off), (11, 6 + y_off)], fill=base, outline=outline)
-    d.polygon([(5, 5 + y_off), (7, 2 + y_off), (9, 5 + y_off)], fill=inner_ear)
-    # Right Ear
-    d.polygon([(20, 6 + y_off), (24, 1 + y_off), (27, 6 + y_off)], fill=base, outline=outline)
-    d.polygon([(22, 5 + y_off), (24, 2 + y_off), (26, 5 + y_off)], fill=inner_ear)
-
-    # Main Head Circle
-    draw_rect(d, 4, 6 + y_off, 27, 16 + y_off, fill=base, outline=outline)
-    draw_rect(d, 3, 8 + y_off, 28, 14 + y_off, fill=base, outline=outline)
-
-    # 6. Face Features: Thug Shades, Muzzle Puffs, Nose
-    if has_shades or eyes_state == "shades":
-        # Thug Life Sunglasses across face
-        draw_rect(d, 3, 7 + y_off, 28, 11 + y_off, fill=(18, 18, 22, 255), outline=outline)
-        # Stepped Pixel Glint (White stairs shine on left and right lens)
-        # Left Lens Glint
-        draw_pixel(d, 6, 8 + y_off, (255, 255, 255, 255))
-        draw_pixel(d, 7, 8 + y_off, (255, 255, 255, 255))
-        draw_pixel(d, 8, 9 + y_off, (255, 255, 255, 255))
-        draw_pixel(d, 9, 9 + y_off, (255, 255, 255, 255))
-        # Right Lens Glint
-        draw_pixel(d, 19, 8 + y_off, (255, 255, 255, 255))
-        draw_pixel(d, 20, 8 + y_off, (255, 255, 255, 255))
-        draw_pixel(d, 21, 9 + y_off, (255, 255, 255, 255))
-        draw_pixel(d, 22, 9 + y_off, (255, 255, 255, 255))
-
-    elif eyes_state == "open":
-        eye_col = palette["eye"]
-        # Big anime eyes
-        draw_rect(d, 7, 8 + y_off, 10, 11 + y_off, fill=eye_col)
-        draw_pixel(d, 8, 8 + y_off, (255, 255, 255, 255))
-        draw_rect(d, 21, 8 + y_off, 24, 11 + y_off, fill=eye_col)
-        draw_pixel(d, 22, 8 + y_off, (255, 255, 255, 255))
-
-    elif eyes_state == "happy":
-        d.line([(7, 10 + y_off), (9, 8 + y_off)], fill=outline, width=2)
-        d.line([(9, 8 + y_off), (11, 10 + y_off)], fill=outline, width=2)
-        d.line([(20, 10 + y_off), (22, 8 + y_off)], fill=outline, width=2)
-        d.line([(22, 8 + y_off), (24, 10 + y_off)], fill=outline, width=2)
-
-    elif eyes_state == "sleep":
-        d.line([(7, 10 + y_off), (11, 10 + y_off)], fill=outline, width=2)
-        d.line([(20, 10 + y_off), (24, 10 + y_off)], fill=outline, width=2)
-
-    # Cute Brown Nose
-    draw_rect(d, 14, 10 + y_off, 17, 12 + y_off, fill=nose, outline=outline)
-
-    # White Rounded Whisker Muzzle Puffs (:3)
-    draw_rect(d, 10, 12 + y_off, 15, 15 + y_off, fill=belly, outline=outline)
-    draw_rect(d, 16, 12 + y_off, 21, 15 + y_off, fill=belly, outline=outline)
-    draw_pixel(d, 12, 13 + y_off, outline)
-    draw_pixel(d, 19, 13 + y_off, outline)
-
-    # Optional Overlays:
-    if heart:
-        # Floating pixel heart
-        hy = 2 - (bob % 2)
-        d.polygon([(14, hy), (16, hy - 2), (18, hy), (16, hy + 3)], fill=(255, 60, 90, 255))
-        d.polygon([(12, hy), (14, hy - 2), (16, hy), (14, hy + 3)], fill=(255, 60, 90, 255))
-
-    if sparkle:
-        draw_pixel(d, 3, 4, (255, 215, 0, 255))
-        draw_pixel(d, 28, 4, (255, 215, 0, 255))
-        draw_pixel(d, 29, 5, (255, 215, 0, 255))
-
-    if laptop:
-        # Mini Laptop
-        draw_rect(d, 6, 20, 25, 27, fill=(65, 75, 90, 255), outline=outline)
-        d.polygon([(8, 20), (10, 15), (21, 15), (23, 20)], fill=(120, 135, 155, 255), outline=outline)
-        d.line([(12, 17), (19, 17)], fill=(46, 204, 113, 255), width=1)
-
-    # Resize cleanly to 128x128
-    scaled_size = (CANVAS_SIZE * SCALE_FACTOR, CANVAS_SIZE * SCALE_FACTOR)
-    return img.resize(scaled_size, Image.Resampling.NEAREST)
-
-
-# -------------------------------------------------------------------------
-# 2. SIDE-FACING WALKING POSE (Exact match to Image 2: 8-Bit Retro Walking)
-# -------------------------------------------------------------------------
-def render_side_walking_cat(palette, step=0):
-    img = create_blank()
-    d = ImageDraw.Draw(img)
-
-    base = palette["base"]
-    shadow = palette["shadow"]
-    inner_ear = palette["inner_ear"]
-    belly = palette["belly"]
-    outline = palette["outline"]
-    paw = palette["paw"]
-    chain = palette["chain"]
-
-    bob = 1 if (step in [1, 3]) else 0
-    by = 13 - bob
-
-    # 1. Upright Puffy Tail (Image 2 style)
-    tail_step = 1 if step in [0, 2] else 0
-    d.polygon([(21, by + 4), (25, by - 2 + tail_step), (28, by - 5 + tail_step), (25, by - 7 + tail_step), (22, by - 1)], fill=base, outline=outline)
-
-    # 2. Rectangular Retro Torso
-    draw_rect(d, 8, by, 22, by + 8, fill=base, outline=outline)
-    d.line([(12, by + 1), (12, by + 4)], fill=shadow, width=1)
-    d.line([(17, by + 1), (17, by + 4)], fill=shadow, width=1)
-
-    # 3. Head (Facing Left/Side as in Image 2)
-    # Pointy Ears
-    d.polygon([(6, by - 5), (8, by - 9), (11, by - 5)], fill=base, outline=outline)
-    d.polygon([(7, by - 6), (8, by - 8), (10, by - 6)], fill=inner_ear)
-    d.polygon([(12, by - 5), (14, by - 9), (17, by - 5)], fill=base, outline=outline)
-    d.polygon([(13, by - 6), (14, by - 8), (16, by - 6)], fill=inner_ear)
-
-    # Head Box
-    draw_rect(d, 5, by - 5, 17, by + 2, fill=base, outline=outline)
-
-    # Eye (Dark square dot)
-    draw_rect(d, 8, by - 3, 9, by - 2, fill=(35, 22, 18, 255))
-    draw_rect(d, 13, by - 3, 14, by - 2, fill=(35, 22, 18, 255))
-
-    # White Muzzle Patch on Snout (Image 2)
-    draw_rect(d, 5, by - 1, 10, by + 2, fill=belly, outline=outline)
-
-    # Dark Collar / Chain under neck
-    draw_rect(d, 7, by + 2, 15, by + 4, fill=chain, outline=outline)
-    d.line([(7, by + 2), (7, by + 7)], fill=outline, width=2)
-
-    # 4. Clean 8-Bit Walking Legs with Stride (Image 2 style)
-    # 4 defined stepping columns
-    if step == 0:
-        # Front Left forward, Front Right back, Rear Left forward, Rear Right back
-        draw_rect(d, 8, by + 8, 10, 27, fill=paw, outline=outline)
-        draw_rect(d, 12, by + 8, 14, 25, fill=paw, outline=outline)
-        draw_rect(d, 17, by + 8, 19, 27, fill=paw, outline=outline)
-        draw_rect(d, 20, by + 8, 22, 25, fill=paw, outline=outline)
-    elif step == 1:
-        # Passing phase
-        draw_rect(d, 9, by + 8, 11, 26, fill=paw, outline=outline)
-        draw_rect(d, 13, by + 8, 15, 26, fill=paw, outline=outline)
-        draw_rect(d, 18, by + 8, 20, 26, fill=paw, outline=outline)
-        draw_rect(d, 21, by + 8, 23, 26, fill=paw, outline=outline)
-    elif step == 2:
-        # Opposite stride
-        draw_rect(d, 7, by + 8, 9, 25, fill=paw, outline=outline)
-        draw_rect(d, 11, by + 8, 13, 27, fill=paw, outline=outline)
-        draw_rect(d, 16, by + 8, 18, 25, fill=paw, outline=outline)
-        draw_rect(d, 20, by + 8, 22, 27, fill=paw, outline=outline)
+    # Tail sway (curls left or right)
+    tail_dir = 1 if frame_idx in (1, 2) else 0
+    if tail_dir == 1:
+        # Tail curved to right
+        d.line([(24, 25 + breath_y), (27, 22 + breath_y), (27, 17 + breath_y), (25, 15 + breath_y)], fill=O, width=2)
+        d.line([(25, 26 + breath_y), (28, 22 + breath_y), (28, 17 + breath_y), (25, 14 + breath_y)], fill=K)
     else:
-        # Passing phase 2
-        draw_rect(d, 9, by + 8, 11, 26, fill=paw, outline=outline)
-        draw_rect(d, 13, by + 8, 15, 26, fill=paw, outline=outline)
-        draw_rect(d, 18, by + 8, 20, 26, fill=paw, outline=outline)
-        draw_rect(d, 21, by + 8, 23, 26, fill=paw, outline=outline)
+        # Tail curled slightly down
+        d.line([(24, 25 + breath_y), (28, 24 + breath_y), (29, 21 + breath_y), (28, 19 + breath_y)], fill=O, width=2)
+        d.line([(24, 26 + breath_y), (29, 25 + breath_y), (30, 21 + breath_y), (29, 18 + breath_y)], fill=K)
 
-    scaled_size = (CANVAS_SIZE * SCALE_FACTOR, CANVAS_SIZE * SCALE_FACTOR)
-    return img.resize(scaled_size, Image.Resampling.NEAREST)
+    # ── Cat Body (Round & Chubby) ──
+    body_top = 17 + breath_y
+    d.ellipse([7, body_top, 24, 28 + breath_y], fill=O, outline=K)
+    # White belly
+    d.ellipse([11, body_top + 1, 20, 27 + breath_y], fill=W)
+    # Side tiger stripes
+    d.line([(7, body_top + 4), (10, body_top + 4)], fill=S)
+    d.line([(21, body_top + 4), (24, body_top + 4)], fill=S)
+
+    # ── Paws (4 Front Paws in a row) ──
+    paw_y = 27 + breath_y
+    d.rectangle([8, paw_y, 11, 29 + breath_y], fill=W, outline=K)
+    d.rectangle([12, paw_y, 14, 29 + breath_y], fill=W, outline=K)
+    d.rectangle([17, paw_y, 19, 29 + breath_y], fill=W, outline=K)
+    d.rectangle([20, paw_y, 23, 29 + breath_y], fill=W, outline=K)
+
+    # ── Head (Big Round Chibi Head) ──
+    head_y = 6 + breath_y
+    # Ears
+    d.polygon([(7, head_y + 3), (7, head_y - 3), (12, head_y + 3)], fill=O, outline=K)
+    d.polygon([(19, head_y + 3), (24, head_y - 3), (24, head_y + 3)], fill=O, outline=K)
+    # Inner Ear Pink
+    d.polygon([(8, head_y + 2), (8, head_y - 1), (11, head_y + 2)], fill=E)
+    d.polygon([(20, head_y + 2), (23, head_y - 1), (23, head_y + 2)], fill=E)
+
+    # Head Oval
+    d.ellipse([6, head_y, 25, head_y + 12], fill=O, outline=K)
+    # Forehead Stripes
+    d.line([(15, head_y + 1), (15, head_y + 3)], fill=S)
+    d.line([(13, head_y + 2), (13, head_y + 4)], fill=S)
+    d.line([(18, head_y + 2), (18, head_y + 4)], fill=S)
+
+    # ── White Cheek Puffs & Muzzle ──
+    d.ellipse([10, head_y + 6, 15, head_y + 10], fill=W)
+    d.ellipse([16, head_y + 6, 21, head_y + 10], fill=W)
+    # Little pink nose
+    img.putpixel((15, head_y + 6), (225, 75, 55, 255))
+    img.putpixel((16, head_y + 6), (225, 75, 55, 255))
+    # Mouth line :3
+    d.line([(14, head_y + 8), (15, head_y + 7)], fill=K)
+    d.line([(16, head_y + 7), (17, head_y + 8)], fill=K)
+
+    # ── Eyes / Sunglasses (With Eye Follow!) ──
+    if p.get("has_shades", False):
+        # Cool thug sunglasses with reflection
+        d.rectangle([8, head_y + 3, 23, head_y + 6], fill=(18, 18, 22, 255), outline=K)
+        # White corner glint
+        img.putpixel((10, head_y + 4), (255, 255, 255, 255))
+        img.putpixel((18, head_y + 4), (255, 255, 255, 255))
+    else:
+        # Pupil offset (-1, 0, 1) based on mouse vector
+        px = max(-1, min(1, look_dx))
+        py = max(-1, min(1, look_dy))
+
+        # Blinking on frame 3
+        if frame_idx == 3:
+            d.line([(9, head_y + 5), (13, head_y + 5)], fill=K, width=2)
+            d.line([(18, head_y + 5), (22, head_y + 5)], fill=K, width=2)
+        else:
+            # Eye white/sclera
+            d.ellipse([9, head_y + 3, 13, head_y + 7], fill=(255, 255, 255, 255), outline=K)
+            d.ellipse([18, head_y + 3, 22, head_y + 7], fill=(255, 255, 255, 255), outline=K)
+            # Iris color
+            iris = p.get("eye_iris", (46, 185, 95, 255))
+            d.rectangle([10 + px, head_y + 4 + py, 12 + px, head_y + 6 + py], fill=iris)
+            d.rectangle([19 + px, head_y + 4 + py, 21 + px, head_y + 6 + py], fill=iris)
+            # Black pupil center
+            img.putpixel((11 + px, head_y + 5 + py), (20, 20, 20, 255))
+            img.putpixel((20 + px, head_y + 5 + py), (20, 20, 20, 255))
+            # Shiny catchlight
+            img.putpixel((10, head_y + 4), (255, 255, 255, 255))
+            img.putpixel((19, head_y + 4), (255, 255, 255, 255))
+
+    # ── Collar / Gold Chain ──
+    if p.get("has_chain", False):
+        chain_y = head_y + 11
+        for cx in range(10, 22):
+            cy = chain_y + (1 if cx in (14, 15, 16, 17) else 0)
+            img.putpixel((cx, cy), p["collar"])
+        # Pendant shine
+        img.putpixel((15, chain_y + 2), p["accent"])
+        img.putpixel((16, chain_y + 2), p["accent"])
+    elif p.get("collar"):
+        chain_y = head_y + 11
+        d.line([(10, chain_y), (21, chain_y)], fill=p["collar"], width=1)
+        if p.get("accent"):
+            img.putpixel((15, chain_y + 1), p["accent"])
+            img.putpixel((16, chain_y + 1), p["accent"])
+
+    return img
 
 
-# -------------------------------------------------------------------------
-# 3. SLEEPING LOAF POSE
-# -------------------------------------------------------------------------
-def render_sleep_cat(palette, frame_idx=0):
-    img = create_blank()
+# ─── 2. FLUID 4-FRAME WALK CYCLE (SIDE PROFILE) ────────────────────────────
+def _draw_walk_side(p: dict, frame_idx: int, flip_left: bool = False) -> Image.Image:
+    """
+    4-Frame walk gait with alternating paws (4 legs), body bobbing,
+    and curved tail oscillation.
+    """
+    img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
 
-    base = palette["base"]
-    belly = palette["belly"]
-    outline = palette["outline"]
-    inner_ear = palette["inner_ear"]
+    O = p["fur_main"]
+    S = p["fur_shade"]
+    W = p["fur_belly"]
+    K = p["outline"]
+    E = p["inner_ear"]
 
-    bob = 1 if (frame_idx % 2 == 1) else 0
+    # Body bobbing: frame 0=mid, frame 1=low (contact), frame 2=mid, frame 3=high (passing)
+    bob_y = 0 if frame_idx in (0, 2) else (-1 if frame_idx == 3 else 1)
 
-    # Flat loaf body
-    draw_rect(d, 4, 16 + bob, 27, 26, fill=base, outline=outline)
-    draw_rect(d, 8, 20 + bob, 22, 25, fill=belly)
+    # Tail animation
+    tail_sway = 1 if frame_idx in (1, 2) else 0
+    d.line([(5, 18 + bob_y), (3, 14 + bob_y), (4, 9 + bob_y + tail_sway), (7, 7 + bob_y + tail_sway)], fill=O, width=2)
+    d.line([(5, 19 + bob_y), (2, 14 + bob_y), (3, 8 + bob_y + tail_sway), (7, 6 + bob_y + tail_sway)], fill=K)
 
-    # Curled tail
-    d.polygon([(26, 22 + bob), (29, 18 + bob), (28, 15 + bob), (25, 17 + bob)], fill=base, outline=outline)
+    # ── Legs (4 legs in 4 distinct gait phases) ──
+    # [Front-Right, Front-Left, Back-Right, Back-Left]
+    leg_y = 25 + bob_y
+    if frame_idx == 0:
+        # Phase 0: Right legs forward, left legs back
+        d.rectangle([21, leg_y, 24, 29], fill=W, outline=K)  # FR forward
+        d.rectangle([17, leg_y, 20, 28], fill=W, outline=K)  # FL back
+        d.rectangle([9, leg_y, 12, 29], fill=W, outline=K)   # BR forward
+        d.rectangle([6, leg_y, 9, 28], fill=W, outline=K)    # BL back
+    elif frame_idx == 1:
+        # Phase 1: Contact / push-off
+        d.rectangle([22, leg_y, 25, 29], fill=W, outline=K)
+        d.rectangle([16, leg_y - 1, 19, 27], fill=W, outline=K)
+        d.rectangle([10, leg_y, 13, 29], fill=W, outline=K)
+        d.rectangle([5, leg_y - 1, 8, 27], fill=W, outline=K)
+    elif frame_idx == 2:
+        # Phase 2: Left legs forward, right legs back
+        d.rectangle([18, leg_y, 21, 29], fill=W, outline=K)  # FL forward
+        d.rectangle([22, leg_y, 25, 28], fill=W, outline=K)  # FR back
+        d.rectangle([7, leg_y, 10, 29], fill=W, outline=K)   # BL forward
+        d.rectangle([10, leg_y, 13, 28], fill=W, outline=K)  # BR back
+    else:
+        # Phase 3: High step / passing phase
+        d.rectangle([19, leg_y - 1, 22, 27], fill=W, outline=K)
+        d.rectangle([23, leg_y, 26, 29], fill=W, outline=K)
+        d.rectangle([8, leg_y - 1, 11, 27], fill=W, outline=K)
+        d.rectangle([11, leg_y, 14, 29], fill=W, outline=K)
 
-    # Sleeping head on left
-    draw_rect(d, 4, 12 + bob, 15, 20 + bob, fill=base, outline=outline)
-    d.polygon([(5, 12 + bob), (7, 8 + bob), (9, 12 + bob)], fill=base, outline=outline)
-    d.polygon([(6, 11 + bob), (7, 9 + bob), (8, 11 + bob)], fill=inner_ear)
-    d.polygon([(11, 12 + bob), (13, 8 + bob), (15, 12 + bob)], fill=base, outline=outline)
+    # ── Torso Body ──
+    d.ellipse([5, 14 + bob_y, 24, 26 + bob_y], fill=O, outline=K)
+    # Tabby stripes on back
+    d.line([(10, 15 + bob_y), (10, 20 + bob_y)], fill=S)
+    d.line([(14, 15 + bob_y), (14, 20 + bob_y)], fill=S)
+    d.line([(18, 15 + bob_y), (18, 20 + bob_y)], fill=S)
+    # White underbelly
+    d.ellipse([11, 21 + bob_y, 20, 26 + bob_y], fill=W)
 
-    # Closed sleeping eyes (- -)
-    d.line([(6, 15 + bob), (9, 15 + bob)], fill=outline, width=2)
-    d.line([(11, 15 + bob), (14, 15 + bob)], fill=outline, width=2)
+    # ── Head (Side/3-Quarter Profile) ──
+    head_y = 8 + bob_y
+    # Ears
+    d.polygon([(18, head_y), (21, head_y - 5), (24, head_y)], fill=O, outline=K)
+    d.polygon([(24, head_y), (27, head_y - 5), (29, head_y)], fill=O, outline=K)
+    img.putpixel((21, head_y - 2), E)
+    img.putpixel((27, head_y - 2), E)
 
-    # Zzz
-    z = frame_idx % 4
-    if z >= 1:
-        draw_pixel(d, 23 + z, 10 - z * 2, (100, 160, 255, 220))
-        draw_pixel(d, 24 + z, 10 - z * 2, (100, 160, 255, 220))
-    if z >= 2:
-        draw_pixel(d, 26, 4, (120, 180, 255, 255))
-        draw_pixel(d, 27, 4, (120, 180, 255, 255))
+    # Head circle
+    d.ellipse([16, head_y, 30, head_y + 12], fill=O, outline=K)
+    # White muzzle
+    d.ellipse([24, head_y + 5, 30, head_y + 10], fill=W)
+    img.putpixel((29, head_y + 5), (225, 75, 55, 255))  # Nose
 
-    scaled_size = (CANVAS_SIZE * SCALE_FACTOR, CANVAS_SIZE * SCALE_FACTOR)
-    return img.resize(scaled_size, Image.Resampling.NEAREST)
+    # Eyes / Sunglasses
+    if p.get("has_shades", False):
+        d.rectangle([20, head_y + 3, 28, head_y + 6], fill=(18, 18, 22, 255), outline=K)
+        img.putpixel((22, head_y + 4), (255, 255, 255, 255))
+    else:
+        d.ellipse([21, head_y + 3, 25, head_y + 7], fill=(255, 255, 255, 255), outline=K)
+        d.rectangle([23, head_y + 4, 25, head_y + 6], fill=p.get("eye_iris", (46, 185, 95, 255)))
+        img.putpixel((24, head_y + 5), (20, 20, 20, 255))
+        img.putpixel((22, head_y + 4), (255, 255, 255, 255))
+
+    # Collar / Chain
+    if p.get("has_chain", False):
+        d.line([(18, head_y + 11), (25, head_y + 11)], fill=p["collar"], width=1)
+        img.putpixel((22, head_y + 12), p["accent"])
+    elif p.get("collar"):
+        d.line([(18, head_y + 11), (25, head_y + 11)], fill=p["collar"], width=1)
+
+    if flip_left:
+        img = img.transpose(Image.FLIP_LEFT_RIGHT)
+
+    return img
 
 
-def render_cat_frame(skin_key="boss_oyen", state="idle", frame_idx=0):
-    palette = PALETTES.get(skin_key, PALETTES["boss_oyen"])
+# ─── 3. KEYBOARD KNEADING (4-FRAME LAPTOP TYPING) ──────────────────────────
+def _draw_knead_work(p: dict, frame_idx: int) -> Image.Image:
+    """Cute 4-frame keyboard kneading on mini laptop with screen glow and paw tapping."""
+    img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
 
-    if state == "idle":
-        bob = 1 if (frame_idx in [1, 2]) else 0
-        return render_front_facing_cat(palette, bob=bob, eyes_state="shades" if palette.get("sunglasses") else "open")
+    O = p["fur_main"]
+    S = p["fur_shade"]
+    W = p["fur_belly"]
+    K = p["outline"]
+    E = p["inner_ear"]
 
-    elif state in ["walk_left", "walk_right", "walk"]:
-        img = render_side_walking_cat(palette, step=frame_idx % 4)
-        if state == "walk_right":
-            # Image 2 is walking left, so flip for walk_right
-            img = img.transpose(Image.FLIP_LEFT_RIGHT)
-        return img
+    # Head
+    d.ellipse([7, 6, 24, 17], fill=O, outline=K)
+    # Ears
+    d.polygon([(7, 6), (7, 1), (12, 6)], fill=O, outline=K)
+    d.polygon([(19, 6), (24, 1), (24, 6)], fill=O, outline=K)
+    img.putpixel((8, 4), E)
+    img.putpixel((23, 4), E)
 
+    # Eyes (Intense focused ngoding face / shades)
+    if p.get("has_shades", False):
+        d.rectangle([9, 8, 22, 11], fill=(18, 18, 22, 255), outline=K)
+        # Green matrix reflection on glasses
+        glint_col = (72, 215, 120, 255) if frame_idx % 2 == 0 else (255, 255, 255, 255)
+        img.putpixel((11, 9), glint_col)
+        img.putpixel((18, 9), glint_col)
+    else:
+        # Happy focused curved eyes
+        d.line([(10, 10), (12, 8), (14, 10)], fill=K)
+        d.line([(17, 10), (19, 8), (21, 10)], fill=K)
+
+    # Muzzle
+    d.ellipse([11, 11, 15, 15], fill=W)
+    d.ellipse([16, 11, 20, 15], fill=W)
+    img.putpixel((15, 11), (225, 75, 55, 255))
+
+    # Body
+    d.ellipse([7, 16, 24, 27], fill=O, outline=K)
+    d.ellipse([11, 17, 20, 25], fill=W)
+
+    # Mini Laptop
+    d.rectangle([5, 23, 26, 26], fill=(55, 60, 72, 255), outline=K)     # Base
+    d.rectangle([8, 19, 23, 23], fill=(35, 38, 46, 255), outline=K)     # Screen
+    # Glowing code lines on screen
+    screen_cols = [(72, 215, 120, 255), (90, 235, 150, 255), (50, 180, 95, 255)]
+    sc = screen_cols[frame_idx % len(screen_cols)]
+    d.line([(9, 20), (15, 20)], fill=sc)
+    d.line([(9, 21), (21, 21)], fill=sc)
+    d.line([(9, 22), (18, 22)], fill=sc)
+
+    # 4-Phase Paw Kneading (L-down, Both-mid, R-down, Both-mid)
+    if frame_idx == 0:
+        d.rectangle([7, 23, 11, 25], fill=W, outline=K)   # Left paw pressing keyboard
+        d.rectangle([20, 21, 24, 23], fill=W, outline=K)  # Right paw raised high
+    elif frame_idx == 1:
+        d.rectangle([8, 22, 12, 24], fill=W, outline=K)   # Left paw rising
+        d.rectangle([19, 22, 23, 24], fill=W, outline=K)  # Right paw descending
+    elif frame_idx == 2:
+        d.rectangle([7, 21, 11, 23], fill=W, outline=K)   # Left paw raised high
+        d.rectangle([20, 23, 24, 25], fill=W, outline=K)  # Right paw pressing keyboard
+    else:
+        d.rectangle([8, 22, 12, 24], fill=W, outline=K)
+        d.rectangle([19, 22, 23, 24], fill=W, outline=K)
+
+    return img
+
+
+# ─── 4. PURRING & PETTING (4-FRAME WITH HEART PARTICLES) ────────────────────
+def _draw_pet_purr(p: dict, frame_idx: int) -> Image.Image:
+    """Cute purring reaction with blushing cheeks, smiling eyes, and rising hearts."""
+    img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+
+    O = p["fur_main"]
+    W = p["fur_belly"]
+    K = p["outline"]
+
+    # Body sitting comfortably
+    d.ellipse([6, 17, 25, 28], fill=O, outline=K)
+    d.ellipse([11, 18, 20, 26], fill=W)
+    d.rectangle([8, 27, 12, 29], fill=W, outline=K)
+    d.rectangle([19, 27, 23, 29], fill=W, outline=K)
+
+    # Head (Squished slightly from sweet petting)
+    d.ellipse([5, 8, 26, 18], fill=O, outline=K)
+    # Ears relaxed / folded back contentedly
+    d.polygon([(6, 9), (4, 6), (10, 9)], fill=O, outline=K)
+    d.polygon([(21, 9), (27, 6), (25, 9)], fill=O, outline=K)
+
+    # Happy closed eyes (smiling ^ ^)
+    d.line([(9, 12), (11, 10), (13, 12)], fill=K, width=2)
+    d.line([(18, 12), (20, 10), (22, 12)], fill=K, width=2)
+
+    # Bright pink blush pads
+    d.rectangle([8, 14, 11, 15], fill=(255, 130, 160, 240))
+    d.rectangle([20, 14, 23, 15], fill=(255, 130, 160, 240))
+
+    # Muzzle & Nose
+    d.ellipse([11, 12, 15, 16], fill=W)
+    d.ellipse([16, 12, 20, 16], fill=W)
+    img.putpixel((15, 12), (225, 75, 55, 255))
+
+    # Floating Pixel Heart Particle (smooth upward drift + pulse)
+    heart_y = max(1, 7 - frame_idx * 2)
+    heart_x = 22 + (frame_idx % 2)
+    heart_col = (255, 60, 110, 255)
+    # Draw 4x4 pixel heart
+    d.rectangle([heart_x, heart_y + 1, heart_x + 3, heart_y + 2], fill=heart_col)
+    img.putpixel((heart_x, heart_y), heart_col)
+    img.putpixel((heart_x + 2, heart_y), heart_col)
+    img.putpixel((heart_x + 1, heart_y + 3), heart_col)
+
+    return img
+
+
+# ─── 5. SLEEPING LOAF (4-FRAME WITH ZZZ BUBBLES) ───────────────────────────
+def _draw_sleep_loaf(p: dict, frame_idx: int) -> Image.Image:
+    """Cozy curled loaf sleeping pose with animated floating Zzz."""
+    img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+
+    O = p["fur_main"]
+    S = p["fur_shade"]
+    W = p["fur_belly"]
+    K = p["outline"]
+
+    # Breathing height
+    by = -1 if frame_idx in (1, 2) else 0
+
+    # Curled Loaf Body
+    d.ellipse([4, 16 + by, 27, 28 + by], fill=O, outline=K)
+    # Tabby stripes across curled back
+    d.line([(10, 17 + by), (10, 23 + by)], fill=S)
+    d.line([(15, 17 + by), (15, 23 + by)], fill=S)
+    d.line([(20, 17 + by), (20, 23 + by)], fill=S)
+
+    # Curled Tail over body
+    d.arc([20, 18 + by, 29, 26 + by], 270, 90, fill=O, width=2)
+
+    # Head tucked into loaf
+    d.ellipse([4, 14 + by, 17, 25 + by], fill=O, outline=K)
+    d.polygon([(5, 14 + by), (5, 10 + by), (9, 14 + by)], fill=O, outline=K)
+    d.polygon([(12, 14 + by), (16, 10 + by), (16, 14 + by)], fill=O, outline=K)
+
+    # Sleeping peaceful closed eyes (- -)
+    d.line([(7, 19 + by), (10, 19 + by)], fill=K)
+    d.line([(12, 19 + by), (15, 19 + by)], fill=K)
+
+    # Animated Floating Zzz
+    z_col = (130, 180, 255, 240)
+    z_offset = (frame_idx % 4)
+    # Z 1
+    d.text((18 + z_offset, 10 - z_offset), "z", fill=z_col)
+    if frame_idx >= 2:
+        d.text((23 + z_offset, 5 - z_offset), "Z", fill=z_col)
+
+    return img
+
+
+# ─── 6. MOCHI DRAG & DANGLING ──────────────────────────────────────────────
+def _draw_mochi_drag(p: dict, frame_idx: int) -> Image.Image:
+    """Elongated dangling cat with swinging paws when dragged."""
+    img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+
+    O = p["fur_main"]
+    W = p["fur_belly"]
+    K = p["outline"]
+
+    # Pinch / Held Scruff
+    d.polygon([(14, 2), (16, 0), (18, 2)], fill=K)
+
+    # Head
+    d.ellipse([9, 2, 22, 13], fill=O, outline=K)
+    d.polygon([(9, 3), (9, 0), (12, 3)], fill=O, outline=K)
+    d.polygon([(19, 3), (22, 0), (22, 3)], fill=O, outline=K)
+
+    # Surprised wide eyes (o.o)
+    if p.get("has_shades", False):
+        d.rectangle([10, 5, 21, 8], fill=(18, 18, 22, 255), outline=K)
+        img.putpixel((12, 6), (255, 255, 255, 255))
+    else:
+        d.ellipse([11, 5, 14, 8], fill=(255, 255, 255, 255), outline=K)
+        d.ellipse([17, 5, 20, 8], fill=(255, 255, 255, 255), outline=K)
+        img.putpixel((12, 6), (20, 20, 20, 255))
+        img.putpixel((18, 6), (20, 20, 20, 255))
+
+    # Mochi Stretched Body
+    d.ellipse([10, 12, 21, 26], fill=O, outline=K)
+    d.ellipse([12, 13, 19, 24], fill=W)
+
+    # Swinging Paws
+    paw_swing = -1 if frame_idx in (0, 1) else 1
+    d.rectangle([8 + paw_swing, 26, 12 + paw_swing, 30], fill=W, outline=K)
+    d.rectangle([19 - paw_swing, 26, 23 - paw_swing, 30], fill=W, outline=K)
+
+    return img
+
+
+# ─── 7. CELEBRATE / JUMP ───────────────────────────────────────────────────
+def _draw_celebrate_jump(p: dict, frame_idx: int) -> Image.Image:
+    """Jumping high in the air with open paws and star sparkles."""
+    img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+
+    O = p["fur_main"]
+    W = p["fur_belly"]
+    K = p["outline"]
+
+    # Mid-air Jump Body
+    d.ellipse([8, 5, 23, 18], fill=O, outline=K)
+    d.polygon([(8, 5), (8, 1), (12, 5)], fill=O, outline=K)
+    d.polygon([(19, 5), (23, 1), (23, 5)], fill=O, outline=K)
+
+    # Happy eyes (v v)
+    d.line([(10, 9), (12, 11), (14, 9)], fill=K, width=2)
+    d.line([(17, 9), (19, 11), (21, 9)], fill=K, width=2)
+
+    # Open happy mouth :3
+    d.ellipse([12, 12, 19, 16], fill=W)
+    img.putpixel((15, 14), (240, 70, 90, 255))
+
+    # Body & Outstretched Paws
+    d.ellipse([9, 16, 22, 24], fill=O, outline=K)
+    # Front paws high \o/
+    d.rectangle([4, 11, 8, 15], fill=W, outline=K)
+    d.rectangle([23, 11, 27, 15], fill=W, outline=K)
+    # Back paws tucked
+    d.rectangle([8, 24, 12, 27], fill=W, outline=K)
+    d.rectangle([19, 24, 23, 27], fill=W, outline=K)
+
+    # Star Sparkles
+    star_col = (255, 225, 50, 255)
+    d.line([(3, 4), (5, 4)], fill=star_col)
+    d.line([(4, 3), (4, 5)], fill=star_col)
+    d.line([(26, 5), (28, 5)], fill=star_col)
+    d.line([(27, 4), (27, 6)], fill=star_col)
+
+    return img
+
+
+# ─── 8. THINKING (CURIOUS HEAD TILT + 3 DOTS) ──────────────────────────────
+def _draw_thinking(p: dict, frame_idx: int) -> Image.Image:
+    """Curious tilted head with 3 animated floating dots."""
+    img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+
+    O = p["fur_main"]
+    W = p["fur_belly"]
+    K = p["outline"]
+
+    # Body
+    d.ellipse([7, 17, 24, 28], fill=O, outline=K)
+    d.ellipse([11, 18, 20, 26], fill=W)
+    d.rectangle([9, 27, 13, 29], fill=W, outline=K)
+    d.rectangle([18, 27, 22, 29], fill=W, outline=K)
+
+    # Tilted Head
+    d.ellipse([8, 7, 25, 18], fill=O, outline=K)
+    d.polygon([(8, 7), (8, 2), (13, 7)], fill=O, outline=K)
+    d.polygon([(19, 8), (24, 4), (25, 9)], fill=O, outline=K)
+
+    # Curious wide eyes looking up
+    d.ellipse([11, 10, 14, 13], fill=(255, 255, 255, 255), outline=K)
+    d.ellipse([18, 10, 21, 13], fill=(255, 255, 255, 255), outline=K)
+    img.putpixel((12, 10), (20, 20, 20, 255))
+    img.putpixel((19, 10), (20, 20, 20, 255))
+
+    # Muzzle
+    d.ellipse([12, 13, 16, 16], fill=W)
+    d.ellipse([16, 13, 20, 16], fill=W)
+    img.putpixel((16, 13), (225, 75, 55, 255))
+
+    # 3 Animated Thinking Dots (. .. ...)
+    dot_count = (frame_idx % 3) + 1
+    dot_col = (90, 160, 255, 255)
+    for i in range(dot_count):
+        d.rectangle([21 + i * 3, 2, 22 + i * 3, 3], fill=dot_col)
+
+    return img
+
+
+# ─── MAIN FRAME DISPATCHER (PUBLIC API) ────────────────────────────────────
+def render_cat_frame(skin_key: str = "boss_oyen",
+                     state: str = "idle",
+                     frame_idx: int = 0,
+                     look_dx: int = 0,
+                     look_dy: int = 0) -> Image.Image:
+    """
+    Return a 128x128 RGBA PIL Image for the given skin / state / frame.
+    Supports nearest-neighbor 4x scaling (32x32 -> 128x128) with dynamic eye follow.
+    """
+    global _CACHE
+    cache_key = (skin_key, state, frame_idx % 4, look_dx, look_dy)
+    if cache_key in _CACHE:
+        return _CACHE[cache_key]
+
+    p = PALETTES.get(skin_key, PALETTES["boss_oyen"])
+    fi = frame_idx % 4
+
+    # Generate native 32x32 frame based on state
+    if state in ("walk_left", "run_W"):
+        native = _draw_walk_side(p, fi, flip_left=True)
+    elif state in ("walk_right", "run_E", "walk"):
+        native = _draw_walk_side(p, fi, flip_left=False)
+    elif state in ("work", "knead", "typing"):
+        native = _draw_knead_work(p, fi)
+    elif state in ("pet", "purr", "happy"):
+        native = _draw_pet_purr(p, fi)
     elif state == "sleep":
-        return render_sleep_cat(palette, frame_idx)
-
-    elif state in ["pet", "purr", "happy"]:
-        bob = 1 if (frame_idx % 2 == 1) else 0
-        return render_front_facing_cat(palette, bob=bob, eyes_state="happy", heart=True)
-
-    elif state in ["jump", "celebrate"]:
-        bob = 2 if (frame_idx in [1, 2]) else 0
-        return render_front_facing_cat(palette, bob=-bob, eyes_state="happy", sparkle=True)
-
-    elif state in ["work", "knead", "typing"]:
-        bob = 1 if (frame_idx % 2 == 1) else 0
-        return render_front_facing_cat(palette, bob=bob, laptop=True)
-
-    elif state in ["thinking", "alert"]:
-        return render_front_facing_cat(palette, bob=0, eyes_state="open")
-
-    elif state in ["drag", "picked_up", "dangle"]:
-        return render_front_facing_cat(palette, bob=-3, eyes_state="open")
-
-    elif state in ["land", "drop"]:
-        return render_front_facing_cat(palette, bob=2, eyes_state="happy")
-
+        native = _draw_sleep_loaf(p, fi)
+    elif state in ("drag", "dangle", "mochi"):
+        native = _draw_mochi_drag(p, fi)
+    elif state in ("celebrate", "jump", "done"):
+        native = _draw_celebrate_jump(p, fi)
+    elif state in ("thinking", "alert"):
+        native = _draw_thinking(p, fi)
     else:
-        return render_front_facing_cat(palette, bob=0)
+        # Default: idle front with eye follow
+        native = _draw_idle_front(p, fi, look_dx=look_dx, look_dy=look_dy)
+
+    # Scale 4x nearest-neighbor to crisp 128x128
+    scaled = native.resize((128, 128), Image.Resampling.NEAREST)
+    _CACHE[cache_key] = scaled
+    return scaled
 
 
-def pregenerate_all_sprites(output_dir="assets/sprites"):
+def pregenerate_all_sprites(output_dir: str = "assets/sprites") -> None:
+    """Pre-generate all sprite frames to disk."""
     os.makedirs(output_dir, exist_ok=True)
-    states = ["idle", "walk_left", "walk_right", "sleep", "work", "pet", "jump", "thinking", "drag", "land"]
-
-    for skin in PALETTES.keys():
+    states = ["idle", "walk_left", "walk_right", "work", "pet", "sleep", "drag", "celebrate", "thinking"]
+    for skin in PALETTES:
         skin_dir = os.path.join(output_dir, skin)
         os.makedirs(skin_dir, exist_ok=True)
-
         for state in states:
-            for frame in range(4):
-                img = render_cat_frame(skin, state, frame)
-                path = os.path.join(skin_dir, f"{state}_{frame}.png")
-                img.save(path)
-
-    print(f"[SpriteGen] Generated Dual-Mode (Front-Sitting & Retro-Side-Walk) sprites for {len(PALETTES)} characters in '{output_dir}'.")
+            for fi in range(4):
+                img = render_cat_frame(skin, state, fi)
+                img.save(os.path.join(skin_dir, f"{state}_{fi}.png"))
+    print(f"[SpriteEngine] Pregenerated modern 4-frame sprites for {len(PALETTES)} skins.")
 
 
 if __name__ == "__main__":

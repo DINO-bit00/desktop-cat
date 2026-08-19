@@ -1,15 +1,20 @@
 """
-Main Desktop Pet Window
-Transparent, draggable, animated floating companion with interactive state machine,
-physics, Pomodoro timer integration, and custom context menus.
+Main Desktop Pet Window — Comnyang Modern Physics & Interaction Engine (Optimized)
+Transparent, draggable, animated floating companion with 60 FPS sub-pixel physics,
+realtime 8-direction eye tracking, active mouse hunt & pounce, mochi inertia wobble,
+global keyboard kneading, and Pomodoro integration.
 """
 
 import os
 import sys
 import ctypes
 import random
+import time
+import math
 from PyQt6.QtCore import Qt, QTimer, QPoint, QRect, pyqtSignal
-from PyQt6.QtGui import QPixmap, QPainter, QCursor, QAction, QIcon, QFont, QColor
+from PyQt6.QtGui import (
+    QPixmap, QPainter, QCursor, QAction, QIcon, QFont, QColor, QImage, QTransform
+)
 from PyQt6.QtWidgets import (
     QWidget, QMenu, QInputDialog, QMessageBox, QApplication
 )
@@ -18,6 +23,7 @@ from src.sprites import PALETTES, render_cat_frame
 from src.speech_bubble import SpeechBubble
 from src.pomodoro import PomodoroManager
 from src.local_watcher import LocalWatcher
+from src.global_hooks import GlobalInputWatcher
 from src.settings import save_settings
 
 
@@ -52,25 +58,46 @@ class DesktopPet(QWidget):
         self.setWindowFlags(flags)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
+        self.setMouseTracking(True)
 
         # Pet Dimensions
         self.sprite_size = 128
         self.setFixedSize(self.sprite_size, self.sprite_size)
 
+        # Sub-pixel Float Coordinates (for jitter-free 60 FPS physics)
+        self.pos_x_f = float(self.x())
+        self.pos_y_f = float(self.y())
+
         # State Machine
-        self.skin = self.settings.get("skin", "oyen")
-        self.state = "idle"         # idle, walk_left, walk_right, sleep, work, pet, celebrate, thinking, drag, land
-        self.target_state = "idle"
+        self.skin = self.settings.get("skin", "boss_oyen")
+        self.state = "idle"
         self.pre_drag_state = "idle"
         self.frame_index = 0
         self.state_ticks = 0
-        self.max_state_ticks = 20
+        self.max_state_ticks = 180
 
-        # Movement & Dragging
+        # Eye Follow Vectors
+        self.look_dx = 0
+        self.look_dy = 0
+
+        # Movement & Mouse Hunting (Dynamic Live Target)
+        self.is_hunting = False
+        self.hunt_start_time = 0.0
+        self.hunt_cooldown = 0.0
+
+        # Mochi Drag & Inertia Wobble Physics
         self.is_dragging = False
         self.has_dragged = False
         self.drag_start_pos = QPoint()
         self.drag_start_global_pos = QPoint()
+        self.drag_velocity_x = 0.0
+        self.mochi_tilt = 0.0
+        self.last_drag_global_pt = QPoint()
+        self.last_drag_time = 0.0
+
+        # Petting interaction tracking
+        self._hover_pet_count = 0
+        self._last_hover_time = 0.0
 
         # Frame Pixmap Cache
         self.pixmap_cache = {}
@@ -86,25 +113,34 @@ class DesktopPet(QWidget):
         self.pomodoro.tick.connect(self._on_pomodoro_tick)
         self.pomodoro.reminder_triggered.connect(self._on_reminder)
 
-        # Local File Event Watcher (for CLI / script triggers)
+        # Local File Event Watcher
         self.watcher = LocalWatcher(self)
         self.watcher.event_received.connect(self._on_external_event)
 
-        # Animation Loop Timer (200ms per frame)
+        # Global Input Watcher (Comnyang-style reaction to typing, hunting, and scrolling)
+        self.input_watcher = GlobalInputWatcher(self)
+        self.input_watcher.typing_started.connect(self._on_global_typing_start)
+        self.input_watcher.typing_stopped.connect(self._on_global_typing_stop)
+        self.input_watcher.overheat_triggered.connect(self._on_global_overheat)
+        self.input_watcher.mouse_scrolled.connect(self._on_global_scroll)
+        self.input_watcher.mouse_moved_fast.connect(self._on_fast_mouse_move)
+        self.input_watcher.start()
+
+        # Animation Loop Timer (110ms per frame for smooth 9-10 FPS sprite cycling)
         self.anim_timer = QTimer(self)
         self.anim_timer.timeout.connect(self._update_animation)
-        self.anim_timer.start(200)
+        self.anim_timer.start(110)
 
-        # Physics & AI Behavior Timer (every 50ms)
+        # Physics & AI Behavior Timer (16ms = 60 FPS game loop)
         self.physics_timer = QTimer(self)
-        self.physics_timer.timeout.connect(self._update_behavior)
-        self.physics_timer.start(50)
+        self.physics_timer.timeout.connect(self._update_physics_loop)
+        self.physics_timer.start(16)
 
         # Position on screen
         self._snap_to_initial_position()
 
         # Say hello at startup
-        QTimer.singleShot(800, self._say_welcome)
+        QTimer.singleShot(600, self._say_welcome)
 
     # -------------------------------------------------------------
     # Sprite & Cache Management
@@ -117,16 +153,20 @@ class DesktopPet(QWidget):
         for st in states:
             self.pixmap_cache[st] = []
             for frame in range(4):
-                # Render using Pillow then convert to QPixmap
                 pil_img = render_cat_frame(skin_name, st, frame)
-                # Convert PIL RGBA to QImage
                 raw_bytes = pil_img.tobytes("raw", "RGBA")
-                from PyQt6.QtGui import QImage
                 qimg = QImage(raw_bytes, pil_img.width, pil_img.height, QImage.Format.Format_RGBA8888)
                 pixmap = QPixmap.fromImage(qimg)
                 self.pixmap_cache[st].append(pixmap)
 
     def _get_current_pixmap(self):
+        # Dynamic eye-follow look on idle
+        if self.state == "idle" and not PALETTES.get(self.skin, {}).get("has_shades", False):
+            pil_img = render_cat_frame(self.skin, "idle", self.frame_index, self.look_dx, self.look_dy)
+            raw_bytes = pil_img.tobytes("raw", "RGBA")
+            qimg = QImage(raw_bytes, pil_img.width, pil_img.height, QImage.Format.Format_RGBA8888)
+            return QPixmap.fromImage(qimg)
+
         frames = self.pixmap_cache.get(self.state, self.pixmap_cache.get("idle", []))
         if not frames:
             return None
@@ -143,20 +183,19 @@ class DesktopPet(QWidget):
 
     def _snap_to_initial_position(self):
         screen_geo = self._get_current_screen_geometry()
-
         saved_x = self.settings.get("pos_x")
         saved_y = self.settings.get("pos_y")
 
         if saved_x is not None and saved_y is not None:
-            # Clamp saved position to keep on-screen
             x = max(screen_geo.left(), min(saved_x, screen_geo.right() - self.sprite_size))
             y = max(screen_geo.top(), min(saved_y, screen_geo.bottom() - self.sprite_size))
         else:
-            # Default: bottom-right corner
             x = screen_geo.right() - self.sprite_size - 60
             y = screen_geo.bottom() - self.sprite_size - 20
 
         self.move(x, y)
+        self.pos_x_f = float(x)
+        self.pos_y_f = float(y)
         self._update_bubble_position()
 
     def _update_bubble_position(self):
@@ -167,14 +206,14 @@ class DesktopPet(QWidget):
     # State & Animation Controller
     # -------------------------------------------------------------
     def set_state(self, new_state, duration_seconds=None):
-        if new_state in self.pixmap_cache or new_state == "walk":
-            if new_state == "walk":
-                new_state = "walk_right"
+        if new_state == "walk":
+            new_state = "walk_right"
+        if new_state in self.pixmap_cache or new_state in ("hunt", "alert"):
             self.state = new_state
             self.frame_index = 0
             self.state_ticks = 0
             if duration_seconds:
-                self.max_state_ticks = int(duration_seconds * 20)
+                self.max_state_ticks = int(duration_seconds * 60)
             self.update()
 
     def _update_animation(self):
@@ -186,84 +225,243 @@ class DesktopPet(QWidget):
         if self.settings.get("stay_on_top", True):
             set_win32_topmost(self)
 
-    def _update_behavior(self):
+    # -------------------------------------------------------------
+    # 60 FPS Game Loop & Advanced Physics (Dynamic Hunt & Eye Follow)
+    # -------------------------------------------------------------
+    def _update_physics_loop(self):
         if self.is_dragging:
+            # Smooth inertia wobble physics (damped spring return)
+            self.mochi_tilt += (self.drag_velocity_x * 0.45 - self.mochi_tilt) * 0.20
+            # Decay velocity smoothly
+            self.drag_velocity_x *= 0.88
+            self.update()
             return
 
         # Periodically ensure topmost if enabled
-        if self.settings.get("stay_on_top", True) and random.random() < 0.05:
+        if self.settings.get("stay_on_top", True) and random.random() < 0.015:
             set_win32_topmost(self)
 
         screen_geo = self._get_current_screen_geometry()
-        curr_x = self.x()
-        curr_y = self.y()
+        cat_center_x = self.pos_x_f + self.sprite_size / 2.0
+        cat_center_y = self.pos_y_f + self.sprite_size / 2.0
 
-        # Autonomous Wander Logic (Horizontal at current height)
-        if not self.settings.get("wander_mode", True) or self.pomodoro.is_active or self.state in ["work", "sleep", "thinking", "pet", "drag", "land"]:
+        # ── 1. DYNAMIC 8-DIRECTION EYE FOLLOW ──
+        cursor_pos = QCursor.pos()
+        dx = cursor_pos.x() - cat_center_x
+        dy = cursor_pos.y() - (cat_center_y - 15)  # Offset to eye level
+        dist = math.hypot(dx, dy)
+
+        if dist > 40:
+            angle = math.degrees(math.atan2(dy, dx))
+            # 8-Direction angle classification
+            if -22.5 <= angle < 22.5:
+                self.look_dx, self.look_dy = 1, 0      # Right
+            elif 22.5 <= angle < 67.5:
+                self.look_dx, self.look_dy = 1, 1      # Down-Right
+            elif 67.5 <= angle < 112.5:
+                self.look_dx, self.look_dy = 0, 1      # Down
+            elif 112.5 <= angle < 157.5:
+                self.look_dx, self.look_dy = -1, 1     # Down-Left
+            elif angle >= 157.5 or angle < -157.5:
+                self.look_dx, self.look_dy = -1, 0     # Left
+            elif -157.5 <= angle < -112.5:
+                self.look_dx, self.look_dy = -1, -1    # Up-Left
+            elif -112.5 <= angle < -67.5:
+                self.look_dx, self.look_dy = 0, -1     # Up
+            elif -67.5 <= angle < -22.5:
+                self.look_dx, self.look_dy = 1, -1     # Up-Right
+        else:
+            self.look_dx, self.look_dy = 0, 0
+
+        # ── 2. DYNAMIC LIVE MOUSE HUNTING PHYSICS ──
+        if self.is_hunting:
+            now = time.time()
+            # Timeout safeguard (max 3.5 seconds of chasing)
+            if now - self.hunt_start_time > 3.5:
+                self.is_hunting = False
+                self.set_state("idle")
+                return
+
+            # Target is the active live cursor position!
+            target_x = cursor_pos.x() - self.sprite_size / 2.0
+            target_y = cursor_pos.y() - self.sprite_size / 2.0
+            h_dx = target_x - self.pos_x_f
+            h_dy = target_y - self.pos_y_f
+            h_dist = math.hypot(h_dx, h_dy)
+
+            # Close enough -> Pounce / Settle!
+            if h_dist <= 40.0:
+                self.is_hunting = False
+                self.set_state("land")
+                self._play_sound_blip(freq=1450, dur=40)
+                QTimer.singleShot(300, lambda: self.set_state("pet", duration_seconds=1.5))
+                return
+
+            # Smooth sub-pixel sprint toward live cursor
+            speed = 5.2  # pixels per tick
+            self.pos_x_f += (h_dx / h_dist) * speed
+            self.pos_y_f += (h_dy / h_dist) * speed
+
+            # Clamp within screen boundary
+            self.pos_x_f = max(screen_geo.left(), min(self.pos_x_f, screen_geo.right() - self.sprite_size))
+            self.pos_y_f = max(screen_geo.top(), min(self.pos_y_f, screen_geo.bottom() - self.sprite_size))
+
+            self.move(int(self.pos_x_f), int(self.pos_y_f))
+            self._update_bubble_position()
+
+            # Dynamic sprint animation orientation
+            self.state = "walk_right" if h_dx > 0 else "walk_left"
             return
 
+        # ── 3. TEMPORARY STATES TIMEOUT ──
+        if self.state in ["celebrate", "thinking", "land"]:
+            self.state_ticks += 1
+            if self.state_ticks > self.max_state_ticks:
+                self.set_state("idle")
+            return
+
+        # ── REALTIME PET HEAD ZONE CHECK ──
+        if self.state == "pet":
+            local_p = self.mapFromGlobal(QCursor.pos())
+            head_rect = QRect(24, 10, 80, 62)
+            if not self.rect().contains(local_p) or not head_rect.contains(local_p):
+                self.set_state("idle")
+            return
+
+        # Do not wander if Pomodoro is active or typing
+        if not self.settings.get("wander_mode", True) or self.pomodoro.is_active or self.state in ["work", "sleep"]:
+            return
+
+        # ── 4. AUTONOMOUS WANDER LOGIC ──
         self.state_ticks += 1
         if self.state_ticks > self.max_state_ticks:
-            # Pick a new random action
             self.state_ticks = 0
-            choices = ["idle", "idle", "walk_left", "walk_right", "sleep"]
+            choices = ["idle", "idle", "idle", "walk_left", "walk_right", "sleep"]
             new_action = random.choice(choices)
             if new_action == "sleep":
-                self.max_state_ticks = random.randint(80, 160)
+                self.max_state_ticks = random.randint(300, 600)
             elif "walk" in new_action:
-                self.max_state_ticks = random.randint(30, 70)
+                self.max_state_ticks = random.randint(100, 200)
             else:
-                self.max_state_ticks = random.randint(40, 90)
-            self.state = new_action
+                self.max_state_ticks = random.randint(120, 250)
+            self.set_state(new_action)
 
-        # Handle Walking physics along current height/shelf
+        # Walk movements
         if self.state == "walk_left":
-            new_x = curr_x - 2
-            if new_x <= screen_geo.left():
-                self.state = "walk_right"
+            self.pos_x_f -= 1.0
+            if self.pos_x_f <= screen_geo.left():
+                self.set_state("walk_right")
             else:
-                self.move(new_x, curr_y)
+                self.move(int(self.pos_x_f), int(self.pos_y_f))
                 self._update_bubble_position()
         elif self.state == "walk_right":
-            new_x = curr_x + 2
-            if new_x >= screen_geo.right() - self.sprite_size:
-                self.state = "walk_left"
+            self.pos_x_f += 1.0
+            if self.pos_x_f >= screen_geo.right() - self.sprite_size:
+                self.set_state("walk_left")
             else:
-                self.move(new_x, curr_y)
+                self.move(int(self.pos_x_f), int(self.pos_y_f))
                 self._update_bubble_position()
 
     # -------------------------------------------------------------
-    # Paint & Render
+    # Global Input Reactions (Comnyang Features)
+    # -------------------------------------------------------------
+    def _on_global_typing_start(self):
+        """User started typing -> cat kneads keyboard."""
+        if self.state not in ["drag", "land", "pet"]:
+            self.is_hunting = False
+            self.set_state("work")
+
+    def _on_global_typing_stop(self):
+        """User stopped typing -> return to idle."""
+        if self.state == "work":
+            self.set_state("idle")
+
+    def _on_global_overheat(self):
+        """Fast typing -> Overheat reaction!"""
+        if self.state == "work" and random.random() < 0.25:
+            self._play_sound_blip(freq=1550, dur=45)
+            self.say("Ngebut banget ngetiknya, boss! 🔥🐾", 2500)
+
+    def _on_global_scroll(self, dy):
+        """Mouse scroll reaction."""
+        if self.state == "idle" and random.random() < 0.08:
+            self.say("Scroll terus nya~ 📜😸", 2000)
+
+    def _on_fast_mouse_move(self, mouse_x, mouse_y):
+        """Mouse Hunt & Pounce: Fast moving cursor excites the cat!"""
+        if not self.settings.get("mouse_hunt_enabled", True):
+            return
+
+        now = time.time()
+        # Cooldown between hunts (7.0s)
+        if now - self.hunt_cooldown < 7.0:
+            return
+        if self.state in ["drag", "work", "sleep"] or self.pomodoro.is_active or self.is_hunting:
+            return
+
+        cat_center_x = self.pos_x_f + self.sprite_size / 2.0
+        cat_center_y = self.pos_y_f + self.sprite_size / 2.0
+        dist = math.hypot(mouse_x - cat_center_x, mouse_y - cat_center_y)
+
+        # Excitement trigger range (120px to 550px)
+        if 120 < dist < 550:
+            self.hunt_cooldown = now
+            self.hunt_start_time = now
+            self.is_hunting = True
+            self.say("Kejaaar nya! 🐾🎯", 1800)
+            self._play_sound_blip(freq=1420, dur=35)
+
+    # -------------------------------------------------------------
+    # Paint & Render (Nearest-Neighbor + Mochi Tilt & Squish)
     # -------------------------------------------------------------
     def paintEvent(self, event):
         painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+
         pixmap = self._get_current_pixmap()
-        if pixmap:
-            painter.drawPixmap(0, 0, pixmap)
+        if not pixmap:
+            return
+
+        center = self.rect().center()
+
+        if self.is_dragging:
+            # Mochi Inertia Wobble Transform
+            transform = QTransform()
+            transform.translate(center.x(), center.y())
+            clamped_tilt = max(-22.0, min(22.0, self.mochi_tilt))
+            transform.rotate(clamped_tilt)
+            transform.scale(0.92, 1.12)
+            transform.translate(-center.x(), -center.y())
+            painter.setTransform(transform)
+            painter.drawPixmap(0, 0, self.sprite_size, self.sprite_size, pixmap)
+
+        elif self.state == "land":
+            # Landing Squish Bounce
+            w = int(self.sprite_size * 1.15)
+            h = int(self.sprite_size * 0.85)
+            ox = (self.sprite_size - w) // 2
+            oy = self.sprite_size - h
+            painter.drawPixmap(ox, oy, w, h, pixmap)
+
+        else:
+            painter.drawPixmap(0, 0, self.sprite_size, self.sprite_size, pixmap)
 
     # -------------------------------------------------------------
-    # Mouse & Drag Interactions (With Dangling Animation!)
+    # Mouse & Drag Interactions (Mochi Drag & Petting)
     # -------------------------------------------------------------
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.is_dragging = True
-            self.has_dragged = False
-            self.drag_start_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
-            self.drag_start_global_pos = event.globalPosition().toPoint()
-            self.pre_drag_state = self.state if self.state not in ["drag", "land"] else "idle"
-            
-            # Switch to dangling / drag state immediately
-            self.set_state("drag")
-            self.anim_timer.setInterval(110)  # Faster energetic wiggling during drag
-            self._play_sound_blip(freq=1350, dur=40)
-            event.accept()
-        elif event.button() == Qt.MouseButton.RightButton:
-            self._show_context_menu(event.globalPosition().toPoint())
-            event.accept()
-
     def mouseMoveEvent(self, event):
         if self.is_dragging and event.buttons() == Qt.MouseButton.LeftButton:
             global_pt = event.globalPosition().toPoint()
+            now = time.time()
+            dt = max(0.01, now - self.last_drag_time)
+
+            # Calculate drag velocity for inertia wobble
+            vx = (global_pt.x() - self.last_drag_global_pt.x()) / dt
+            self.drag_velocity_x = max(-35.0, min(35.0, vx * 0.06))
+
+            self.last_drag_global_pt = global_pt
+            self.last_drag_time = now
+
             move_dist = (global_pt - self.drag_start_global_pos).manhattanLength()
             if move_dist > 4:
                 self.has_dragged = True
@@ -271,35 +469,73 @@ class DesktopPet(QWidget):
             new_pos = global_pt - self.drag_start_pos
             screen_geo = self._get_current_screen_geometry()
 
-            # Keep window safely on-screen
             clamped_x = max(screen_geo.left() - 10, min(new_pos.x(), screen_geo.right() - self.sprite_size + 10))
             clamped_y = max(screen_geo.top() - 5, min(new_pos.y(), screen_geo.bottom() - self.sprite_size + 5))
 
+            self.pos_x_f = float(clamped_x)
+            self.pos_y_f = float(clamped_y)
             self.move(clamped_x, clamped_y)
             self._update_bubble_position()
-
-            # Advance frame dynamically on drag
-            self.frame_index = (self.frame_index + 1) % 4
             self.update()
+            event.accept()
+        else:
+            # Petting / Pat-pat detection: only active when cursor is directly on cat head!
+            local_pos = event.position().toPoint()
+            head_rect = QRect(24, 10, 80, 62)
+
+            if head_rect.contains(local_pos):
+                if self.state != "pet" and self.state not in ["drag", "land", "work"]:
+                    self.set_state("pet")
+                    self._play_sound_blip(freq=1480, dur=35)
+            else:
+                # Immediately stop petting as soon as cursor moves outside the head area!
+                if self.state == "pet":
+                    self.set_state("idle")
+
+    def leaveEvent(self, event):
+        """Immediately stop petting as soon as cursor leaves the cat window."""
+        super().leaveEvent(event)
+        if self.state == "pet":
+            self.set_state("idle")
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.is_dragging = True
+            self.has_dragged = False
+            self.is_hunting = False
+            self.drag_start_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            self.drag_start_global_pos = event.globalPosition().toPoint()
+            self.last_drag_global_pt = self.drag_start_global_pos
+            self.last_drag_time = time.time()
+            self.drag_velocity_x = 0.0
+            self.mochi_tilt = 0.0
+            self.pre_drag_state = self.state if self.state not in ["drag", "land"] else "idle"
+
+            # Switch to dangling mochi drag state
+            self.set_state("drag")
+            self.anim_timer.setInterval(90)
+            self._play_sound_blip(freq=1350, dur=40)
+            event.accept()
+        elif event.button() == Qt.MouseButton.RightButton:
+            self._show_context_menu(event.globalPosition().toPoint())
             event.accept()
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.is_dragging = False
-            self.anim_timer.setInterval(200)  # Restore standard animation interval
+            self.mochi_tilt = 0.0
+            self.anim_timer.setInterval(110)
 
             if self.has_dragged:
-                # Save new position to settings so it remembers anywhere it is placed
-                self.settings["pos_x"] = self.x()
-                self.settings["pos_y"] = self.y()
+                self.settings["pos_x"] = int(self.pos_x_f)
+                self.settings["pos_y"] = int(self.pos_y_f)
                 save_settings(self.settings)
 
-                # Play cute landing / settle squish bounce
+                # Landing squish bounce
                 self.set_state("land")
                 self._play_sound_blip(freq=950, dur=50)
                 QTimer.singleShot(350, lambda: self.set_state("idle"))
 
-                # Occasional happy dialogue when dropped at a new place
                 if random.random() < 0.35:
                     landing_quotes = [
                         "Duduk di sini ya nya~ 🐾",
@@ -309,7 +545,6 @@ class DesktopPet(QWidget):
                     ]
                     QTimer.singleShot(400, lambda: self.say(random.choice(landing_quotes), 3000))
             else:
-                # Simple click without dragging -> pet the cat!
                 self.set_state(self.pre_drag_state)
                 self._on_pet_clicked()
 
@@ -317,7 +552,6 @@ class DesktopPet(QWidget):
 
     def mouseDoubleClickEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            # Double click: Quick start/stop Pomodoro or say greeting
             if self.pomodoro.is_active:
                 self.pomodoro.stop()
                 self.set_state("idle")
@@ -349,7 +583,7 @@ class DesktopPet(QWidget):
             elif self.skin == "mochi":
                 quotes = [
                     "Semangat fokusnya nya! Aku temenin dari sini~ 🐾",
-                    "Kepala miring tanda aku mantau kodenya nya! 👀",
+                    "Cakar mini siap nemenin ngetik kodenya nya! 👀",
                     "Kerja bagus nya! Sedikit lagi selesai~ ✨"
                 ]
             else:
@@ -374,7 +608,6 @@ class DesktopPet(QWidget):
         elif self.skin == "mochi":
             purrs = [
                 "Mew! Kalung biruku berkilau kan nya? 🐾",
-                "Kepala miring tanda aku lagi penasaran nya~ 😸",
                 "Purrr... Senang banget dielus kamu nya! ❤️",
                 "Chibi kitten siap nemenin kamu seharian nya! ✨",
                 "Meow~! Jangan lupa istirahat kalau capek ya~ 🧘"
@@ -501,6 +734,7 @@ class DesktopPet(QWidget):
         act_menu.addAction("😴 Tidur (Sleep)", lambda: self.set_state("sleep"))
         act_menu.addAction("🎉 Melompat Senang (Jump)", lambda: self.set_state("celebrate", 4))
         act_menu.addAction("🤔 Berpikir (Thinking)", lambda: self.set_state("thinking", 4))
+        act_menu.addAction("❤️ Dielus / Purring (Pet)", lambda: self.set_state("pet", 4))
 
         menu.addSeparator()
 
@@ -509,6 +743,11 @@ class DesktopPet(QWidget):
         note_action.triggered.connect(self._prompt_sticky_note)
 
         # 5. Options
+        hunt_act = menu.addAction("🎯 Kejar Kursor Cepat (Mouse Hunt)")
+        hunt_act.setCheckable(True)
+        hunt_act.setChecked(self.settings.get("mouse_hunt_enabled", True))
+        hunt_act.triggered.connect(self._toggle_mouse_hunt)
+
         wander_act = menu.addAction("🚶 Jalan Santai Sendiri (Auto Wander)")
         wander_act.setCheckable(True)
         wander_act.setChecked(self.settings.get("wander_mode", True))
@@ -545,11 +784,17 @@ class DesktopPet(QWidget):
             pet_name = PALETTES[skin_key]["name"]
             self.say(f"Ganti kostum ke {pet_name} nya! 🐾")
 
+    def _toggle_mouse_hunt(self, checked):
+        self.settings["mouse_hunt_enabled"] = checked
+        save_settings(self.settings)
+        if not checked:
+            self.is_hunting = False
+
     def _toggle_wander(self, checked):
         self.settings["wander_mode"] = checked
         save_settings(self.settings)
         if not checked:
-            self.state = "idle"
+            self.set_state("idle")
 
     def _toggle_stay_on_top(self, checked):
         self.settings["stay_on_top"] = checked
@@ -579,6 +824,7 @@ class DesktopPet(QWidget):
             self.say(f"Target: \"{text}\" - Aku pantau terus ya nya! 🎯", 6000)
 
     def close_app(self):
+        self.input_watcher.stop()
         self.speech_bubble.close()
         self.close()
         QApplication.quit()
