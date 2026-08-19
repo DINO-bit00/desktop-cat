@@ -1,8 +1,8 @@
 """
-Main Desktop Pet Window — Comnyang Modern Physics & Interaction Engine (Optimized)
+Main Desktop Pet Window — Comnyang Modern Physics & Interaction Engine (Phase 2)
 Transparent, draggable, animated floating companion with 60 FPS sub-pixel physics,
-realtime 8-direction eye tracking, active mouse hunt & pounce, mochi inertia wobble,
-global keyboard kneading, and Pomodoro integration.
+realtime 8-direction eye tracking, live mouse hunt pounce, mochi inertia wobble,
+global keyboard kneading, overheat mode with steam puffs, and paper unroll scroll reactions!
 """
 
 import os
@@ -64,7 +64,7 @@ class DesktopPet(QWidget):
         self.sprite_size = 128
         self.setFixedSize(self.sprite_size, self.sprite_size)
 
-        # Sub-pixel Float Coordinates (for jitter-free 60 FPS physics)
+        # Sub-pixel Float Coordinates
         self.pos_x_f = float(self.x())
         self.pos_y_f = float(self.y())
 
@@ -99,6 +99,11 @@ class DesktopPet(QWidget):
         self._hover_pet_count = 0
         self._last_hover_time = 0.0
 
+        # Scroll Reset Timer for Paper Unroll
+        self.scroll_reset_timer = QTimer(self)
+        self.scroll_reset_timer.setSingleShot(True)
+        self.scroll_reset_timer.timeout.connect(self._on_scroll_timeout)
+
         # Frame Pixmap Cache
         self.pixmap_cache = {}
         self._load_skin_sprites(self.skin)
@@ -117,11 +122,12 @@ class DesktopPet(QWidget):
         self.watcher = LocalWatcher(self)
         self.watcher.event_received.connect(self._on_external_event)
 
-        # Global Input Watcher (Comnyang-style reaction to typing, hunting, and scrolling)
+        # Global Input Watcher (Comnyang-style reaction to typing, overheat, hunting, and scrolling)
         self.input_watcher = GlobalInputWatcher(self)
         self.input_watcher.typing_started.connect(self._on_global_typing_start)
         self.input_watcher.typing_stopped.connect(self._on_global_typing_stop)
-        self.input_watcher.overheat_triggered.connect(self._on_global_overheat)
+        self.input_watcher.overheat_started.connect(self._on_global_overheat_start)
+        self.input_watcher.overheat_ended.connect(self._on_global_overheat_end)
         self.input_watcher.mouse_scrolled.connect(self._on_global_scroll)
         self.input_watcher.mouse_moved_fast.connect(self._on_fast_mouse_move)
         self.input_watcher.start()
@@ -148,7 +154,10 @@ class DesktopPet(QWidget):
     def _load_skin_sprites(self, skin_name):
         self.skin = skin_name
         self.pixmap_cache.clear()
-        states = ["idle", "walk_left", "walk_right", "sleep", "work", "pet", "celebrate", "thinking", "drag", "land"]
+        states = [
+            "idle", "walk_left", "walk_right", "sleep", "work", "overheat",
+            "paper_unroll", "pet", "celebrate", "thinking", "drag", "land"
+        ]
 
         for st in states:
             self.pixmap_cache[st] = []
@@ -232,7 +241,6 @@ class DesktopPet(QWidget):
         if self.is_dragging:
             # Smooth inertia wobble physics (damped spring return)
             self.mochi_tilt += (self.drag_velocity_x * 0.45 - self.mochi_tilt) * 0.20
-            # Decay velocity smoothly
             self.drag_velocity_x *= 0.88
             self.update()
             return
@@ -248,48 +256,44 @@ class DesktopPet(QWidget):
         # ── 1. DYNAMIC 8-DIRECTION EYE FOLLOW ──
         cursor_pos = QCursor.pos()
         dx = cursor_pos.x() - cat_center_x
-        dy = cursor_pos.y() - (cat_center_y - 15)  # Offset to eye level
+        dy = cursor_pos.y() - (cat_center_y - 15)
         dist = math.hypot(dx, dy)
 
         if dist > 40:
             angle = math.degrees(math.atan2(dy, dx))
-            # 8-Direction angle classification
             if -22.5 <= angle < 22.5:
-                self.look_dx, self.look_dy = 1, 0      # Right
+                self.look_dx, self.look_dy = 1, 0
             elif 22.5 <= angle < 67.5:
-                self.look_dx, self.look_dy = 1, 1      # Down-Right
+                self.look_dx, self.look_dy = 1, 1
             elif 67.5 <= angle < 112.5:
-                self.look_dx, self.look_dy = 0, 1      # Down
+                self.look_dx, self.look_dy = 0, 1
             elif 112.5 <= angle < 157.5:
-                self.look_dx, self.look_dy = -1, 1     # Down-Left
+                self.look_dx, self.look_dy = -1, 1
             elif angle >= 157.5 or angle < -157.5:
-                self.look_dx, self.look_dy = -1, 0     # Left
+                self.look_dx, self.look_dy = -1, 0
             elif -157.5 <= angle < -112.5:
-                self.look_dx, self.look_dy = -1, -1    # Up-Left
+                self.look_dx, self.look_dy = -1, -1
             elif -112.5 <= angle < -67.5:
-                self.look_dx, self.look_dy = 0, -1     # Up
+                self.look_dx, self.look_dy = 0, -1
             elif -67.5 <= angle < -22.5:
-                self.look_dx, self.look_dy = 1, -1     # Up-Right
+                self.look_dx, self.look_dy = 1, -1
         else:
             self.look_dx, self.look_dy = 0, 0
 
         # ── 2. DYNAMIC LIVE MOUSE HUNTING PHYSICS ──
         if self.is_hunting:
             now = time.time()
-            # Timeout safeguard (max 3.5 seconds of chasing)
             if now - self.hunt_start_time > 3.5:
                 self.is_hunting = False
                 self.set_state("idle")
                 return
 
-            # Target is the active live cursor position!
             target_x = cursor_pos.x() - self.sprite_size / 2.0
             target_y = cursor_pos.y() - self.sprite_size / 2.0
             h_dx = target_x - self.pos_x_f
             h_dy = target_y - self.pos_y_f
             h_dist = math.hypot(h_dx, h_dy)
 
-            # Close enough -> Pounce / Settle!
             if h_dist <= 40.0:
                 self.is_hunting = False
                 self.set_state("land")
@@ -297,19 +301,15 @@ class DesktopPet(QWidget):
                 QTimer.singleShot(300, lambda: self.set_state("pet", duration_seconds=1.5))
                 return
 
-            # Smooth sub-pixel sprint toward live cursor
-            speed = 5.2  # pixels per tick
+            speed = 5.2
             self.pos_x_f += (h_dx / h_dist) * speed
             self.pos_y_f += (h_dy / h_dist) * speed
 
-            # Clamp within screen boundary
             self.pos_x_f = max(screen_geo.left(), min(self.pos_x_f, screen_geo.right() - self.sprite_size))
             self.pos_y_f = max(screen_geo.top(), min(self.pos_y_f, screen_geo.bottom() - self.sprite_size))
 
             self.move(int(self.pos_x_f), int(self.pos_y_f))
             self._update_bubble_position()
-
-            # Dynamic sprint animation orientation
             self.state = "walk_right" if h_dx > 0 else "walk_left"
             return
 
@@ -320,7 +320,7 @@ class DesktopPet(QWidget):
                 self.set_state("idle")
             return
 
-        # ── REALTIME PET HEAD ZONE CHECK ──
+        # ── REALTIME PET HEAD ZONE CHECK (Instant Stop When Cursor Leaves Head) ──
         if self.state == "pet":
             local_p = self.mapFromGlobal(QCursor.pos())
             head_rect = QRect(24, 10, 80, 62)
@@ -328,8 +328,8 @@ class DesktopPet(QWidget):
                 self.set_state("idle")
             return
 
-        # Do not wander if Pomodoro is active or typing
-        if not self.settings.get("wander_mode", True) or self.pomodoro.is_active or self.state in ["work", "sleep"]:
+        # Do not wander if Pomodoro is active, typing/overheated, or rolling paper
+        if not self.settings.get("wander_mode", True) or self.pomodoro.is_active or self.state in ["work", "overheat", "paper_unroll", "sleep"]:
             return
 
         # ── 4. AUTONOMOUS WANDER LOGIC ──
@@ -363,29 +363,50 @@ class DesktopPet(QWidget):
                 self._update_bubble_position()
 
     # -------------------------------------------------------------
-    # Global Input Reactions (Comnyang Features)
+    # Global Input Reactions (Comnyang Phase 2 Features)
     # -------------------------------------------------------------
     def _on_global_typing_start(self):
-        """User started typing -> cat kneads keyboard."""
-        if self.state not in ["drag", "land", "pet"]:
+        """User started typing -> cat begins keyboard kneading."""
+        if self.state not in ["drag", "land", "pet", "overheat"]:
             self.is_hunting = False
             self.set_state("work")
 
     def _on_global_typing_stop(self):
         """User stopped typing -> return to idle."""
-        if self.state == "work":
+        if self.state in ["work", "overheat"]:
             self.set_state("idle")
 
-    def _on_global_overheat(self):
-        """Fast typing -> Overheat reaction!"""
-        if self.state == "work" and random.random() < 0.25:
-            self._play_sound_blip(freq=1550, dur=45)
-            self.say("Ngebut banget ngetiknya, boss! 🔥🐾", 2500)
+    def _on_global_overheat_start(self):
+        """Typing super fast (>75 WPM) -> Overheat mode with steam puffs!"""
+        if self.state not in ["drag", "land", "pet"]:
+            self.set_state("overheat")
+            self._play_sound_blip(freq=1650, dur=55)
+            if random.random() < 0.35:
+                self.say("Ngebut banget ngetiknya, boss! 🔥🐾", 2500)
+
+    def _on_global_overheat_end(self):
+        """Typing slowed down -> cool back to normal kneading."""
+        if self.state == "overheat":
+            self.set_state("work")
 
     def _on_global_scroll(self, dy):
-        """Mouse scroll reaction."""
-        if self.state == "idle" and random.random() < 0.08:
-            self.say("Scroll terus nya~ 📜😸", 2000)
+        """
+        Comnyang Feature #10: Paper Unroll!
+        Spinning the paper roll with paws as user scrolls documents / pages.
+        """
+        if self.state not in ["drag", "pet", "sleep"] and not self.pomodoro.is_active:
+            if self.state != "paper_unroll":
+                self.set_state("paper_unroll")
+            # Advance frame dynamically with each scroll notch!
+            self.frame_index = (self.frame_index + 1) % 4
+            self.update()
+            # Reset timer: return to idle 1.2 seconds after scrolling ceases
+            self.scroll_reset_timer.start(1200)
+
+    def _on_scroll_timeout(self):
+        """Scroll stopped -> return to idle."""
+        if self.state == "paper_unroll":
+            self.set_state("idle")
 
     def _on_fast_mouse_move(self, mouse_x, mouse_y):
         """Mouse Hunt & Pounce: Fast moving cursor excites the cat!"""
@@ -393,17 +414,15 @@ class DesktopPet(QWidget):
             return
 
         now = time.time()
-        # Cooldown between hunts (7.0s)
         if now - self.hunt_cooldown < 7.0:
             return
-        if self.state in ["drag", "work", "sleep"] or self.pomodoro.is_active or self.is_hunting:
+        if self.state in ["drag", "work", "overheat", "sleep"] or self.pomodoro.is_active or self.is_hunting:
             return
 
         cat_center_x = self.pos_x_f + self.sprite_size / 2.0
         cat_center_y = self.pos_y_f + self.sprite_size / 2.0
         dist = math.hypot(mouse_x - cat_center_x, mouse_y - cat_center_y)
 
-        # Excitement trigger range (120px to 550px)
         if 120 < dist < 550:
             self.hunt_cooldown = now
             self.hunt_start_time = now
@@ -425,7 +444,6 @@ class DesktopPet(QWidget):
         center = self.rect().center()
 
         if self.is_dragging:
-            # Mochi Inertia Wobble Transform
             transform = QTransform()
             transform.translate(center.x(), center.y())
             clamped_tilt = max(-22.0, min(22.0, self.mochi_tilt))
@@ -436,7 +454,6 @@ class DesktopPet(QWidget):
             painter.drawPixmap(0, 0, self.sprite_size, self.sprite_size, pixmap)
 
         elif self.state == "land":
-            # Landing Squish Bounce
             w = int(self.sprite_size * 1.15)
             h = int(self.sprite_size * 0.85)
             ox = (self.sprite_size - w) // 2
@@ -455,7 +472,6 @@ class DesktopPet(QWidget):
             now = time.time()
             dt = max(0.01, now - self.last_drag_time)
 
-            # Calculate drag velocity for inertia wobble
             vx = (global_pt.x() - self.last_drag_global_pt.x()) / dt
             self.drag_velocity_x = max(-35.0, min(35.0, vx * 0.06))
 
@@ -479,16 +495,15 @@ class DesktopPet(QWidget):
             self.update()
             event.accept()
         else:
-            # Petting / Pat-pat detection: only active when cursor is directly on cat head!
+            # Petting / Pat-pat detection: only active directly on cat head!
             local_pos = event.position().toPoint()
             head_rect = QRect(24, 10, 80, 62)
 
             if head_rect.contains(local_pos):
-                if self.state != "pet" and self.state not in ["drag", "land", "work"]:
+                if self.state != "pet" and self.state not in ["drag", "land", "work", "overheat"]:
                     self.set_state("pet")
                     self._play_sound_blip(freq=1480, dur=35)
             else:
-                # Immediately stop petting as soon as cursor moves outside the head area!
                 if self.state == "pet":
                     self.set_state("idle")
 
@@ -731,6 +746,8 @@ class DesktopPet(QWidget):
         act_menu = menu.addMenu("🐾 Ganti Gaya / Aksi")
         act_menu.addAction("😺 Duduk Santai (Idle)", lambda: self.set_state("idle"))
         act_menu.addAction("💻 Mode Ngoding/Work", lambda: self.set_state("work"))
+        act_menu.addAction("🔥 Mode Overheat (Steam)", lambda: self.set_state("overheat", 5))
+        act_menu.addAction("📜 Gelar Kertas (Paper Unroll)", lambda: self.set_state("paper_unroll", 4))
         act_menu.addAction("😴 Tidur (Sleep)", lambda: self.set_state("sleep"))
         act_menu.addAction("🎉 Melompat Senang (Jump)", lambda: self.set_state("celebrate", 4))
         act_menu.addAction("🤔 Berpikir (Thinking)", lambda: self.set_state("thinking", 4))
