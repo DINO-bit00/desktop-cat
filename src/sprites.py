@@ -292,144 +292,177 @@ def _draw_walk_side(p: dict, frame_idx: int, flip_left: bool = False) -> Image.I
 
 
 # ─── 3. KEYBOARD KNEADING (4-FRAME LAPTOP TYPING) ──────────────────────────
+# ─── 3. KEYBOARD KNEADING (3D MECHANICAL KEYCAPS STEPPING) ─────────────────
 def _draw_knead_work(p: dict, frame_idx: int) -> Image.Image:
-    """Cute 4-frame keyboard kneading on mini laptop with screen glow and paw tapping."""
+    """
+    Comnyang Official Typing Animation:
+    Cat stepping and kneading on 2 giant 3D mechanical keyboard keycaps,
+    with alternating left/right keypress bevel depths, white ring eyes, whiskers, and curled tail!
+    """
     img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
 
     O = p["fur_main"]
     S = p["fur_shade"]
     W = p["fur_belly"]
-    K = p["outline"]
+    K = (18, 18, 22, 255)
     E = p["inner_ear"]
 
-    # Head
-    d.ellipse([7, 6, 24, 17], fill=O, outline=K)
-    d.polygon([(7, 6), (7, 1), (12, 6)], fill=O, outline=K)
-    d.polygon([(19, 6), (24, 1), (24, 6)], fill=O, outline=K)
-    img.putpixel((8, 4), E)
-    img.putpixel((23, 4), E)
+    # Keycap Palette
+    K_TOP = (185, 188, 198, 255)       # Top face light grey
+    K_LIGHT = (235, 238, 248, 255)     # Highlight rim
+    K_SIDE = (118, 122, 134, 255)      # Bevel shadow
+    K_DARK = (78, 82, 94, 255)         # Deep shadow
 
-    if p.get("has_shades", False):
-        d.rectangle([9, 8, 22, 11], fill=(18, 18, 22, 255), outline=K)
-        glint_col = (72, 215, 120, 255) if frame_idx % 2 == 0 else (255, 255, 255, 255)
-        img.putpixel((11, 9), glint_col)
-        img.putpixel((18, 9), glint_col)
-    else:
-        d.line([(10, 10), (12, 8), (14, 10)], fill=K)
-        d.line([(17, 10), (19, 8), (21, 10)], fill=K)
-
-    d.ellipse([11, 11, 15, 15], fill=W)
-    d.ellipse([16, 11, 20, 15], fill=W)
-    img.putpixel((15, 11), (225, 75, 55, 255))
-
-    d.ellipse([7, 16, 24, 27], fill=O, outline=K)
-    d.ellipse([11, 17, 20, 25], fill=W)
-
-    # Mini Laptop
-    d.rectangle([5, 23, 26, 26], fill=(55, 60, 72, 255), outline=K)
-    d.rectangle([8, 19, 23, 23], fill=(35, 38, 46, 255), outline=K)
-    screen_cols = [(72, 215, 120, 255), (90, 235, 150, 255), (50, 180, 95, 255)]
-    sc = screen_cols[frame_idx % len(screen_cols)]
-    d.line([(9, 20), (15, 20)], fill=sc)
-    d.line([(9, 21), (21, 21)], fill=sc)
-    d.line([(9, 22), (18, 22)], fill=sc)
-
-    # 4-Phase Paw Kneading
+    # Keycap stepping offsets (2 pixels dip on press)
     if frame_idx == 0:
-        d.rectangle([7, 23, 11, 25], fill=W, outline=K)
-        d.rectangle([20, 21, 24, 23], fill=W, outline=K)
+        l_y, r_y = 21, 17
     elif frame_idx == 1:
-        d.rectangle([8, 22, 12, 24], fill=W, outline=K)
-        d.rectangle([19, 22, 23, 24], fill=W, outline=K)
+        l_y, r_y = 19, 19
     elif frame_idx == 2:
-        d.rectangle([7, 21, 11, 23], fill=W, outline=K)
-        d.rectangle([20, 23, 24, 25], fill=W, outline=K)
+        l_y, r_y = 17, 21
     else:
-        d.rectangle([8, 22, 12, 24], fill=W, outline=K)
-        d.rectangle([19, 22, 23, 24], fill=W, outline=K)
+        l_y, r_y = 19, 19
+
+    body_bob = -1 if frame_idx in (0, 2) else 0
+
+    # ── 1. Tail (Pointed up on the right side) ──
+    t_bob = 1 if frame_idx in (1, 2) else 0
+    d.polygon([(23, 16), (26, 14 - t_bob), (27, 10 - t_bob), (25, 9 - t_bob), (24, 13), (22, 16)], fill=O, outline=K)
+    d.line([(25, 12 - t_bob), (27, 12 - t_bob)], fill=S)
+
+    # ── 2. Back Body & Hind Feet ──
+    d.ellipse([9, 9 + body_bob, 25, 21 + body_bob], fill=O, outline=K)
+    d.rectangle([21, 18 + body_bob, 24, 22 + body_bob], fill=O, outline=K)
+    d.rectangle([21, 21 + body_bob, 24, 23 + body_bob], fill=W, outline=K)
+
+    # ── 3. Giant 3D Mechanical Keycaps ──
+    # Left Keycap
+    d.polygon([(4, l_y), (13, l_y), (11, l_y + 5), (2, l_y + 5)], fill=K_TOP, outline=K)
+    d.line([(4, l_y), (13, l_y)], fill=K_LIGHT)
+    d.polygon([(2, l_y + 5), (2, l_y + 8), (11, l_y + 8), (11, l_y + 5)], fill=K_SIDE, outline=K)
+    d.polygon([(11, l_y + 5), (11, l_y + 8), (13, l_y + 7), (13, l_y)], fill=K_DARK, outline=K)
+
+    # Right Keycap
+    d.polygon([(16, r_y), (25, r_y), (23, r_y + 5), (14, r_y + 5)], fill=K_TOP, outline=K)
+    d.line([(16, r_y), (25, r_y)], fill=K_LIGHT)
+    d.polygon([(14, r_y + 5), (14, r_y + 8), (23, r_y + 8), (23, r_y + 5)], fill=K_SIDE, outline=K)
+    d.polygon([(23, r_y + 5), (23, r_y + 8), (25, r_y + 7), (25, r_y)], fill=K_DARK, outline=K)
+
+    # ── 4. Front Stepping Legs & Paws ──
+    d.polygon([(7, 12 + body_bob), (6, l_y), (10, l_y), (11, 12 + body_bob)], fill=O, outline=K)
+    d.rectangle([6, l_y, 10, l_y + 2], fill=W, outline=K)
+
+    d.polygon([(15, 12 + body_bob), (15, r_y), (19, r_y), (19, 12 + body_bob)], fill=O, outline=K)
+    d.rectangle([15, r_y, 19, r_y + 2], fill=W, outline=K)
+
+    # ── 5. Cat Head & Ears ──
+    head_y = 3 + body_bob
+    d.polygon([(8, head_y + 4), (8, head_y - 2), (13, head_y + 4)], fill=O, outline=K)
+    d.polygon([(9, head_y + 3), (9, head_y), (12, head_y + 3)], fill=E)
+    d.polygon([(16, head_y + 4), (20, head_y - 2), (21, head_y + 4)], fill=O, outline=K)
+    d.polygon([(17, head_y + 3), (20, head_y), (20, head_y + 3)], fill=E)
+
+    d.ellipse([7, head_y + 1, 23, head_y + 12], fill=O, outline=K)
+    d.line([(15, head_y + 2), (15, head_y + 4)], fill=S)
+    d.line([(12, head_y + 3), (13, head_y + 5)], fill=S)
+    d.line([(18, head_y + 3), (17, head_y + 5)], fill=S)
+
+    # Whiskers on left cheek
+    d.line([(6, head_y + 7), (2, head_y + 7)], fill=K)
+    d.line([(6, head_y + 9), (2, head_y + 9)], fill=K)
+
+    # Eyes: Exact Comnyang White Square Rings 'O O'
+    if p.get("has_shades", False):
+        d.rectangle([9, head_y + 4, 21, head_y + 7], fill=(18, 18, 22, 255), outline=K)
+        img.putpixel((11, head_y + 5), (255, 255, 255, 255))
+        img.putpixel((18, head_y + 5), (255, 255, 255, 255))
+    else:
+        d.rectangle([9, head_y + 4, 12, head_y + 7], outline=(255, 255, 255, 255), fill=None)
+        d.rectangle([15, head_y + 4, 18, head_y + 7], outline=(255, 255, 255, 255), fill=None)
 
     return img
 
 
-# ─── 4. OVERHEAT MODE (STEAM PUFFS + FLUSHED FACE + FRANTIC TYPING) ─────────
+# ─── 4. OVERHEAT MODE (STEAM PUFFS + STEAMING KEYCAPS) ──────────────────────
 def _draw_overheat(p: dict, frame_idx: int) -> Image.Image:
     """
-    Overheat mode triggered by typing super fast (>75 WPM):
-    Flushed red face, frantic typing, glowing fiery laptop, and animated rising steam puffs!
+    Overheat mode:
+    Cat frantically stepping on blazing hot red keycaps with rising steam clouds & sweat!
     """
     img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
 
-    # Flushed Red Warm Tone
     O_hot = (255, 95, 75, 255)
     W = p["fur_belly"]
-    K = p["outline"]
+    K = (18, 18, 22, 255)
 
-    # ── Rising Steam Clouds (Puffing upward across frames) ──
+    # Blazing Keycap Colors
+    K_TOP = (255, 130, 110, 255)
+    K_LIGHT = (255, 220, 200, 255)
+    K_SIDE = (180, 60, 50, 255)
+    K_DARK = (120, 30, 25, 255)
+
+    # Rapid keycap dip
+    if frame_idx % 2 == 0:
+        l_y, r_y = 21, 17
+    else:
+        l_y, r_y = 17, 21
+
+    body_bob = -1 if frame_idx in (0, 2) else 0
+
+    # ── Rising Steam Clouds (Puffing upward) ──
     steam_col = (235, 240, 255, 220)
     steam_shade = (195, 210, 235, 180)
-
-    # Animated steam puffs on top of head
     sy = -1 * (frame_idx % 4)
-    # Left puff
-    d.ellipse([7, 2 + sy, 12, 6 + sy], fill=steam_col)
-    d.ellipse([8, 1 + sy, 11, 4 + sy], fill=steam_shade)
-    # Right puff
-    d.ellipse([19, 1 + sy, 24, 5 + sy], fill=steam_col)
-    d.ellipse([20, 0 + sy, 23, 3 + sy], fill=steam_shade)
+    d.ellipse([7, 1 + sy, 12, 5 + sy], fill=steam_col)
+    d.ellipse([18, 0 + sy, 23, 4 + sy], fill=steam_col)
 
-    # Sweat Droplet on Cheek (animating down)
+    # Sweat Droplet
     sweat_col = (110, 200, 255, 255)
-    sw_y = 10 + (frame_idx % 3)
-    img.putpixel((25, sw_y), sweat_col)
-    img.putpixel((25, sw_y + 1), sweat_col)
+    d.line([(24, 7 + (frame_idx % 3)), (24, 9 + (frame_idx % 3))], fill=sweat_col)
 
-    # Cat Head (Red Flushed)
-    d.ellipse([7, 6, 24, 17], fill=O_hot, outline=K)
-    d.polygon([(7, 6), (7, 1), (12, 6)], fill=O_hot, outline=K)
-    d.polygon([(19, 6), (24, 1), (24, 6)], fill=O_hot, outline=K)
-
-    # Frantic Face: (> <) or Red Fiery Sunglasses
-    if p.get("has_shades", False):
-        d.rectangle([9, 8, 22, 11], fill=(25, 15, 20, 255), outline=K)
-        # Red hot laser reflection
-        fire_col = (255, 60, 40, 255) if frame_idx % 2 == 0 else (255, 200, 50, 255)
-        img.putpixel((11, 9), fire_col)
-        img.putpixel((18, 9), fire_col)
-    else:
-        # Panicked closed eyes (> <)
-        d.line([(10, 8), (13, 10), (10, 12)], fill=K)
-        d.line([(21, 8), (18, 10), (21, 12)], fill=K)
-
-    # Hot red blushing cheeks
-    d.rectangle([8, 13, 11, 14], fill=(255, 45, 65, 240))
-    d.rectangle([20, 13, 23, 14], fill=(255, 45, 65, 240))
-
-    # Muzzle
-    d.ellipse([11, 11, 15, 15], fill=W)
-    d.ellipse([16, 11, 20, 15], fill=W)
-    img.putpixel((15, 11), (230, 50, 60, 255))
+    # Tail
+    d.polygon([(23, 16), (26, 14), (27, 10), (25, 9), (24, 13), (22, 16)], fill=O_hot, outline=K)
 
     # Body
-    d.ellipse([7, 16, 24, 27], fill=O_hot, outline=K)
-    d.ellipse([11, 17, 20, 25], fill=W)
+    d.ellipse([9, 9 + body_bob, 25, 21 + body_bob], fill=O_hot, outline=K)
+    d.rectangle([21, 18 + body_bob, 24, 22 + body_bob], fill=O_hot, outline=K)
 
-    # Steaming Red Hot Laptop
-    d.rectangle([5, 23, 26, 26], fill=(80, 45, 45, 255), outline=K)
-    d.rectangle([8, 19, 23, 23], fill=(50, 25, 25, 255), outline=K)
-    # Fire red glowing screen
-    d.line([(9, 20), (21, 20)], fill=(255, 80, 50, 255))
-    d.line([(9, 21), (18, 21)], fill=(255, 210, 60, 255))
-    d.line([(9, 22), (21, 22)], fill=(255, 60, 40, 255))
+    # Blazing Red Keycaps
+    d.polygon([(4, l_y), (13, l_y), (11, l_y + 5), (2, l_y + 5)], fill=K_TOP, outline=K)
+    d.line([(4, l_y), (13, l_y)], fill=K_LIGHT)
+    d.polygon([(2, l_y + 5), (2, l_y + 8), (11, l_y + 8), (11, l_y + 5)], fill=K_SIDE, outline=K)
+    d.polygon([(11, l_y + 5), (11, l_y + 8), (13, l_y + 7), (13, l_y)], fill=K_DARK, outline=K)
 
-    # Frantic Blazing Paws
-    if frame_idx % 2 == 0:
-        d.rectangle([6, 23, 11, 25], fill=W, outline=K)
-        d.rectangle([20, 20, 25, 23], fill=W, outline=K)
+    d.polygon([(16, r_y), (25, r_y), (23, r_y + 5), (14, r_y + 5)], fill=K_TOP, outline=K)
+    d.line([(16, r_y), (25, r_y)], fill=K_LIGHT)
+    d.polygon([(14, r_y + 5), (14, r_y + 8), (23, r_y + 8), (23, r_y + 5)], fill=K_SIDE, outline=K)
+    d.polygon([(23, r_y + 5), (23, r_y + 8), (25, r_y + 7), (25, r_y)], fill=K_DARK, outline=K)
+
+    # Legs & Paws
+    d.polygon([(7, 12 + body_bob), (6, l_y), (10, l_y), (11, 12 + body_bob)], fill=O_hot, outline=K)
+    d.rectangle([6, l_y, 10, l_y + 2], fill=W, outline=K)
+
+    d.polygon([(15, 12 + body_bob), (15, r_y), (19, r_y), (19, 12 + body_bob)], fill=O_hot, outline=K)
+    d.rectangle([15, r_y, 19, r_y + 2], fill=W, outline=K)
+
+    # Head
+    head_y = 3 + body_bob
+    d.polygon([(8, head_y + 4), (8, head_y - 2), (13, head_y + 4)], fill=O_hot, outline=K)
+    d.polygon([(16, head_y + 4), (20, head_y - 2), (21, head_y + 4)], fill=O_hot, outline=K)
+
+    d.ellipse([7, head_y + 1, 23, head_y + 12], fill=O_hot, outline=K)
+
+    # Panicked Face
+    if p.get("has_shades", False):
+        d.rectangle([9, head_y + 4, 21, head_y + 7], fill=(25, 15, 20, 255), outline=K)
+        fire_col = (255, 60, 40, 255) if frame_idx % 2 == 0 else (255, 200, 50, 255)
+        img.putpixel((11, head_y + 5), fire_col)
+        img.putpixel((18, head_y + 5), fire_col)
     else:
-        d.rectangle([6, 20, 11, 23], fill=W, outline=K)
-        d.rectangle([20, 23, 25, 25], fill=W, outline=K)
+        d.line([(9, head_y + 4), (12, head_y + 6), (9, head_y + 8)], fill=K)
+        d.line([(18, head_y + 4), (15, head_y + 6), (18, head_y + 8)], fill=K)
 
     return img
 
