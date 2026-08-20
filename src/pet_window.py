@@ -126,8 +126,13 @@ class DesktopPet(QWidget):
         self._glide_to = (0.0, 0.0, 128)
         self._glide_callback = None
 
-        # Frame Pixmap Cache
+        # Frame Pixmap Cache & Idle Eye-Follow Pre-Cache (Zero runtime memory allocation)
         self.pixmap_cache = {}
+        self.idle_eye_cache = {}
+        self._cached_screen_geo = None
+        self._last_screen_geo_time = 0.0
+        self._last_cursor_pos = QPoint(0, 0)
+        self._last_cursor_poll_time = time.time()
         self._load_skin_sprites(self.skin)
 
         # Speech Bubble
@@ -146,14 +151,13 @@ class DesktopPet(QWidget):
         self.watcher = LocalWatcher(self)
         self.watcher.event_received.connect(self._on_external_event)
 
-        # Global Input Watcher (Comnyang-style reaction to typing, overheat, hunting, and scrolling)
+        # Global Input Watcher (Comnyang-style cadence reaction to typing, overheat, and scrolling)
         self.input_watcher = GlobalInputWatcher(self)
         self.input_watcher.typing_started.connect(self._on_global_typing_start)
         self.input_watcher.typing_stopped.connect(self._on_global_typing_stop)
         self.input_watcher.overheat_started.connect(self._on_global_overheat_start)
         self.input_watcher.overheat_ended.connect(self._on_global_overheat_end)
         self.input_watcher.mouse_scrolled.connect(self._on_global_scroll)
-        self.input_watcher.mouse_moved_fast.connect(self._on_fast_mouse_move)
         self.input_watcher.start()
 
         # Animation Loop Timer (110ms per frame for smooth 9-10 FPS sprite cycling)
@@ -173,11 +177,12 @@ class DesktopPet(QWidget):
         QTimer.singleShot(600, self._say_welcome)
 
     # -------------------------------------------------------------
-    # Sprite & Cache Management
+    # Sprite & Cache Management (Pre-cached for instant 60 FPS O(1) rendering)
     # -------------------------------------------------------------
     def _load_skin_sprites(self, skin_name):
         self.skin = skin_name
         self.pixmap_cache.clear()
+        self.idle_eye_cache.clear()
         states = [
             "idle", "walk_left", "walk_right", "sleep", "work", "overheat",
             "paper_unroll", "pet", "stretch", "drink_water", "celebrate", "thinking", "drag", "land"
@@ -192,13 +197,21 @@ class DesktopPet(QWidget):
                 pixmap = QPixmap.fromImage(qimg)
                 self.pixmap_cache[st].append(pixmap)
 
+        # Pre-cache all 36 idle eye-direction frames for 0ms, zero-allocation runtime lookup
+        for frame in range(4):
+            for ldx in (-1, 0, 1):
+                for ldy in (-1, 0, 1):
+                    pil_img = render_cat_frame(skin_name, "idle", frame, ldx, ldy)
+                    raw_bytes = pil_img.tobytes("raw", "RGBA")
+                    qimg = QImage(raw_bytes, pil_img.width, pil_img.height, QImage.Format.Format_RGBA8888)
+                    self.idle_eye_cache[(frame, ldx, ldy)] = QPixmap.fromImage(qimg)
+
     def _get_current_pixmap(self):
-        # Dynamic eye-follow look on idle
-        if self.state == "idle" and not PALETTES.get(self.skin, {}).get("has_shades", False):
-            pil_img = render_cat_frame(self.skin, "idle", self.frame_index, self.look_dx, self.look_dy)
-            raw_bytes = pil_img.tobytes("raw", "RGBA")
-            qimg = QImage(raw_bytes, pil_img.width, pil_img.height, QImage.Format.Format_RGBA8888)
-            return QPixmap.fromImage(qimg)
+        # 100% Zero-Allocation O(1) Dictionary Lookup
+        if self.state == "idle":
+            cached = self.idle_eye_cache.get((self.frame_index % 4, self.look_dx, self.look_dy))
+            if cached:
+                return cached
 
         frames = self.pixmap_cache.get(self.state, self.pixmap_cache.get("idle", []))
         if not frames:
@@ -244,16 +257,20 @@ class DesktopPet(QWidget):
         return QRect(int(24 * s), int(10 * s), int(80 * s), int(62 * s))
 
     # -------------------------------------------------------------
-    # Placement & Screen Geometry
+    # Placement & Screen Geometry (Cached to eliminate Win32 display query churn)
     # -------------------------------------------------------------
-    def _get_current_screen_geometry(self):
-        screen = QApplication.screenAt(self.geometry().center())
-        if not screen:
-            screen = QApplication.primaryScreen()
-        return screen.availableGeometry()
+    def _get_current_screen_geometry(self, force_refresh=False):
+        now = time.time()
+        if force_refresh or self._cached_screen_geo is None or (now - self._last_screen_geo_time > 2.5):
+            screen = QApplication.screenAt(self.geometry().center())
+            if not screen:
+                screen = QApplication.primaryScreen()
+            self._cached_screen_geo = screen.availableGeometry() if screen else QRect(0, 0, 1920, 1080)
+            self._last_screen_geo_time = now
+        return self._cached_screen_geo
 
     def _snap_to_initial_position(self):
-        screen_geo = self._get_current_screen_geometry()
+        screen_geo = self._get_current_screen_geometry(force_refresh=True)
         saved_x = self.settings.get("pos_x")
         saved_y = self.settings.get("pos_y")
 
@@ -331,11 +348,23 @@ class DesktopPet(QWidget):
         cat_center_x = self.pos_x_f + self.sprite_size / 2.0
         cat_center_y = self.pos_y_f + self.sprite_size / 2.0
 
-        # ── 1. DYNAMIC 8-DIRECTION EYE FOLLOW ──
+        # ── 1. DYNAMIC 8-DIRECTION EYE FOLLOW & FLICK DETECTION ──
         cursor_pos = QCursor.pos()
         dx = cursor_pos.x() - cat_center_x
         dy = cursor_pos.y() - (cat_center_y - (15 * (self.sprite_size / 128.0)))
         dist = math.hypot(dx, dy)
+
+        # Internal zero-overhead fast mouse flick check
+        now = time.time()
+        dt_c = now - self._last_cursor_poll_time
+        if dt_c > 0.03:
+            c_dx = cursor_pos.x() - self._last_cursor_pos.x()
+            c_dy = cursor_pos.y() - self._last_cursor_pos.y()
+            c_spd = math.hypot(c_dx, c_dy) / dt_c
+            if c_spd > 1100 and self.settings.get("mouse_hunt_enabled", False):
+                self._on_fast_mouse_move(cursor_pos.x(), cursor_pos.y())
+            self._last_cursor_pos = cursor_pos
+            self._last_cursor_poll_time = now
 
         if dist > (40 * (self.sprite_size / 128.0)):
             angle = math.degrees(math.atan2(dy, dx))

@@ -88,18 +88,16 @@ class GlobalInputWatcher(QObject):
             except Exception as e:
                 print(f"[GlobalInputWatcher] Error starting keyboard listener: {e}")
 
-        # 2. Low-level Mouse Listener (with Win32 filter for raw fractional deltas)
+        # 2. Low-level Mouse Scroll Listener (Zero move hook = 0% mouse latency & stutter-free)
         if PYNPUT_AVAILABLE:
             try:
                 if sys.platform == "win32":
                     self._mouse_listener = mouse.Listener(
-                        on_move=self._on_mouse_move,
                         on_scroll=self._on_mouse_scroll,
                         win32_event_filter=self._win32_mouse_filter
                     )
                 else:
                     self._mouse_listener = mouse.Listener(
-                        on_move=self._on_mouse_move,
                         on_scroll=self._on_mouse_scroll
                     )
                 self._mouse_listener.daemon = True

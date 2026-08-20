@@ -6,6 +6,7 @@ open-source Python code, and local-only interactions.
 
 import sys
 import os
+import ctypes
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt
 
@@ -15,6 +16,13 @@ from src.tray import CatTrayIcon
 
 
 def main():
+    # Enable Windows High-Precision Timer Period (1ms resolution) for rock-solid 60 FPS
+    if sys.platform == "win32":
+        try:
+            ctypes.windll.winmm.timeBeginPeriod(1)
+        except Exception:
+            pass
+
     # Enable High DPI scaling
     os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
 
@@ -32,7 +40,15 @@ def main():
     # Create Tray Icon
     tray = CatTrayIcon(pet, app)
 
-    sys.exit(app.exec())
+    ret = app.exec()
+
+    if sys.platform == "win32":
+        try:
+            ctypes.windll.winmm.timeEndPeriod(1)
+        except Exception:
+            pass
+
+    sys.exit(ret)
 
 
 if __name__ == "__main__":
