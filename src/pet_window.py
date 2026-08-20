@@ -1125,16 +1125,16 @@ class DesktopPet(QWidget):
     def _start_centered_reminder(self, reminder_type: str, auto: bool = False, duration: float = 7.0, queue_next: list = None):
         """
         Unified Center-Stage Reminder & Sequential Combo Manager (Option A).
-        If another reminder arrives while already centered, it queues seamlessly as the next routine step!
+        If another reminder arrives while already centered or gliding, it queues seamlessly as the next routine step!
         Guarantees that home coordinates and original size are NEVER overwritten while centered.
         """
-        if self.state in ["drag", "pet"] or self._glide_timer.isActive():
-            return
-
-        # If already centered and active, queue this reminder as the next sequential routine step!
+        # If already centered or currently gliding to center, queue this reminder as the next routine step!
         if self._active_reminder_type is not None:
             if reminder_type not in [item[0] for item in self._reminder_queue] and reminder_type != self._active_reminder_type:
                 self._reminder_queue.append((reminder_type, auto, duration))
+            return
+
+        if self.state in ["drag", "pet"]:
             return
 
         # Capture true desktop home location ONLY when departing from desktop
