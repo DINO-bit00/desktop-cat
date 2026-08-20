@@ -42,6 +42,12 @@ class CatTrayIcon(QSystemTrayIcon):
         pom_act = self.menu.addAction("⏱️ Mulai Pomodoro (25m)")
         pom_act.triggered.connect(lambda: self.pet_window.pomodoro.start_focus(25))
 
+        from src.autostart import is_startup_enabled
+        startup_act = self.menu.addAction("🚀 Jalankan saat Startup")
+        startup_act.setCheckable(True)
+        startup_act.setChecked(is_startup_enabled())
+        startup_act.triggered.connect(self.pet_window._toggle_startup)
+
         self.menu.addSeparator()
 
         quit_act = self.menu.addAction("❌ Keluar")

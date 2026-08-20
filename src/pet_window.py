@@ -26,6 +26,7 @@ from src.pomodoro import PomodoroManager
 from src.local_watcher import LocalWatcher
 from src.global_hooks import GlobalInputWatcher
 from src.settings import save_settings
+from src.autostart import is_startup_enabled, set_startup_enabled
 
 
 def set_win32_topmost(widget):
@@ -842,6 +843,11 @@ class DesktopPet(QWidget):
         sound_act.setChecked(self.settings.get("sound_enabled", True))
         sound_act.triggered.connect(self._toggle_sound)
 
+        startup_act = menu.addAction("🚀 Jalankan saat Startup (Auto-Start)")
+        startup_act.setCheckable(True)
+        startup_act.setChecked(is_startup_enabled())
+        startup_act.triggered.connect(self._toggle_startup)
+
         menu.addSeparator()
 
         # 7. Quit
@@ -899,6 +905,18 @@ class DesktopPet(QWidget):
     def _toggle_sound(self, checked):
         self.settings["sound_enabled"] = checked
         save_settings(self.settings)
+
+    def _toggle_startup(self, checked):
+        success = set_startup_enabled(checked)
+        if success:
+            self.settings["run_on_startup"] = checked
+            save_settings(self.settings)
+            if checked:
+                self.say("NyangBuddy sekarang otomatis nemenin kamu tiap laptop nyala nya! 🚀🐾", 4000)
+            else:
+                self.say("Auto-startup dinonaktifkan nya! 🐾", 3000)
+        else:
+            self.say("Gagal mengubah pengaturan startup nya! 😿", 3000)
 
     def _prompt_sticky_note(self):
         current_note = self.settings.get("sticky_note", "")

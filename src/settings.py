@@ -15,7 +15,8 @@ DEFAULT_SETTINGS = {
     "hydration_reminder_min": 45,   # Drink water reminder every 45 min
     "sound_enabled": True,          # Cute synthesized retro blip
     "sticky_note": "",              # Pinned focus goal / note
-    "scale": 1.0                    # Size scale
+    "scale": 1.0,                   # Size scale
+    "run_on_startup": False         # Windows Registry Run on startup
 }
 
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "settings.json")
