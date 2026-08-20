@@ -30,16 +30,25 @@ from src.autostart import is_startup_enabled, set_startup_enabled
 
 
 def set_win32_topmost(widget):
-    """Enforce topmost z-order on Windows OS using native Win32 API."""
+    """Enforce topmost z-order on Windows OS using native Win32 API + extended styles."""
     if sys.platform == "win32" and widget:
         try:
+            hwnd = int(widget.winId())
             HWND_TOPMOST = -1
             SWP_NOSIZE = 0x0001
             SWP_NOMOVE = 0x0002
             SWP_NOACTIVATE = 0x0010
             SWP_SHOWWINDOW = 0x0040
             flags = SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE | SWP_SHOWWINDOW
-            ctypes.windll.user32.SetWindowPos(int(widget.winId()), HWND_TOPMOST, 0, 0, 0, 0, flags)
+
+            # Set WS_EX_TOPMOST extended style for bulletproof topmost
+            GWL_EXSTYLE = -20
+            WS_EX_TOPMOST = 0x00000008
+            cur_ex = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+            if not (cur_ex & WS_EX_TOPMOST):
+                ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, cur_ex | WS_EX_TOPMOST)
+
+            ctypes.windll.user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, flags)
         except Exception:
             pass
 
@@ -133,7 +142,10 @@ class DesktopPet(QWidget):
         self._last_screen_geo_time = 0.0
         self._last_cursor_pos = QPoint(0, 0)
         self._last_cursor_poll_time = time.time()
-        self._load_skin_sprites(self.skin)
+        self._sprites_ready = False
+
+        # Load ONLY the essential idle + walk sprites synchronously (instant startup)
+        self._load_essential_sprites(self.skin)
 
         # Speech Bubble
         self.speech_bubble = SpeechBubble()
@@ -158,7 +170,6 @@ class DesktopPet(QWidget):
         self.input_watcher.overheat_started.connect(self._on_global_overheat_start)
         self.input_watcher.overheat_ended.connect(self._on_global_overheat_end)
         self.input_watcher.mouse_scrolled.connect(self._on_global_scroll)
-        self.input_watcher.start()
 
         # Animation Loop Timer (110ms per frame for smooth 9-10 FPS sprite cycling)
         self.anim_timer = QTimer(self)
@@ -170,34 +181,99 @@ class DesktopPet(QWidget):
         self.physics_timer.timeout.connect(self._update_physics_loop)
         self.physics_timer.start(16)
 
+        # Aggressive Always-On-Top Enforcement Timer (every 3 seconds)
+        self._topmost_timer = QTimer(self)
+        self._topmost_timer.timeout.connect(self._enforce_topmost)
+        if self.settings.get("stay_on_top", True):
+            self._topmost_timer.start(3000)
+
         # Position on screen
         self._snap_to_initial_position()
 
-        # Say hello at startup
-        QTimer.singleShot(600, self._say_welcome)
+        # Defer heavy sprite pre-cache & input hooks to AFTER the window is visible (non-blocking startup)
+        QTimer.singleShot(50, self._deferred_startup)
+
+    def _deferred_startup(self):
+        """Runs after the window is visible — loads remaining sprites and starts input hooks."""
+        # Start input watcher (pynput hooks) AFTER window is shown
+        self.input_watcher.start()
+
+        # Pre-cache all remaining sprites in batches (non-blocking via singleShot chain)
+        self._deferred_load_remaining_sprites(self.skin)
+
+        # Say hello
+        QTimer.singleShot(400, self._say_welcome)
+
+    def _enforce_topmost(self):
+        """Aggressively re-enforces topmost z-order using Win32 extended window styles."""
+        if self.settings.get("stay_on_top", True):
+            set_win32_topmost(self)
 
     # -------------------------------------------------------------
     # Sprite & Cache Management (Pre-cached for instant 60 FPS O(1) rendering)
     # -------------------------------------------------------------
-    def _load_skin_sprites(self, skin_name):
+    def _render_state_frames(self, skin_name, state):
+        """Renders 4 frames for a given state and stores them in pixmap_cache."""
+        self.pixmap_cache[state] = []
+        for frame in range(4):
+            pil_img = render_cat_frame(skin_name, state, frame)
+            raw_bytes = pil_img.tobytes("raw", "RGBA")
+            qimg = QImage(raw_bytes, pil_img.width, pil_img.height, QImage.Format.Format_RGBA8888)
+            self.pixmap_cache[state].append(QPixmap.fromImage(qimg))
+
+    def _load_essential_sprites(self, skin_name):
+        """Loads only idle + walk sprites synchronously for instant window display (<80ms)."""
         self.skin = skin_name
         self.pixmap_cache.clear()
         self.idle_eye_cache.clear()
-        states = [
-            "idle", "walk_left", "walk_right", "sleep", "work", "overheat",
-            "paper_unroll", "pet", "stretch", "drink_water", "celebrate", "thinking", "drag", "land"
+        self._sprites_ready = False
+        for st in ("idle", "walk_left", "walk_right", "celebrate"):
+            self._render_state_frames(skin_name, st)
+
+    def _deferred_load_remaining_sprites(self, skin_name):
+        """Loads remaining state sprites + idle eye cache in small batches via QTimer chain."""
+        remaining = [
+            "sleep", "work", "overheat", "paper_unroll", "pet",
+            "stretch", "drink_water", "thinking", "drag", "land"
         ]
+        self._deferred_batch_queue = list(remaining)
+        self._deferred_skin = skin_name
+        self._process_next_sprite_batch()
 
-        for st in states:
-            self.pixmap_cache[st] = []
-            for frame in range(4):
-                pil_img = render_cat_frame(skin_name, st, frame)
-                raw_bytes = pil_img.tobytes("raw", "RGBA")
-                qimg = QImage(raw_bytes, pil_img.width, pil_img.height, QImage.Format.Format_RGBA8888)
-                pixmap = QPixmap.fromImage(qimg)
-                self.pixmap_cache[st].append(pixmap)
+    def _process_next_sprite_batch(self):
+        """Processes 2 states per tick to avoid blocking the UI thread."""
+        for _ in range(2):
+            if not self._deferred_batch_queue:
+                break
+            st = self._deferred_batch_queue.pop(0)
+            self._render_state_frames(self._deferred_skin, st)
 
-        # Pre-cache all 36 idle eye-direction frames for 0ms, zero-allocation runtime lookup
+        if self._deferred_batch_queue:
+            QTimer.singleShot(16, self._process_next_sprite_batch)
+        else:
+            # All states loaded — now pre-cache idle eye directions
+            self._deferred_load_idle_eyes()
+
+    def _deferred_load_idle_eyes(self):
+        """Pre-caches all 36 idle eye-direction frames for O(1) runtime lookup."""
+        for frame in range(4):
+            for ldx in (-1, 0, 1):
+                for ldy in (-1, 0, 1):
+                    pil_img = render_cat_frame(self._deferred_skin, "idle", frame, ldx, ldy)
+                    raw_bytes = pil_img.tobytes("raw", "RGBA")
+                    qimg = QImage(raw_bytes, pil_img.width, pil_img.height, QImage.Format.Format_RGBA8888)
+                    self.idle_eye_cache[(frame, ldx, ldy)] = QPixmap.fromImage(qimg)
+        self._sprites_ready = True
+
+    def _load_skin_sprites(self, skin_name):
+        """Full synchronous load (used by skin switcher in context menu)."""
+        self._load_essential_sprites(skin_name)
+        remaining = [
+            "sleep", "work", "overheat", "paper_unroll", "pet",
+            "stretch", "drink_water", "thinking", "drag", "land"
+        ]
+        for st in remaining:
+            self._render_state_frames(skin_name, st)
         for frame in range(4):
             for ldx in (-1, 0, 1):
                 for ldy in (-1, 0, 1):
@@ -205,9 +281,10 @@ class DesktopPet(QWidget):
                     raw_bytes = pil_img.tobytes("raw", "RGBA")
                     qimg = QImage(raw_bytes, pil_img.width, pil_img.height, QImage.Format.Format_RGBA8888)
                     self.idle_eye_cache[(frame, ldx, ldy)] = QPixmap.fromImage(qimg)
+        self._sprites_ready = True
 
     def _get_current_pixmap(self):
-        # 100% Zero-Allocation O(1) Dictionary Lookup
+        # O(1) dictionary lookup — zero allocation at runtime
         if self.state == "idle":
             cached = self.idle_eye_cache.get((self.frame_index % 4, self.look_dx, self.look_dy))
             if cached:
@@ -340,9 +417,6 @@ class DesktopPet(QWidget):
             self.update()
             return
 
-        # Periodically ensure topmost if enabled
-        if self.settings.get("stay_on_top", True) and random.random() < 0.015:
-            set_win32_topmost(self)
 
         screen_geo = self._get_current_screen_geometry()
         cat_center_x = self.pos_x_f + self.sprite_size / 2.0
@@ -1064,6 +1138,22 @@ class DesktopPet(QWidget):
         self.show()
         if checked:
             set_win32_topmost(self)
+            self._topmost_timer.start(3000)
+        else:
+            self._topmost_timer.stop()
+            # Actively remove topmost using HWND_NOTOPMOST
+            if sys.platform == "win32":
+                try:
+                    HWND_NOTOPMOST = -2
+                    SWP_NOSIZE = 0x0001
+                    SWP_NOMOVE = 0x0002
+                    SWP_NOACTIVATE = 0x0010
+                    ctypes.windll.user32.SetWindowPos(
+                        int(self.winId()), HWND_NOTOPMOST, 0, 0, 0, 0,
+                        SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
+                    )
+                except Exception:
+                    pass
 
     def _toggle_sound(self, checked):
         self.settings["sound_enabled"] = checked
