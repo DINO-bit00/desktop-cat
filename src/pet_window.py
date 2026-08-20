@@ -107,6 +107,14 @@ class DesktopPet(QWidget):
         self.scroll_reset_timer.timeout.connect(self._on_scroll_timeout)
         self._scroll_delta_accum = 0.0
 
+        # Stretch & Posture Centered Enlargement Mode
+        self._is_stretch_mode = False
+        self._pre_stretch_size = self.sprite_size
+        self._pre_stretch_pos = (self.x(), self.y())
+        self._stretch_end_timer = QTimer(self)
+        self._stretch_end_timer.setSingleShot(True)
+        self._stretch_end_timer.timeout.connect(self._end_stretch_mode)
+
         # Frame Pixmap Cache
         self.pixmap_cache = {}
         self._load_skin_sprites(self.skin)
@@ -806,7 +814,40 @@ class DesktopPet(QWidget):
             stop_action = pom_menu.addAction(f"⏹️ Hentikan ({self.pomodoro.format_time()})")
             stop_action.triggered.connect(self.pomodoro.stop)
 
-        # 4. Actions / State Switch
+        # 4. Stretch & Posture Submenu
+        stretch_menu = menu.addMenu("🧘 Pengingat Regang & Postur")
+        now_act = stretch_menu.addAction("▶️ Regangkan Badan Sekarang (Layar Tengah)")
+        now_act.triggered.connect(lambda: self.trigger_stretch(auto=False))
+        stretch_menu.addSeparator()
+
+        intervals = [
+            ("⚡ 15 Menit (Tes Cepat)", 15),
+            ("⏱️ 30 Menit", 30),
+            ("⏱️ 45 Menit", 45),
+            ("⏱️ 60 Menit (1 Jam - Standar)", 60),
+            ("⏱️ 90 Menit (1.5 Jam)", 90),
+            ("⏱️ 120 Menit (2 Jam)", 120),
+        ]
+        cur_int = self.settings.get("stretch_reminder_min", 60)
+        is_enabled = self.settings.get("stretch_reminder_enabled", True)
+
+        for label, mins in intervals:
+            act = stretch_menu.addAction(label)
+            act.setCheckable(True)
+            act.setChecked(is_enabled and cur_int == mins)
+            act.triggered.connect(lambda checked, m=mins: self.set_stretch_interval(m))
+
+        stretch_menu.addSeparator()
+        custom_act = stretch_menu.addAction("⏱️ Atur Waktu Kustom (Menit)...")
+        custom_act.triggered.connect(self._prompt_stretch_interval)
+
+        stretch_menu.addSeparator()
+        toggle_act = stretch_menu.addAction("✅ Aktifkan Pengingat Otomatis")
+        toggle_act.setCheckable(True)
+        toggle_act.setChecked(is_enabled)
+        toggle_act.triggered.connect(self._toggle_stretch_reminder)
+
+        # 5. Actions / State Switch
         act_menu = menu.addMenu("🐾 Ganti Gaya / Aksi")
         act_menu.addAction("😺 Duduk Santai (Idle)", lambda: self.set_state("idle"))
         act_menu.addAction("💻 Mode Ngoding/Work", lambda: self.set_state("work"))
@@ -820,11 +861,11 @@ class DesktopPet(QWidget):
 
         menu.addSeparator()
 
-        # 5. Sticky Note / Pinned Focus
+        # 6. Sticky Note / Pinned Focus
         note_action = menu.addAction("📌 Set Target Fokus / Note")
         note_action.triggered.connect(self._prompt_sticky_note)
 
-        # 6. Options
+        # 7. Options
         hunt_act = menu.addAction("🎯 Kejar Kursor Cepat (Mouse Hunt)")
         hunt_act.setCheckable(True)
         hunt_act.setChecked(self.settings.get("mouse_hunt_enabled", True))
@@ -844,11 +885,6 @@ class DesktopPet(QWidget):
         sound_act.setCheckable(True)
         sound_act.setChecked(self.settings.get("sound_enabled", True))
         sound_act.triggered.connect(self._toggle_sound)
-
-        stretch_act = menu.addAction("🧘 Pengingat Postur & Regang (Tiap 60m)")
-        stretch_act.setCheckable(True)
-        stretch_act.setChecked(self.settings.get("stretch_reminder_enabled", True))
-        stretch_act.triggered.connect(self._toggle_stretch_reminder)
 
         startup_act = menu.addAction("🚀 Jalankan saat Startup (Auto-Start)")
         startup_act.setCheckable(True)
@@ -929,29 +965,88 @@ class DesktopPet(QWidget):
         self.settings["stretch_reminder_enabled"] = checked
         save_settings(self.settings)
         self.pomodoro.start_health_timers()
+        cur_min = self.settings.get("stretch_reminder_min", 60)
         if checked:
-            self.say("Pengingat postur aktif! Aku ingatkan tiap 60 menit ya nya~ 🧘", 3500)
+            self.say(f"Pengingat postur aktif! Aku ingatkan tiap {cur_min} menit ya nya~ 🧘", 3500)
         else:
             self.say("Pengingat postur dinonaktifkan nya! 🐾", 3000)
+
+    def _prompt_stretch_interval(self):
+        cur_min = self.settings.get("stretch_reminder_min", 60)
+        val, ok = QInputDialog.getInt(
+            self, "Timer Pengingat Peregangan",
+            "Masukkan interval pengingat regang badan (dalam menit):\nContoh: 15 untuk tes cepat, 45 atau 60 untuk kerja normal.",
+            value=cur_min, min=1, max=300, step=5
+        )
+        if ok and val > 0:
+            self.set_stretch_interval(val)
+
+    def set_stretch_interval(self, minutes):
+        self.settings["stretch_reminder_min"] = minutes
+        self.settings["stretch_reminder_enabled"] = True
+        save_settings(self.settings)
+        self.pomodoro.start_health_timers()
+        self.say(f"Timer regang badan diatur ke tiap {minutes} menit nya! ⏱️🧘", 4000)
 
     def _on_posture_reminder(self):
         """Triggered periodically when user has been working continuously."""
         self.trigger_stretch(auto=True)
 
     def trigger_stretch(self, auto=False):
-        """Executes the kawaii cat stretch yoga posture."""
-        if self.state not in ["drag", "pet"]:
-            self.set_state("stretch", duration_seconds=4.5)
-            self._play_sound_blip(freq=1250, dur=60)
-            if auto:
-                msg = random.choice([
-                    "Udah duduk lama nih, yuk luruskan punggung dan regangkan badan bareng aku! 🧘🐾",
-                    "Ngulet dulu nyaaa~ Regangkan badan biar nggak kaku! 🧘✨",
-                    "Tarik nafas dalam-dalam... Regangkan otot leher dan punggung ya! 🐾🌸"
-                ])
-                self.say(msg, 4500)
-            else:
-                self.say("Ngulet dulu nyaaa~ segernya badan! 🧘✨", 3500)
+        """
+        Executes the kawaii cat stretch yoga posture.
+        Automatically enlarges character and glides to screen center!
+        """
+        if self.state in ["drag", "pet"]:
+            return
+
+        if not self._is_stretch_mode:
+            self._is_stretch_mode = True
+            self._pre_stretch_size = self.sprite_size
+            self._pre_stretch_pos = (self.x(), self.y())
+
+            # Enlarge to prominent size (1.6x of normal or min 200px)
+            target_size = max(200, int(self.sprite_size * 1.6))
+            screen_geo = self._get_current_screen_geometry()
+            center_x = screen_geo.center().x() - target_size // 2
+            center_y = screen_geo.center().y() - target_size // 2
+
+            self.set_sprite_size(target_size, show_dialogue=False)
+            self.move(center_x, center_y)
+            self.pos_x_f = float(center_x)
+            self.pos_y_f = float(center_y)
+            set_win32_topmost(self)
+
+        self.set_state("stretch", duration_seconds=7.0)
+        self._play_sound_blip(freq=1250, dur=70)
+        QTimer.singleShot(120, lambda: self._play_sound_blip(freq=1650, dur=90))
+
+        if auto:
+            msg = random.choice([
+                "Waktunya istirahat sejenak! 🧘✨\nYuk berdiri dan regangkan badan bareng aku!",
+                "Udah duduk lama nih, boss! 🧘🐾\nLuruskan punggung & tarik nafas dalam-dalam ya!",
+                "Saatnya peregangan otot! 🌸🐾\nRegangkan badan biar tetap bugar & fokus!"
+            ])
+            self.say(msg, 6500)
+        else:
+            self.say("Ngulet dulu nyaaa~ segernya badan! 🧘✨\nYuk luruskan punggung bareng aku!", 5500)
+
+        # Automatically restore size and return to original position after 7 seconds
+        self._stretch_end_timer.start(7000)
+
+    def _end_stretch_mode(self):
+        """Restores size and returns to previous desktop position after stretch ends."""
+        if self._is_stretch_mode:
+            self._is_stretch_mode = False
+            # Restore original scale
+            self.set_sprite_size(self._pre_stretch_size, show_dialogue=False)
+            # Restore original position
+            orig_x, orig_y = self._pre_stretch_pos
+            self.move(orig_x, orig_y)
+            self.pos_x_f = float(orig_x)
+            self.pos_y_f = float(orig_y)
+            self.set_state("idle")
+            self.say("Segernya! Lanjut fokus kerja lagi ya nya~ 🐾💪", 3500)
 
     def _prompt_sticky_note(self):
         current_note = self.settings.get("sticky_note", "")
