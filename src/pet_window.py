@@ -109,6 +109,8 @@ class DesktopPet(QWidget):
 
         # Unified Center-Stage Reminder Manager (Prevents state collision & guarantees 100% accurate home restoration)
         self._active_reminder_type = None  # None, "stretch", "drink_water", etc.
+        self._reminder_queue = []          # Sequential combo queue: [(type, auto, duration), ...]
+        self._was_combo = False
         self._home_size = self.sprite_size
         self._home_pos = (self.x(), self.y())
         self._reminder_end_timer = QTimer(self)
@@ -890,6 +892,9 @@ class DesktopPet(QWidget):
         custom_act.triggered.connect(self._prompt_stretch_interval)
 
         stretch_menu.addSeparator()
+        combo_act1 = stretch_menu.addAction("🌟 Rutinitas Lengkap (Regang + Minum)")
+        combo_act1.triggered.connect(self.trigger_combo_routine)
+        stretch_menu.addSeparator()
         toggle_act = stretch_menu.addAction("✅ Aktifkan Pengingat Otomatis")
         toggle_act.setCheckable(True)
         toggle_act.setChecked(is_enabled)
@@ -923,6 +928,9 @@ class DesktopPet(QWidget):
         custom_hyd_act.triggered.connect(self._prompt_hydration_interval)
 
         hyd_menu.addSeparator()
+        combo_act2 = hyd_menu.addAction("🌟 Rutinitas Lengkap (Regang + Minum)")
+        combo_act2.triggered.connect(self.trigger_combo_routine)
+        hyd_menu.addSeparator()
         toggle_hyd_act = hyd_menu.addAction("✅ Aktifkan Pengingat Otomatis")
         toggle_hyd_act.setCheckable(True)
         toggle_hyd_act.setChecked(hyd_enabled)
@@ -938,6 +946,7 @@ class DesktopPet(QWidget):
         act_menu.addAction("🎉 Melompat Senang (Jump)", lambda: self.set_state("celebrate", 4))
         act_menu.addAction("🧘 Regangkan Badan (Stretch)", lambda: self.trigger_stretch(auto=False))
         act_menu.addAction("💧 Minum Air (Drink Water)", lambda: self.trigger_drink_water(auto=False))
+        act_menu.addAction("🌟 Paket Sehat (Regang + Minum)", self.trigger_combo_routine)
         act_menu.addAction("🤔 Berpikir (Thinking)", lambda: self.set_state("thinking", 4))
         act_menu.addAction("❤️ Dielus / Purring (Pet)", lambda: self.set_state("pet", 4))
 
@@ -1113,71 +1122,92 @@ class DesktopPet(QWidget):
                 self._glide_callback = None
                 cb()
 
-    def _start_centered_reminder(self, reminder_type: str, auto: bool = False, duration: float = 7.0):
+    def _start_centered_reminder(self, reminder_type: str, auto: bool = False, duration: float = 7.0, queue_next: list = None):
         """
-        Unified Center-Stage Reminder Manager.
-        Handles single and rapid sequential/combined reminders seamlessly.
+        Unified Center-Stage Reminder & Sequential Combo Manager (Option A).
+        If another reminder arrives while already centered, it queues seamlessly as the next routine step!
         Guarantees that home coordinates and original size are NEVER overwritten while centered.
         """
         if self.state in ["drag", "pet"] or self._glide_timer.isActive():
             return
 
-        def setup_reminder_content():
-            self.set_state(reminder_type, duration_seconds=duration)
+        # If already centered and active, queue this reminder as the next sequential routine step!
+        if self._active_reminder_type is not None:
+            if reminder_type not in [item[0] for item in self._reminder_queue] and reminder_type != self._active_reminder_type:
+                self._reminder_queue.append((reminder_type, auto, duration))
+            return
 
-            if reminder_type == "stretch":
-                self._play_sound_blip(freq=1250, dur=70)
-                QTimer.singleShot(140, lambda: self._play_sound_blip(freq=1650, dur=90))
-                if auto:
-                    msg = random.choice([
-                        "Waktunya istirahat sejenak! 🧘✨\nYuk berdiri dan regangkan badan bareng aku!",
-                        "Udah duduk lama nih, boss! 🧘🐾\nLuruskan punggung & tarik nafas dalam-dalam ya!",
-                        "Saatnya peregangan otot! 🌸🐾\nRegangkan badan biar tetap bugar & fokus!"
-                    ])
-                    self.say(msg, 6500)
-                else:
-                    self.say("Ngulet dulu nyaaa~ segernya badan! 🧘✨\nYuk luruskan punggung bareng aku!", 5500)
+        # Capture true desktop home location ONLY when departing from desktop
+        self._active_reminder_type = reminder_type
+        self._reminder_queue = list(queue_next) if queue_next else []
+        self._was_combo = len(self._reminder_queue) > 0
+        self._home_size = self.sprite_size
+        self._home_pos = (self.x(), self.y())
 
-            elif reminder_type == "drink_water":
-                # Play cute bubbly retro drinking sound chimes
-                self._play_sound_blip(freq=1100, dur=60)
-                QTimer.singleShot(120, lambda: self._play_sound_blip(freq=1450, dur=70))
-                QTimer.singleShot(240, lambda: self._play_sound_blip(freq=1750, dur=90))
-                if auto:
-                    msg = random.choice([
-                        "Waktunya minum air putih! 🥛💧✨\nTubuh terhidrasi = pikiran segar & fokus!",
-                        "Segelas air putih siap membantumu tetap sehat, yuk minum bareng aku! 💧🐾",
-                        "Istirahatkan mata sejenak dan minum air dulu yuk nya! 🥛🌸"
-                    ])
-                    self.say(msg, 6500)
-                else:
-                    self.say("Slurp slurp nyaaa~ Segernya minum air putih! 🥛💧✨\nJangan lupa minum juga ya!", 5500)
+        target_size = max(200, int(self._home_size * 1.6))
+        screen_geo = self._get_current_screen_geometry()
+        center_x = screen_geo.center().x() - target_size // 2
+        center_y = screen_geo.center().y() - target_size // 2
 
-            # Start or reset the single unified countdown timer
-            self._reminder_end_timer.start(int(duration * 1000))
+        self.set_state("celebrate", duration_seconds=1.0)
+        set_win32_topmost(self)
 
-        # If not currently on center stage, remember true desktop home position and size!
-        if self._active_reminder_type is None:
-            self._active_reminder_type = reminder_type
-            self._home_size = self.sprite_size
-            self._home_pos = (self.x(), self.y())
+        def on_center_arrived():
+            self._execute_reminder_step(reminder_type, auto, duration)
 
-            target_size = max(200, int(self._home_size * 1.6))
-            screen_geo = self._get_current_screen_geometry()
-            center_x = screen_geo.center().x() - target_size // 2
-            center_y = screen_geo.center().y() - target_size // 2
+        self._start_smooth_glide(center_x, center_y, target_size, duration=0.55, on_complete=on_center_arrived)
 
-            self.set_state("celebrate", duration_seconds=1.0)
-            set_win32_topmost(self)
+    def _execute_reminder_step(self, reminder_type: str, auto: bool, duration: float):
+        """Executes one step in the health routine."""
+        self._active_reminder_type = reminder_type
+        self.set_state(reminder_type, duration_seconds=duration)
 
-            self._start_smooth_glide(center_x, center_y, target_size, duration=0.55, on_complete=setup_reminder_content)
-        else:
-            # Already on center stage! Seamlessly transition animation & reset timer without touching home coordinates
-            self._active_reminder_type = reminder_type
-            setup_reminder_content()
+        has_queued = len(self._reminder_queue) > 0
+
+        if reminder_type == "stretch":
+            self._play_sound_blip(freq=1250, dur=70)
+            QTimer.singleShot(140, lambda: self._play_sound_blip(freq=1650, dur=90))
+            if has_queued:
+                self.say("Sesi Istirahat Sehat Terpadu! 🧘✨\nYuk regangkan badan dulu, habis ini kita minum air putih ya!", int(duration * 1000 - 500))
+            elif auto:
+                msg = random.choice([
+                    "Waktunya istirahat sejenak! 🧘✨\nYuk berdiri dan regangkan badan bareng aku!",
+                    "Udah duduk lama nih, boss! 🧘🐾\nLuruskan punggung & tarik nafas dalam-dalam ya!",
+                    "Saatnya peregangan otot! 🌸🐾\nRegangkan badan biar tetap bugar & fokus!"
+                ])
+                self.say(msg, int(duration * 1000 - 500))
+            else:
+                self.say("Ngulet dulu nyaaa~ segernya badan! 🧘✨\nYuk luruskan punggung bareng aku!", int(duration * 1000 - 500))
+
+        elif reminder_type == "drink_water":
+            self._play_sound_blip(freq=1100, dur=60)
+            QTimer.singleShot(120, lambda: self._play_sound_blip(freq=1450, dur=70))
+            QTimer.singleShot(240, lambda: self._play_sound_blip(freq=1750, dur=90))
+            if has_queued or self._was_combo:
+                self.say("Lanjut minum segelas air putih! 🥛💧✨\nBiar tubuh segar & terhidrasi maksimal!", int(duration * 1000 - 500))
+            elif auto:
+                msg = random.choice([
+                    "Waktunya minum air putih! 🥛💧✨\nTubuh terhidrasi = pikiran segar & fokus!",
+                    "Segelas air putih siap membantumu tetap sehat, yuk minum bareng aku! 💧🐾",
+                    "Istirahatkan mata sejenak dan minum air dulu yuk nya! 🥛🌸"
+                ])
+                self.say(msg, int(duration * 1000 - 500))
+            else:
+                self.say("Slurp slurp nyaaa~ Segernya minum air putih! 🥛💧✨\nJangan lupa minum juga ya!", int(duration * 1000 - 500))
+
+        # Start unified step countdown timer
+        self._reminder_end_timer.start(int(duration * 1000))
 
     def _end_centered_reminder(self):
-        """Smoothly glides and scales back to desktop home position when reminder countdown finishes."""
+        """Called when a step duration expires. Proceeds to next queued step or glides home."""
+        if self._reminder_queue:
+            next_type, next_auto, next_dur = self._reminder_queue.pop(0)
+            self._was_combo = True
+            self._execute_reminder_step(next_type, next_auto, next_dur)
+            return
+
+        # All routine steps finished -> glide home!
+        self._was_combo = False
         if self._active_reminder_type is not None and not self._glide_timer.isActive():
             orig_x, orig_y = self._home_pos
             orig_size = self._home_size
@@ -1185,18 +1215,22 @@ class DesktopPet(QWidget):
             def on_returned_home():
                 self._active_reminder_type = None
                 self.set_state("idle")
-                self.say("Segernya! Lanjut fokus kerja lagi ya nya~ 🐾💪", 3500)
+                self.say("Rutinitas istirahat selesai! Badan bugar & pikiran fokus lagi nya~ 🐾💪", 4000)
 
             self.set_state("celebrate", duration_seconds=1.0)
             self._start_smooth_glide(orig_x, orig_y, orig_size, duration=0.55, on_complete=on_returned_home)
 
     def trigger_stretch(self, auto=False):
         """Executes the kawaii cat stretch yoga posture via Unified Center Stage."""
-        self._start_centered_reminder("stretch", auto=auto, duration=7.0)
+        self._start_centered_reminder("stretch", auto=auto, duration=6.0)
 
     def trigger_drink_water(self, auto=False):
         """Executes the kawaii cat drinking water animation via Unified Center Stage."""
-        self._start_centered_reminder("drink_water", auto=auto, duration=7.0)
+        self._start_centered_reminder("drink_water", auto=auto, duration=6.0)
+
+    def trigger_combo_routine(self):
+        """Manually launches the full Sequential Combo Health Routine (Stretch + Drink Water)."""
+        self._start_centered_reminder("stretch", auto=False, duration=5.0, queue_next=[("drink_water", False, 5.0)])
 
     def _toggle_stretch_reminder(self, checked):
         self.settings["stretch_reminder_enabled"] = checked
