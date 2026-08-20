@@ -81,17 +81,24 @@ class PomodoroBadge(QWidget):
         self._total_seconds = 0
         self._remaining = 0
         self._progress = 1.0      # 1.0 = full, 0.0 = empty
+        self._cycle_label = ""    # e.g. "[2/4]" for multi-cycle
 
         self.hide()
 
     # ── Public API ──────────────────────────────────────────────
 
-    def start(self, mode: str, total_seconds: int):
+    def start(self, mode: str, total_seconds: int, cycle_label: str = ""):
         """Show the badge and start tracking a Pomodoro session."""
         self._mode = mode
         self._total_seconds = max(1, total_seconds)
         self._remaining = total_seconds
         self._progress = 1.0
+        self._cycle_label = cycle_label
+
+        # Widen badge if showing cycle info
+        badge_w = _BADGE_W + 42 if cycle_label else _BADGE_W
+        self.setFixedSize(badge_w, _BADGE_H)
+
         self.show()
         _set_badge_topmost(self)
         self.update()
@@ -178,10 +185,11 @@ class PomodoroBadge(QWidget):
         p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawRoundedRect(body_rect, _CORNER_R, _CORNER_R)
 
-        # ── 3. Mode label + countdown text ──
+        # ── 3. Mode label + countdown text + cycle label ──
         mins = self._remaining // 60
         secs = self._remaining % 60
-        display_text = f"{label} {mins:02d}:{secs:02d}"
+        cycle_str = f" {self._cycle_label}" if self._cycle_label else ""
+        display_text = f"{label} {mins:02d}:{secs:02d}{cycle_str}"
 
         font = QFont("Consolas", 9, QFont.Weight.Bold)
         font.setStyleStrategy(QFont.StyleStrategy.NoAntialias)

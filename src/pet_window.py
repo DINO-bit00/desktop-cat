@@ -28,6 +28,7 @@ from src.global_hooks import GlobalInputWatcher
 from src.settings import save_settings
 from src.autostart import is_startup_enabled, set_startup_enabled
 from src.pomodoro_badge import PomodoroBadge
+from src.pomodoro_dialog import CustomPomodoroDialog
 
 
 def set_win32_topmost(widget):
@@ -126,6 +127,7 @@ class DesktopPet(QWidget):
         self._reminder_end_timer = QTimer(self)
         self._reminder_end_timer.setSingleShot(True)
         self._reminder_end_timer.timeout.connect(self._end_centered_reminder)
+        self._reminder_finish_callback = None
 
         # Smooth 60 FPS Glide & Scale Interpolation Controller
         self._glide_timer = QTimer(self)
@@ -865,39 +867,82 @@ class DesktopPet(QWidget):
     # Pomodoro & Reminder Handlers
     # -------------------------------------------------------------
     def _on_pomodoro_start(self, mode):
+        cycle_info = self.pomodoro.cycle_label()
+        cycle_text = f" ({cycle_info})" if cycle_info else ""
         if mode == "work":
             self.set_state("work")
-            duration = self.settings.get("pomodoro_work_min", 25)
+            duration = self.pomodoro.work_minutes
             total_secs = duration * 60
-            self.say(f"Fokus mode aktif! ({duration} menit) Ayo selesaikan tugasnya nya~ 💻🔥", 4000)
+            self.say(f"Fokus mode aktif! ({duration} menit){cycle_text} Ayo selesaikan tugasnya nya~ 💻🔥", 4000)
         elif mode == "break":
             self.set_state("sleep")
-            duration = self.settings.get("pomodoro_break_min", 5)
+            duration = self.pomodoro.break_minutes
             total_secs = duration * 60
-            self.say(f"Waktu istirahat ({duration} menit)! Rehat dulu ya nya~ ☕😴", 4000)
+            self.say(f"Waktu istirahat ({duration} menit)!{cycle_text} Rehat dulu ya nya~ ☕😴", 4000)
         else:
             return
 
-        # Show floating pomodoro badge
-        self.pomodoro_badge.start(mode, total_secs)
+        # Show floating pomodoro badge with cycle info
+        self.pomodoro_badge.start(mode, total_secs, cycle_info)
         self.pomodoro_badge.update_position_relative_to(self.pos(), self.sprite_size)
 
     def _on_pomodoro_finish(self, finished_mode):
-        # Hide floating pomodoro badge
+        # Hide floating pomodoro badge during center stage
         self.pomodoro_badge.stop()
 
         if finished_mode == "work":
-            self.set_state("celebrate", duration_seconds=6)
-            self.say("YAY! Sesi fokus selesai! Waktunya istirahat sejenak nya~ 🎉🥳", 6000)
-        else:
-            self.set_state("idle")
-            self.say("Waktu istirahat selesai! Siap mulai lagi nya? 😺", 4500)
+            # Work session ended -> Glide to center of screen for celebratory reminder
+            is_auto = self.pomodoro.is_auto_cycle
+            break_min = self.pomodoro.break_minutes
+
+            def on_focus_reminder_returned():
+                if is_auto:
+                    # Proceed to break time automatically!
+                    self.pomodoro.start_break(break_min)
+                else:
+                    self.set_state("idle")
+
+            self._start_centered_reminder(
+                "pomodoro_work_done",
+                auto=True,
+                duration=6.0,
+                on_finish_callback=on_focus_reminder_returned
+            )
+
+        elif finished_mode == "break":
+            # Break session ended -> Glide to center of screen for reminder
+            is_auto = self.pomodoro.is_auto_cycle
+            cycle = self.pomodoro.current_cycle
+            total = self.pomodoro.total_cycles
+            work_min = self.pomodoro.work_minutes
+
+            def on_break_reminder_returned():
+                if is_auto:
+                    if cycle < total:
+                        # Advance to next cycle automatically!
+                        self.pomodoro.current_cycle += 1
+                        self.pomodoro.start_focus(work_min)
+                    else:
+                        # Completed all cycles!
+                        self.pomodoro.stop()
+                        self.set_state("idle")
+                        self.say("Semua siklus fokus selesai! Kamu produktif banget hari ini! 🌟🐾", 5000)
+                else:
+                    self.set_state("idle")
+
+            self._start_centered_reminder(
+                "pomodoro_break_done",
+                auto=True,
+                duration=6.0,
+                on_finish_callback=on_break_reminder_returned
+            )
 
     def _on_pomodoro_tick(self, remaining, mode):
         mins = remaining // 60
         secs = remaining % 60
         title = "Fokus" if mode == "work" else "Break"
-        self.setToolTip(f"NyangBuddy - {title} [{mins:02d}:{secs:02d}] (Ctrl+Scroll: Zoom)")
+        cycle_info = f" {self.pomodoro.cycle_label()}" if self.pomodoro.cycle_label() else ""
+        self.setToolTip(f"NyangBuddy - {title} [{mins:02d}:{secs:02d}]{cycle_info} (Ctrl+Scroll: Zoom)")
 
         # Update floating badge countdown & progress bar
         self.pomodoro_badge.update_tick(remaining)
@@ -909,31 +954,21 @@ class DesktopPet(QWidget):
         self.set_state("idle")
         self.say("Sesi Pomodoro dihentikan nya~ 🐾", 3000)
 
-    def _prompt_custom_focus(self):
-        """Prompt user for custom focus duration in minutes."""
-        val, ok = QInputDialog.getInt(
-            self, "🎯 Fokus Custom",
-            "Berapa menit waktu fokus?\n(1 - 180 menit)",
-            value=self.settings.get("pomodoro_work_min", 25),
-            min=1, max=180, step=5
+    def _prompt_custom_pomodoro_session(self):
+        """Prompt user for custom focus, break, and cycle count via unified dialog."""
+        dialog = CustomPomodoroDialog(
+            parent=self,
+            default_work=self.settings.get("pomodoro_work_min", 25),
+            default_break=self.settings.get("pomodoro_break_min", 5),
+            default_cycles=self.settings.get("pomodoro_cycles", 4)
         )
-        if ok and val > 0:
-            self.settings["pomodoro_work_min"] = val
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            work_min, break_min, cycles = dialog.get_values()
+            self.settings["pomodoro_work_min"] = work_min
+            self.settings["pomodoro_break_min"] = break_min
+            self.settings["pomodoro_cycles"] = cycles
             save_settings(self.settings)
-            self.pomodoro.start_focus(val)
-
-    def _prompt_custom_break(self):
-        """Prompt user for custom break duration in minutes."""
-        val, ok = QInputDialog.getInt(
-            self, "☕ Break Custom",
-            "Berapa menit waktu istirahat?\n(1 - 60 menit)",
-            value=self.settings.get("pomodoro_break_min", 5),
-            min=1, max=60, step=1
-        )
-        if ok and val > 0:
-            self.settings["pomodoro_break_min"] = val
-            save_settings(self.settings)
-            self.pomodoro.start_break(val)
+            self.pomodoro.start_auto_cycle(work_min, break_min, cycles)
 
     def _on_reminder(self, text):
         self.say(text, 5000)
@@ -1013,20 +1048,25 @@ class DesktopPet(QWidget):
         # 3. Pomodoro Submenu
         pom_menu = menu.addMenu("⏱️ Pomodoro Timer")
         if not self.pomodoro.is_active:
-            start_25 = pom_menu.addAction("▶️ Mulai Fokus (25 Menit)")
-            start_25.triggered.connect(lambda: self.pomodoro.start_focus(25))
-            start_50 = pom_menu.addAction("▶️ Mulai Fokus (50 Menit)")
-            start_50.triggered.connect(lambda: self.pomodoro.start_focus(50))
+            auto_std = pom_menu.addAction("▶️ Mulai Standar (25m Fokus / 5m Break • 4 Siklus)")
+            auto_std.triggered.connect(lambda: self.pomodoro.start_auto_cycle(25, 5, 4))
+
+            auto_sprint = pom_menu.addAction("⚡ Mulai Sprint (50m Fokus / 10m Break • 2 Siklus)")
+            auto_sprint.triggered.connect(lambda: self.pomodoro.start_auto_cycle(50, 10, 2))
+
             pom_menu.addSeparator()
-            custom_focus = pom_menu.addAction("🎯 Fokus Custom (Atur Menit)...")
-            custom_focus.triggered.connect(self._prompt_custom_focus)
+            custom_sess = pom_menu.addAction("⚙️ Atur Sesi Kustom (Fokus + Break + Siklus)...")
+            custom_sess.triggered.connect(self._prompt_custom_pomodoro_session)
+
             pom_menu.addSeparator()
-            start_break = pom_menu.addAction("☕ Mulai Break (5 Menit)")
-            start_break.triggered.connect(lambda: self.pomodoro.start_break(5))
-            custom_break = pom_menu.addAction("☕ Break Custom (Atur Menit)...")
-            custom_break.triggered.connect(self._prompt_custom_break)
+            single_focus = pom_menu.addAction("🎯 Fokus Tunggal Saja (25 Menit)")
+            single_focus.triggered.connect(lambda: self.pomodoro.start_focus(25))
+
+            single_break = pom_menu.addAction("☕ Break Tunggal Saja (5 Menit)")
+            single_break.triggered.connect(lambda: self.pomodoro.start_break(5))
         else:
-            stop_action = pom_menu.addAction(f"⏹️ Hentikan ({self.pomodoro.format_time()})")
+            cycle_str = f" {self.pomodoro.cycle_label()}" if self.pomodoro.cycle_label() else ""
+            stop_action = pom_menu.addAction(f"⏹️ Hentikan Pomodoro ({self.pomodoro.format_time()}{cycle_str})")
             stop_action.triggered.connect(self._on_pomodoro_badge_clicked)
 
         # 4. Stretch & Posture Submenu
@@ -1303,7 +1343,7 @@ class DesktopPet(QWidget):
                 self._glide_callback = None
                 cb()
 
-    def _start_centered_reminder(self, reminder_type: str, auto: bool = False, duration: float = 7.0, queue_next: list = None):
+    def _start_centered_reminder(self, reminder_type: str, auto: bool = False, duration: float = 7.0, queue_next: list = None, on_finish_callback: callable = None):
         """
         Unified Center-Stage Reminder & Sequential Combo Manager (Option A).
         If another reminder arrives while already centered or gliding, it queues seamlessly as the next routine step!
@@ -1324,6 +1364,7 @@ class DesktopPet(QWidget):
         self._was_combo = len(self._reminder_queue) > 0
         self._home_size = self.sprite_size
         self._home_pos = (self.x(), self.y())
+        self._reminder_finish_callback = on_finish_callback
 
         target_size = max(200, int(self._home_size * 1.6))
         screen_geo = self._get_current_screen_geometry()
@@ -1339,9 +1380,13 @@ class DesktopPet(QWidget):
         self._start_smooth_glide(center_x, center_y, target_size, duration=0.55, on_complete=on_center_arrived)
 
     def _execute_reminder_step(self, reminder_type: str, auto: bool, duration: float):
-        """Executes one step in the health routine."""
+        """Executes one step in the health routine or Pomodoro transition."""
         self._active_reminder_type = reminder_type
-        self.set_state(reminder_type, duration_seconds=duration)
+
+        if reminder_type in ["pomodoro_work_done", "pomodoro_break_done"]:
+            self.set_state("celebrate", duration_seconds=duration)
+        else:
+            self.set_state(reminder_type, duration_seconds=duration)
 
         has_queued = len(self._reminder_queue) > 0
 
@@ -1376,6 +1421,36 @@ class DesktopPet(QWidget):
             else:
                 self.say("Slurp slurp nyaaa~ Segernya minum air putih! 🥛💧✨\nJangan lupa minum juga ya!", int(duration * 1000 - 500))
 
+        elif reminder_type == "pomodoro_work_done":
+            self._play_sound_blip(freq=1350, dur=70)
+            QTimer.singleShot(140, lambda: self._play_sound_blip(freq=1750, dur=90))
+            cycle = self.pomodoro.current_cycle
+            total = self.pomodoro.total_cycles
+            is_auto = self.pomodoro.is_auto_cycle
+            break_min = self.pomodoro.break_minutes
+
+            if is_auto and total > 1:
+                msg = f"YAY! Sesi fokus selesai! ({cycle}/{total}) 🎉🥳\nSaatnya istirahat {break_min} menit, regangkan badan dan santai ya nya~"
+            else:
+                msg = f"YAY! Sesi fokus selesai! 🎉🥳\nSaatnya istirahat {break_min} menit, rehat sejenak nya~"
+            self.say(msg, int(duration * 1000 - 500))
+
+        elif reminder_type == "pomodoro_break_done":
+            self._play_sound_blip(freq=1200, dur=70)
+            QTimer.singleShot(140, lambda: self._play_sound_blip(freq=1550, dur=90))
+            cycle = self.pomodoro.current_cycle
+            total = self.pomodoro.total_cycles
+            is_auto = self.pomodoro.is_auto_cycle
+            work_min = self.pomodoro.work_minutes
+
+            if is_auto and cycle < total:
+                msg = f"Waktu istirahat selesai! ☕✨\nSiap mulai sesi fokus ke-{cycle + 1} dari {total} ({work_min} menit) nya? 💻🔥"
+            elif is_auto and cycle >= total:
+                msg = f"Selamat! Semua {total} siklus Pomodoro selesai! 🎉🐾\nKamu luar biasa fokus hari ini! Istirahat total ya~ ✨"
+            else:
+                msg = "Waktu istirahat selesai! Siap mulai lagi nya? 😺✨"
+            self.say(msg, int(duration * 1000 - 500))
+
         # Start unified step countdown timer
         self._reminder_end_timer.start(int(duration * 1000))
 
@@ -1392,11 +1467,19 @@ class DesktopPet(QWidget):
         if self._active_reminder_type is not None and not self._glide_timer.isActive():
             orig_x, orig_y = self._home_pos
             orig_size = self._home_size
+            completed_type = self._active_reminder_type
+            cb = self._reminder_finish_callback
+            self._reminder_finish_callback = None
 
             def on_returned_home():
                 self._active_reminder_type = None
-                self.set_state("idle")
-                self.say("Rutinitas istirahat selesai! Badan bugar & pikiran fokus lagi nya~ 🐾💪", 4000)
+                if cb:
+                    cb()
+                elif completed_type in ["stretch", "drink_water"]:
+                    self.set_state("idle")
+                    self.say("Rutinitas istirahat selesai! Badan bugar & pikiran fokus lagi nya~ 🐾💪", 4000)
+                else:
+                    self.set_state("idle")
 
             self.set_state("celebrate", duration_seconds=1.0)
             self._start_smooth_glide(orig_x, orig_y, orig_size, duration=0.55, on_complete=on_returned_home)
