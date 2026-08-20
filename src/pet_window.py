@@ -773,7 +773,9 @@ class DesktopPet(QWidget):
                 # Landing squish bounce
                 self.set_state("land")
                 self._play_sound_blip(freq=950, dur=50)
-                QTimer.singleShot(350, lambda: self.set_state("idle"))
+                # Restore pre-drag state (keeps Pomodoro work/sleep alive after drag)
+                restore_state = self.pre_drag_state if self.pre_drag_state not in ["drag", "land"] else "idle"
+                QTimer.singleShot(350, lambda: self.set_state(restore_state))
 
                 if random.random() < 0.35:
                     landing_quotes = [
@@ -907,6 +909,32 @@ class DesktopPet(QWidget):
         self.set_state("idle")
         self.say("Sesi Pomodoro dihentikan nya~ 🐾", 3000)
 
+    def _prompt_custom_focus(self):
+        """Prompt user for custom focus duration in minutes."""
+        val, ok = QInputDialog.getInt(
+            self, "🎯 Fokus Custom",
+            "Berapa menit waktu fokus?\n(1 - 180 menit)",
+            value=self.settings.get("pomodoro_work_min", 25),
+            min=1, max=180, step=5
+        )
+        if ok and val > 0:
+            self.settings["pomodoro_work_min"] = val
+            save_settings(self.settings)
+            self.pomodoro.start_focus(val)
+
+    def _prompt_custom_break(self):
+        """Prompt user for custom break duration in minutes."""
+        val, ok = QInputDialog.getInt(
+            self, "☕ Break Custom",
+            "Berapa menit waktu istirahat?\n(1 - 60 menit)",
+            value=self.settings.get("pomodoro_break_min", 5),
+            min=1, max=60, step=1
+        )
+        if ok and val > 0:
+            self.settings["pomodoro_break_min"] = val
+            save_settings(self.settings)
+            self.pomodoro.start_break(val)
+
     def _on_reminder(self, text):
         self.say(text, 5000)
 
@@ -989,8 +1017,14 @@ class DesktopPet(QWidget):
             start_25.triggered.connect(lambda: self.pomodoro.start_focus(25))
             start_50 = pom_menu.addAction("▶️ Mulai Fokus (50 Menit)")
             start_50.triggered.connect(lambda: self.pomodoro.start_focus(50))
+            pom_menu.addSeparator()
+            custom_focus = pom_menu.addAction("🎯 Fokus Custom (Atur Menit)...")
+            custom_focus.triggered.connect(self._prompt_custom_focus)
+            pom_menu.addSeparator()
             start_break = pom_menu.addAction("☕ Mulai Break (5 Menit)")
             start_break.triggered.connect(lambda: self.pomodoro.start_break(5))
+            custom_break = pom_menu.addAction("☕ Break Custom (Atur Menit)...")
+            custom_break.triggered.connect(self._prompt_custom_break)
         else:
             stop_action = pom_menu.addAction(f"⏹️ Hentikan ({self.pomodoro.format_time()})")
             stop_action.triggered.connect(self._on_pomodoro_badge_clicked)
