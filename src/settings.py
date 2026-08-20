@@ -13,6 +13,7 @@ DEFAULT_SETTINGS = {
     "pomodoro_work_min": 25,        # Focus duration
     "pomodoro_break_min": 5,        # Break duration
     "hydration_reminder_min": 45,   # Drink water reminder every 45 min
+    "hydration_reminder_enabled": True, # Hydration reminder toggle
     "stretch_reminder_min": 60,     # Posture & stretch reminder every 60 min
     "stretch_reminder_enabled": True, # Posture reminder toggle
     "sound_enabled": True,          # Cute synthesized retro blip

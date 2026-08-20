@@ -890,6 +890,136 @@ def _draw_cat_stretch(p: dict, frame_idx: int) -> Image.Image:
     return img
 
 
+# ─── 12. DRINK WATER / HYDRATION REMINDER ──────────────────────────────────
+def _draw_drink_water(p: dict, frame_idx: int) -> Image.Image:
+    """
+    Cute cat drinking water beside a ceramic bowl with crystal blue water,
+    splashes, lapping pink tongue, and satisfaction sparkle stars.
+    """
+    img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+
+    O = p["fur_main"]
+    S = p["fur_shade"]
+    W = p["fur_belly"]
+    E = p["inner_ear"]
+    K = p["outline"]
+
+    fi = frame_idx % 4
+
+    # 1. Ceramic Water Bowl with Water & Ripples
+    bowl_x, bowl_y = 19, 21
+    # Bowl shadow
+    d.ellipse([bowl_x - 1, bowl_y + 4, bowl_x + 11, bowl_y + 8], fill=(30, 35, 45, 100))
+    # Ceramic outer rim
+    d.ellipse([bowl_x, bowl_y, bowl_x + 10, bowl_y + 7], fill=(230, 235, 245, 255), outline=K)
+    # Bowl depth
+    d.ellipse([bowl_x + 1, bowl_y + 1, bowl_x + 9, bowl_y + 6], fill=(50, 140, 230, 255))
+    # Water surface highlight
+    d.ellipse([bowl_x + 2, bowl_y + 2, bowl_x + 8, bowl_y + 5], fill=(100, 200, 255, 255))
+    # Reflection shine
+    img.putpixel((bowl_x + 3, bowl_y + 2), (255, 255, 255, 255))
+    img.putpixel((bowl_x + 4, bowl_y + 2), (255, 255, 255, 255))
+
+    # Water ripples & Splash Droplets on drinking frames
+    if fi in (0, 1):
+        d.line([(bowl_x + 4, bowl_y + 3), (bowl_x + 6, bowl_y + 3)], fill=(255, 255, 255, 255))
+        if fi == 1:
+            # Splash droplet flying up
+            img.putpixel((bowl_x + 7, bowl_y - 2), (120, 215, 255, 255))
+            img.putpixel((bowl_x + 8, bowl_y - 1), (80, 180, 255, 255))
+
+    # 2. Cat Tail (Gently swishing in contentment)
+    tail_offsets = [
+        [(5, 24), (2, 22), (1, 18), (3, 15)],
+        [(5, 24), (2, 23), (1, 19), (2, 16)],
+        [(5, 24), (3, 23), (2, 20), (4, 17)],
+        [(5, 24), (2, 22), (1, 18), (3, 15)],
+    ]
+    t_pts = tail_offsets[fi]
+    for i in range(len(t_pts) - 1):
+        d.line([t_pts[i], t_pts[i + 1]], fill=K, width=3)
+    for i in range(len(t_pts) - 1):
+        d.line([t_pts[i], t_pts[i + 1]], fill=O, width=1)
+    d.point(t_pts[-1], fill=W)
+
+    # 3. Sitting Cat Body (Hunched forward happily over bowl)
+    d.ellipse([5, 14, 18, 27], fill=O, outline=K)
+    # Hind leg curve
+    d.ellipse([4, 19, 11, 27], fill=O, outline=K)
+    d.rectangle([5, 25, 10, 27], fill=W, outline=K)
+    # White belly & chest patch
+    d.ellipse([10, 16, 17, 26], fill=W)
+
+    # 4. Front Paws (Resting neatly near the bowl)
+    d.rectangle([13, 24, 17, 27], fill=O, outline=K)
+    d.rectangle([14, 25, 17, 27], fill=W, outline=K)
+    d.rectangle([17, 24, 20, 27], fill=O, outline=K)
+    d.rectangle([18, 25, 20, 27], fill=W, outline=K)
+
+    # 5. Collar / Gold Chain
+    if p.get("has_chain", False):
+        d.line([(11, 16), (17, 16)], fill=(255, 215, 0, 255), width=2)
+    else:
+        collar_col = p.get("collar", (235, 55, 75, 255))
+        d.line([(11, 16), (17, 16)], fill=collar_col, width=2)
+        accent_col = p.get("accent", (255, 215, 35, 255))
+        d.rectangle([14, 16, 16, 18], fill=accent_col, outline=K)
+
+    # 6. Head & Kawaii Face (Dipping down to drink, lifting up satisfied)
+    head_y_offsets = [12, 13, 11, 10]
+    head_x_offsets = [13, 14, 12, 11]
+    hx = head_x_offsets[fi]
+    hy = head_y_offsets[fi]
+
+    # Ears
+    d.polygon([(hx, hy), (hx - 2, hy - 4), (hx + 3, hy - 1)], fill=O, outline=K)
+    d.polygon([(hx + 1, hy - 1), (hx - 1, hy - 3), (hx + 2, hy - 1)], fill=E)
+
+    d.polygon([(hx + 6, hy), (hx + 8, hy - 4), (hx + 10, hy)], fill=O, outline=K)
+    d.polygon([(hx + 7, hy), (hx + 8, hy - 3), (hx + 9, hy)], fill=E)
+
+    # Head circle
+    d.ellipse([hx, hy, hx + 10, hy + 9], fill=O, outline=K)
+    d.ellipse([hx + 3, hy + 3, hx + 10, hy + 8], fill=W)
+
+    # Eyes / Glasses & Mouth
+    if p.get("has_shades", False):
+        d.rectangle([hx + 2, hy + 2, hx + 10, hy + 5], fill=(18, 18, 22, 255), outline=K)
+        img.putpixel((hx + 4, hy + 3), (255, 255, 255, 255))
+        img.putpixel((hx + 8, hy + 3), (255, 255, 255, 255))
+    else:
+        # Happy closed eyes ^ ^
+        d.line([(hx + 3, hy + 4), (hx + 5, hy + 3)], fill=K)
+        d.line([(hx + 5, hy + 3), (hx + 7, hy + 4)], fill=K)
+        # Pink blush
+        img.putpixel((hx + 2, hy + 6), (255, 140, 160, 255))
+        img.putpixel((hx + 8, hy + 6), (255, 140, 160, 255))
+
+    # Pink Tongue lapping water (frame 0 and 1)
+    if fi in (0, 1):
+        tongue_len = 3 if fi == 1 else 2
+        d.rectangle([hx + 6, hy + 7, hx + 8, hy + 7 + tongue_len], fill=(255, 130, 160, 255), outline=K)
+        # Wet water tip
+        img.putpixel((hx + 7, hy + 7 + tongue_len), (120, 215, 255, 255))
+    elif fi == 2:
+        # Cute water droplet on chin
+        img.putpixel((hx + 7, hy + 8), (100, 200, 255, 255))
+    elif fi == 3:
+        # Licking lips :3
+        d.line([(hx + 6, hy + 7), (hx + 8, hy + 7)], fill=K)
+
+    # Kawaii sparkle stars when satisfied (frames 2 and 3)
+    if fi in (2, 3):
+        sy = 4 if fi == 2 else 3
+        d.line([(8, sy), (10, sy)], fill=(100, 200, 255, 255))
+        d.line([(9, sy - 1), (9, sy + 1)], fill=(100, 200, 255, 255))
+        d.line([(24, sy + 2), (26, sy + 2)], fill=(255, 220, 60, 255))
+        d.line([(25, sy + 1), (25, sy + 3)], fill=(255, 220, 60, 255))
+
+    return img
+
+
 # ─── MAIN FRAME DISPATCHER (PUBLIC API) ────────────────────────────────────
 def render_cat_frame(skin_key: str = "boss_oyen",
                      state: str = "idle",
@@ -925,6 +1055,8 @@ def render_cat_frame(skin_key: str = "boss_oyen",
         native = _draw_sleep_loaf(p, fi)
     elif state in ("stretch", "yoga", "posture"):
         native = _draw_cat_stretch(p, fi)
+    elif state in ("drink_water", "drink", "water", "hydrate"):
+        native = _draw_drink_water(p, fi)
     elif state in ("drag", "dangle", "mochi"):
         native = _draw_mochi_drag(p, fi)
     elif state in ("celebrate", "jump", "done"):

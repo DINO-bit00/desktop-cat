@@ -115,6 +115,14 @@ class DesktopPet(QWidget):
         self._stretch_end_timer.setSingleShot(True)
         self._stretch_end_timer.timeout.connect(self._end_stretch_mode)
 
+        # Hydration Centered Enlargement Mode
+        self._is_hydration_mode = False
+        self._pre_hydration_size = self.sprite_size
+        self._pre_hydration_pos = (self.x(), self.y())
+        self._hydration_end_timer = QTimer(self)
+        self._hydration_end_timer.setSingleShot(True)
+        self._hydration_end_timer.timeout.connect(self._end_hydration_mode)
+
         # Smooth 60 FPS Glide & Scale Interpolation Controller
         self._glide_timer = QTimer(self)
         self._glide_timer.timeout.connect(self._on_glide_tick)
@@ -138,6 +146,7 @@ class DesktopPet(QWidget):
         self.pomodoro.tick.connect(self._on_pomodoro_tick)
         self.pomodoro.reminder_triggered.connect(self._on_reminder)
         self.pomodoro.posture_reminder_triggered.connect(self._on_posture_reminder)
+        self.pomodoro.hydration_reminder_triggered.connect(self._on_hydration_reminder)
 
         # Local File Event Watcher
         self.watcher = LocalWatcher(self)
@@ -177,7 +186,7 @@ class DesktopPet(QWidget):
         self.pixmap_cache.clear()
         states = [
             "idle", "walk_left", "walk_right", "sleep", "work", "overheat",
-            "paper_unroll", "pet", "stretch", "celebrate", "thinking", "drag", "land"
+            "paper_unroll", "pet", "stretch", "drink_water", "celebrate", "thinking", "drag", "land"
         ]
 
         for st in states:
@@ -303,7 +312,12 @@ class DesktopPet(QWidget):
         (Stretch, Posture, Hydration, Break) or gliding across the screen.
         Completely blocks typing, scrolling, hunting, and auto-wandering to avoid animation clashes.
         """
-        return self._is_stretch_mode or self._glide_timer.isActive() or self.state in ["stretch", "drink_water"]
+        return (
+            self._is_stretch_mode
+            or self._is_hydration_mode
+            or self._glide_timer.isActive()
+            or self.state in ["stretch", "drink_water"]
+        )
 
     def _update_physics_loop(self):
         if self.is_reminder_locked:
@@ -385,7 +399,7 @@ class DesktopPet(QWidget):
             return
 
         # ── 3. TEMPORARY STATES TIMEOUT ──
-        if self.state in ["celebrate", "thinking", "land", "stretch"]:
+        if self.state in ["celebrate", "thinking", "land", "stretch", "drink_water"]:
             self.state_ticks += 1
             if self.state_ticks > self.max_state_ticks:
                 self.set_state("idle")
@@ -399,8 +413,8 @@ class DesktopPet(QWidget):
                 self.set_state("idle")
             return
 
-        # Do not wander if Pomodoro is active, typing/overheated, stretching, or rolling paper
-        if not self.settings.get("wander_mode", True) or self.pomodoro.is_active or self.state in ["work", "overheat", "paper_unroll", "sleep", "stretch"]:
+        # Do not wander if Pomodoro is active, typing/overheated, stretching, drinking water, or rolling paper
+        if not self.settings.get("wander_mode", True) or self.pomodoro.is_active or self.state in ["work", "overheat", "paper_unroll", "sleep", "stretch", "drink_water"]:
             return
 
         # ── 4. AUTONOMOUS WANDER LOGIC ──
@@ -890,7 +904,40 @@ class DesktopPet(QWidget):
         toggle_act.setChecked(is_enabled)
         toggle_act.triggered.connect(self._toggle_stretch_reminder)
 
-        # 5. Actions / State Switch
+        # 5. Hydration / Drink Water Submenu
+        hyd_menu = menu.addMenu("💧 Pengingat Minum Air (Hydration)")
+        hyd_now_act = hyd_menu.addAction("▶️ Minum Air Sekarang (Layar Tengah)")
+        hyd_now_act.triggered.connect(lambda: self.trigger_drink_water(auto=False))
+        hyd_menu.addSeparator()
+
+        hyd_intervals = [
+            ("⚡ 15 Menit (Tes Cepat)", 15),
+            ("⏱️ 30 Menit", 30),
+            ("⏱️ 45 Menit (Standar)", 45),
+            ("⏱️ 60 Menit (1 Jam)", 60),
+            ("⏱️ 90 Menit (1.5 Jam)", 90),
+            ("⏱️ 120 Menit (2 Jam)", 120),
+        ]
+        cur_hyd = self.settings.get("hydration_reminder_min", 45)
+        hyd_enabled = self.settings.get("hydration_reminder_enabled", True)
+
+        for label, mins in hyd_intervals:
+            act = hyd_menu.addAction(label)
+            act.setCheckable(True)
+            act.setChecked(hyd_enabled and cur_hyd == mins)
+            act.triggered.connect(lambda checked, m=mins: self.set_hydration_interval(m))
+
+        hyd_menu.addSeparator()
+        custom_hyd_act = hyd_menu.addAction("⏱️ Atur Waktu Kustom (Menit)...")
+        custom_hyd_act.triggered.connect(self._prompt_hydration_interval)
+
+        hyd_menu.addSeparator()
+        toggle_hyd_act = hyd_menu.addAction("✅ Aktifkan Pengingat Otomatis")
+        toggle_hyd_act.setCheckable(True)
+        toggle_hyd_act.setChecked(hyd_enabled)
+        toggle_hyd_act.triggered.connect(self._toggle_hydration_reminder)
+
+        # 6. Actions / State Switch
         act_menu = menu.addMenu("🐾 Ganti Gaya / Aksi")
         act_menu.addAction("😺 Duduk Santai (Idle)", lambda: self.set_state("idle"))
         act_menu.addAction("💻 Mode Ngoding/Work", lambda: self.set_state("work"))
@@ -899,12 +946,13 @@ class DesktopPet(QWidget):
         act_menu.addAction("😴 Tidur (Sleep)", lambda: self.set_state("sleep"))
         act_menu.addAction("🎉 Melompat Senang (Jump)", lambda: self.set_state("celebrate", 4))
         act_menu.addAction("🧘 Regangkan Badan (Stretch)", lambda: self.trigger_stretch(auto=False))
+        act_menu.addAction("💧 Minum Air (Drink Water)", lambda: self.trigger_drink_water(auto=False))
         act_menu.addAction("🤔 Berpikir (Thinking)", lambda: self.set_state("thinking", 4))
         act_menu.addAction("❤️ Dielus / Purring (Pet)", lambda: self.set_state("pet", 4))
 
         menu.addSeparator()
 
-        # 6. Sticky Note / Pinned Focus
+        # 7. Sticky Note / Pinned Focus
         note_action = menu.addAction("📌 Set Target Fokus / Note")
         note_action.triggered.connect(self._prompt_sticky_note)
 
@@ -1130,6 +1178,99 @@ class DesktopPet(QWidget):
                 self._is_stretch_mode = False
                 self.set_state("idle")
                 self.say("Segernya! Lanjut fokus kerja lagi ya nya~ 🐾💪", 3500)
+
+            self.set_state("celebrate", duration_seconds=1.0)
+            self._start_smooth_glide(orig_x, orig_y, orig_size, duration=0.55, on_complete=on_returned_home)
+
+    def _toggle_hydration_reminder(self, checked):
+        self.settings["hydration_reminder_enabled"] = checked
+        save_settings(self.settings)
+        self.pomodoro.start_health_timers()
+        cur_min = self.settings.get("hydration_reminder_min", 45)
+        if checked:
+            self.say(f"Pengingat minum aktif! Aku ingatkan tiap {cur_min} menit ya nya~ 💧", 3500)
+        else:
+            self.say("Pengingat minum dinonaktifkan nya! 🐾", 3000)
+
+    def _prompt_hydration_interval(self):
+        cur_min = self.settings.get("hydration_reminder_min", 45)
+        val, ok = QInputDialog.getInt(
+            self, "Timer Pengingat Minum Air",
+            "Masukkan interval pengingat minum air (dalam menit):\nContoh: 15 untuk tes cepat, 45 untuk hidrasi ideal.",
+            value=cur_min, min=1, max=300, step=5
+        )
+        if ok and val > 0:
+            self.set_hydration_interval(val)
+
+    def set_hydration_interval(self, minutes):
+        self.settings["hydration_reminder_min"] = minutes
+        self.settings["hydration_reminder_enabled"] = True
+        save_settings(self.settings)
+        self.pomodoro.start_health_timers()
+        self.say(f"Timer minum air diatur ke tiap {minutes} menit nya! ⏱️💧", 4000)
+
+    def _on_hydration_reminder(self):
+        """Triggered periodically when user has been working continuously without drinking water."""
+        self.trigger_drink_water(auto=True)
+
+    def trigger_drink_water(self, auto=False):
+        """
+        Executes the kawaii cat drinking water animation.
+        Smoothly glides & scales to screen center, drinks from ceramic water bowl, then glides back!
+        """
+        if self.state in ["drag", "pet"] or self._glide_timer.isActive():
+            return
+
+        if not self._is_hydration_mode:
+            self._is_hydration_mode = True
+            self._pre_hydration_size = self.sprite_size
+            self._pre_hydration_pos = (self.x(), self.y())
+
+            # Target centered size (1.6x or min 200px)
+            target_size = max(200, int(self.sprite_size * 1.6))
+            screen_geo = self._get_current_screen_geometry()
+            center_x = screen_geo.center().x() - target_size // 2
+            center_y = screen_geo.center().y() - target_size // 2
+
+            # Smooth glide to center while scaling
+            self.set_state("celebrate", duration_seconds=1.0)
+            set_win32_topmost(self)
+
+            def on_arrived_center():
+                self.set_state("drink_water", duration_seconds=7.0)
+                # Play cute bubbly retro drinking sound chimes
+                self._play_sound_blip(freq=1100, dur=60)
+                QTimer.singleShot(120, lambda: self._play_sound_blip(freq=1450, dur=70))
+                QTimer.singleShot(240, lambda: self._play_sound_blip(freq=1750, dur=90))
+
+                if auto:
+                    msg = random.choice([
+                        "Waktunya minum air putih! 🥛💧✨\nTubuh terhidrasi = pikiran segar & fokus!",
+                        "Segelas air putih siap membantumu tetap sehat, yuk minum bareng aku! 💧🐾",
+                        "Istirahatkan mata sejenak dan minum air dulu yuk nya! 🥛🌸"
+                    ])
+                    self.say(msg, 6500)
+                else:
+                    self.say("Slurp slurp nyaaa~ Segernya minum air putih! 🥛💧✨\nJangan lupa minum juga ya!", 5500)
+
+                # Automatically glide back to original position after 7.0 seconds
+                self._hydration_end_timer.start(7000)
+
+            self._start_smooth_glide(center_x, center_y, target_size, duration=0.55, on_complete=on_arrived_center)
+        else:
+            self.set_state("drink_water", duration_seconds=7.0)
+            self._hydration_end_timer.start(7000)
+
+    def _end_hydration_mode(self):
+        """Smoothly glides and scales back to previous desktop position after drinking water."""
+        if self._is_hydration_mode and not self._glide_timer.isActive():
+            orig_x, orig_y = self._pre_hydration_pos
+            orig_size = self._pre_hydration_size
+
+            def on_returned_home():
+                self._is_hydration_mode = False
+                self.set_state("idle")
+                self.say("Segernya! Lanjut kerja dengan fokus & sehat ya nya~ 🐾💧", 3500)
 
             self.set_state("celebrate", duration_seconds=1.0)
             self._start_smooth_glide(orig_x, orig_y, orig_size, duration=0.55, on_complete=on_returned_home)
