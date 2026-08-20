@@ -980,7 +980,7 @@ class DesktopPet(QWidget):
             geo.center().x() - dialog.width() // 2,
             geo.center().y() - dialog.height() // 2
         )
-        accepted = (dialog.exec() == QDialog.DialogCode.Accepted)
+        accepted = (dialog.exec() == 1)
 
         # Re-enforce main pet window visibility and topmost priority
         self.show()
