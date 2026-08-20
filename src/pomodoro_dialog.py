@@ -20,7 +20,12 @@ class CustomPomodoroDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("⏱️ Atur Sesi Pomodoro")
         self.setFixedWidth(360)
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+        self.setWindowFlags(
+            Qt.WindowType.Dialog |
+            Qt.WindowType.WindowStaysOnTopHint |
+            Qt.WindowType.WindowTitleHint |
+            Qt.WindowType.WindowCloseButtonHint
+        )
 
         # Styling
         self.setStyleSheet("""

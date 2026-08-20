@@ -228,19 +228,24 @@ class DesktopPet(QWidget):
             qimg = QImage(raw_bytes, pil_img.width, pil_img.height, QImage.Format.Format_RGBA8888)
             self.pixmap_cache[state].append(QPixmap.fromImage(qimg))
 
+    def _ensure_state_frames(self, state):
+        """Ensures frames for a state are rendered in cache immediately on-demand."""
+        if state not in self.pixmap_cache or not self.pixmap_cache[state]:
+            self._render_state_frames(self.skin, state)
+
     def _load_essential_sprites(self, skin_name):
-        """Loads only idle + walk sprites synchronously for instant window display (<80ms)."""
+        """Loads essential sprites synchronously for instant window display (<80ms)."""
         self.skin = skin_name
         self.pixmap_cache.clear()
         self.idle_eye_cache.clear()
         self._sprites_ready = False
-        for st in ("idle", "walk_left", "walk_right", "celebrate"):
+        for st in ("idle", "walk_left", "walk_right", "celebrate", "work", "sleep"):
             self._render_state_frames(skin_name, st)
 
     def _deferred_load_remaining_sprites(self, skin_name):
         """Loads remaining state sprites + idle eye cache in small batches via QTimer chain."""
         remaining = [
-            "sleep", "work", "overheat", "paper_unroll", "pet",
+            "overheat", "paper_unroll", "pet",
             "stretch", "drink_water", "thinking", "drag", "land"
         ]
         self._deferred_batch_queue = list(remaining)
@@ -276,7 +281,7 @@ class DesktopPet(QWidget):
         """Full synchronous load (used by skin switcher in context menu)."""
         self._load_essential_sprites(skin_name)
         remaining = [
-            "sleep", "work", "overheat", "paper_unroll", "pet",
+            "overheat", "paper_unroll", "pet",
             "stretch", "drink_water", "thinking", "drag", "land"
         ]
         for st in remaining:
@@ -297,7 +302,14 @@ class DesktopPet(QWidget):
             if cached:
                 return cached
 
-        frames = self.pixmap_cache.get(self.state, self.pixmap_cache.get("idle", []))
+        frames = self.pixmap_cache.get(self.state)
+        if not frames:
+            self._ensure_state_frames(self.state)
+            frames = self.pixmap_cache.get(self.state)
+
+        if not frames:
+            frames = self.pixmap_cache.get("idle", [])
+
         if not frames:
             return None
         return frames[self.frame_index % len(frames)]
@@ -382,13 +394,14 @@ class DesktopPet(QWidget):
     def set_state(self, new_state, duration_seconds=None):
         if new_state == "walk":
             new_state = "walk_right"
-        if new_state in self.pixmap_cache or new_state in ("hunt", "alert"):
-            self.state = new_state
-            self.frame_index = 0
-            self.state_ticks = 0
-            if duration_seconds:
-                self.max_state_ticks = int(duration_seconds * 60)
-            self.update()
+        if new_state not in ("hunt", "alert"):
+            self._ensure_state_frames(new_state)
+        self.state = new_state
+        self.frame_index = 0
+        self.state_ticks = 0
+        if duration_seconds:
+            self.max_state_ticks = int(duration_seconds * 60)
+        self.update()
 
     def _update_animation(self):
         self.frame_index = (self.frame_index + 1) % 4
@@ -957,12 +970,25 @@ class DesktopPet(QWidget):
     def _prompt_custom_pomodoro_session(self):
         """Prompt user for custom focus, break, and cycle count via unified dialog."""
         dialog = CustomPomodoroDialog(
-            parent=self,
+            parent=None,
             default_work=self.settings.get("pomodoro_work_min", 25),
             default_break=self.settings.get("pomodoro_break_min", 5),
             default_cycles=self.settings.get("pomodoro_cycles", 4)
         )
-        if dialog.exec() == QDialog.DialogCode.Accepted:
+        geo = self._get_current_screen_geometry()
+        dialog.move(
+            geo.center().x() - dialog.width() // 2,
+            geo.center().y() - dialog.height() // 2
+        )
+        accepted = (dialog.exec() == QDialog.DialogCode.Accepted)
+
+        # Re-enforce main pet window visibility and topmost priority
+        self.show()
+        self.raise_()
+        if self.settings.get("stay_on_top", True):
+            set_win32_topmost(self)
+
+        if accepted:
             work_min, break_min, cycles = dialog.get_values()
             self.settings["pomodoro_work_min"] = work_min
             self.settings["pomodoro_break_min"] = break_min
