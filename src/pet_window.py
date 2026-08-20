@@ -296,8 +296,17 @@ class DesktopPet(QWidget):
     # -------------------------------------------------------------
     # 60 FPS Game Loop & Advanced Physics (Dynamic Hunt & Eye Follow)
     # -------------------------------------------------------------
+    @property
+    def is_reminder_locked(self) -> bool:
+        """
+        Returns True if the cat is executing a centered ergonomic reminder sequence
+        (Stretch, Posture, Hydration, Break) or gliding across the screen.
+        Completely blocks typing, scrolling, hunting, and auto-wandering to avoid animation clashes.
+        """
+        return self._is_stretch_mode or self._glide_timer.isActive() or self.state in ["stretch", "drink_water"]
+
     def _update_physics_loop(self):
-        if self._glide_timer.isActive():
+        if self.is_reminder_locked:
             return
 
         if self.is_dragging:
@@ -429,17 +438,23 @@ class DesktopPet(QWidget):
     # -------------------------------------------------------------
     def _on_global_typing_start(self):
         """User started typing -> cat begins keyboard kneading."""
+        if self.is_reminder_locked:
+            return
         if self.state not in ["drag", "land", "pet", "overheat"]:
             self.is_hunting = False
             self.set_state("work")
 
     def _on_global_typing_stop(self):
         """User stopped typing -> return to idle."""
+        if self.is_reminder_locked:
+            return
         if self.state in ["work", "overheat"]:
             self.set_state("idle")
 
     def _on_global_overheat_start(self):
         """Typing super fast -> Overheat mode with steam puffs!"""
+        if self.is_reminder_locked:
+            return
         if self.state not in ["drag", "land", "pet"]:
             self.set_state("overheat")
             self._play_sound_blip(freq=1650, dur=55)
@@ -448,6 +463,8 @@ class DesktopPet(QWidget):
 
     def _on_global_overheat_end(self):
         """Typing slowed down -> cool back to normal kneading."""
+        if self.is_reminder_locked:
+            return
         if self.state == "overheat":
             self.set_state("work")
 
@@ -457,7 +474,9 @@ class DesktopPet(QWidget):
         Spinning the paper roll with paws as user scrolls documents / pages.
         Wakes up the cat from sleep and responds to all scroll events.
         """
-        if self.state not in ["drag", "pet"] and not self.pomodoro.is_active:
+        if self.is_reminder_locked or self.pomodoro.is_active:
+            return
+        if self.state not in ["drag", "pet"]:
             if self.state != "paper_unroll":
                 self.set_state("paper_unroll")
             # Advance frame dynamically on each scroll event
@@ -474,7 +493,7 @@ class DesktopPet(QWidget):
 
     def _on_fast_mouse_move(self, mouse_x, mouse_y):
         """Mouse Hunt & Pounce: Fast moving cursor excites the cat!"""
-        if not self.settings.get("mouse_hunt_enabled", True):
+        if self.is_reminder_locked or not self.settings.get("mouse_hunt_enabled", True):
             return
 
         now = time.time()
@@ -544,6 +563,10 @@ class DesktopPet(QWidget):
             super().wheelEvent(event)
 
     def mouseMoveEvent(self, event):
+        if self._glide_timer.isActive():
+            event.accept()
+            return
+
         if self.is_dragging and event.buttons() == Qt.MouseButton.LeftButton:
             global_pt = event.globalPosition().toPoint()
             now = time.time()
@@ -576,6 +599,10 @@ class DesktopPet(QWidget):
             self.update()
             event.accept()
         else:
+            if self.is_reminder_locked:
+                event.accept()
+                return
+
             # Petting / Pat-pat detection: only active directly on cat head!
             local_pos = event.position().toPoint()
             head_rect = self._get_head_rect()
@@ -595,6 +622,10 @@ class DesktopPet(QWidget):
             self.set_state("idle")
 
     def mousePressEvent(self, event):
+        if self._glide_timer.isActive():
+            event.accept()
+            return
+
         if event.button() == Qt.MouseButton.LeftButton:
             self.is_dragging = True
             self.has_dragged = False
