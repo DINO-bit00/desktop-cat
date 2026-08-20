@@ -107,21 +107,13 @@ class DesktopPet(QWidget):
         self.scroll_reset_timer.timeout.connect(self._on_scroll_timeout)
         self._scroll_delta_accum = 0.0
 
-        # Stretch & Posture Centered Enlargement Mode
-        self._is_stretch_mode = False
-        self._pre_stretch_size = self.sprite_size
-        self._pre_stretch_pos = (self.x(), self.y())
-        self._stretch_end_timer = QTimer(self)
-        self._stretch_end_timer.setSingleShot(True)
-        self._stretch_end_timer.timeout.connect(self._end_stretch_mode)
-
-        # Hydration Centered Enlargement Mode
-        self._is_hydration_mode = False
-        self._pre_hydration_size = self.sprite_size
-        self._pre_hydration_pos = (self.x(), self.y())
-        self._hydration_end_timer = QTimer(self)
-        self._hydration_end_timer.setSingleShot(True)
-        self._hydration_end_timer.timeout.connect(self._end_hydration_mode)
+        # Unified Center-Stage Reminder Manager (Prevents state collision & guarantees 100% accurate home restoration)
+        self._active_reminder_type = None  # None, "stretch", "drink_water", etc.
+        self._home_size = self.sprite_size
+        self._home_pos = (self.x(), self.y())
+        self._reminder_end_timer = QTimer(self)
+        self._reminder_end_timer.setSingleShot(True)
+        self._reminder_end_timer.timeout.connect(self._end_centered_reminder)
 
         # Smooth 60 FPS Glide & Scale Interpolation Controller
         self._glide_timer = QTimer(self)
@@ -313,8 +305,7 @@ class DesktopPet(QWidget):
         Completely blocks typing, scrolling, hunting, and auto-wandering to avoid animation clashes.
         """
         return (
-            self._is_stretch_mode
-            or self._is_hydration_mode
+            self._active_reminder_type is not None
             or self._glide_timer.isActive()
             or self.state in ["stretch", "drink_water"]
         )
@@ -1122,34 +1113,21 @@ class DesktopPet(QWidget):
                 self._glide_callback = None
                 cb()
 
-    def trigger_stretch(self, auto=False):
+    def _start_centered_reminder(self, reminder_type: str, auto: bool = False, duration: float = 7.0):
         """
-        Executes the kawaii cat stretch yoga posture.
-        Smoothly glides & scales to screen center, performs stretch, then glides back!
+        Unified Center-Stage Reminder Manager.
+        Handles single and rapid sequential/combined reminders seamlessly.
+        Guarantees that home coordinates and original size are NEVER overwritten while centered.
         """
         if self.state in ["drag", "pet"] or self._glide_timer.isActive():
             return
 
-        if not self._is_stretch_mode:
-            self._is_stretch_mode = True
-            self._pre_stretch_size = self.sprite_size
-            self._pre_stretch_pos = (self.x(), self.y())
+        def setup_reminder_content():
+            self.set_state(reminder_type, duration_seconds=duration)
 
-            # Target centered size (1.6x or min 200px)
-            target_size = max(200, int(self.sprite_size * 1.6))
-            screen_geo = self._get_current_screen_geometry()
-            center_x = screen_geo.center().x() - target_size // 2
-            center_y = screen_geo.center().y() - target_size // 2
-
-            # Smooth glide to center while scaling
-            self.set_state("celebrate", duration_seconds=1.0)
-            set_win32_topmost(self)
-
-            def on_arrived_center():
-                self.set_state("stretch", duration_seconds=7.0)
+            if reminder_type == "stretch":
                 self._play_sound_blip(freq=1250, dur=70)
                 QTimer.singleShot(140, lambda: self._play_sound_blip(freq=1650, dur=90))
-
                 if auto:
                     msg = random.choice([
                         "Waktunya istirahat sejenak! 🧘✨\nYuk berdiri dan regangkan badan bareng aku!",
@@ -1160,27 +1138,96 @@ class DesktopPet(QWidget):
                 else:
                     self.say("Ngulet dulu nyaaa~ segernya badan! 🧘✨\nYuk luruskan punggung bareng aku!", 5500)
 
-                # Automatically glide back to original position after 7.0 seconds
-                self._stretch_end_timer.start(7000)
+            elif reminder_type == "drink_water":
+                # Play cute bubbly retro drinking sound chimes
+                self._play_sound_blip(freq=1100, dur=60)
+                QTimer.singleShot(120, lambda: self._play_sound_blip(freq=1450, dur=70))
+                QTimer.singleShot(240, lambda: self._play_sound_blip(freq=1750, dur=90))
+                if auto:
+                    msg = random.choice([
+                        "Waktunya minum air putih! 🥛💧✨\nTubuh terhidrasi = pikiran segar & fokus!",
+                        "Segelas air putih siap membantumu tetap sehat, yuk minum bareng aku! 💧🐾",
+                        "Istirahatkan mata sejenak dan minum air dulu yuk nya! 🥛🌸"
+                    ])
+                    self.say(msg, 6500)
+                else:
+                    self.say("Slurp slurp nyaaa~ Segernya minum air putih! 🥛💧✨\nJangan lupa minum juga ya!", 5500)
 
-            self._start_smooth_glide(center_x, center_y, target_size, duration=0.55, on_complete=on_arrived_center)
+            # Start or reset the single unified countdown timer
+            self._reminder_end_timer.start(int(duration * 1000))
+
+        # If not currently on center stage, remember true desktop home position and size!
+        if self._active_reminder_type is None:
+            self._active_reminder_type = reminder_type
+            self._home_size = self.sprite_size
+            self._home_pos = (self.x(), self.y())
+
+            target_size = max(200, int(self._home_size * 1.6))
+            screen_geo = self._get_current_screen_geometry()
+            center_x = screen_geo.center().x() - target_size // 2
+            center_y = screen_geo.center().y() - target_size // 2
+
+            self.set_state("celebrate", duration_seconds=1.0)
+            set_win32_topmost(self)
+
+            self._start_smooth_glide(center_x, center_y, target_size, duration=0.55, on_complete=setup_reminder_content)
         else:
-            self.set_state("stretch", duration_seconds=7.0)
-            self._stretch_end_timer.start(7000)
+            # Already on center stage! Seamlessly transition animation & reset timer without touching home coordinates
+            self._active_reminder_type = reminder_type
+            setup_reminder_content()
 
-    def _end_stretch_mode(self):
-        """Smoothly glides and scales back to previous desktop position."""
-        if self._is_stretch_mode and not self._glide_timer.isActive():
-            orig_x, orig_y = self._pre_stretch_pos
-            orig_size = self._pre_stretch_size
+    def _end_centered_reminder(self):
+        """Smoothly glides and scales back to desktop home position when reminder countdown finishes."""
+        if self._active_reminder_type is not None and not self._glide_timer.isActive():
+            orig_x, orig_y = self._home_pos
+            orig_size = self._home_size
 
             def on_returned_home():
-                self._is_stretch_mode = False
+                self._active_reminder_type = None
                 self.set_state("idle")
                 self.say("Segernya! Lanjut fokus kerja lagi ya nya~ 🐾💪", 3500)
 
             self.set_state("celebrate", duration_seconds=1.0)
             self._start_smooth_glide(orig_x, orig_y, orig_size, duration=0.55, on_complete=on_returned_home)
+
+    def trigger_stretch(self, auto=False):
+        """Executes the kawaii cat stretch yoga posture via Unified Center Stage."""
+        self._start_centered_reminder("stretch", auto=auto, duration=7.0)
+
+    def trigger_drink_water(self, auto=False):
+        """Executes the kawaii cat drinking water animation via Unified Center Stage."""
+        self._start_centered_reminder("drink_water", auto=auto, duration=7.0)
+
+    def _toggle_stretch_reminder(self, checked):
+        self.settings["stretch_reminder_enabled"] = checked
+        save_settings(self.settings)
+        self.pomodoro.start_health_timers()
+        cur_min = self.settings.get("stretch_reminder_min", 60)
+        if checked:
+            self.say(f"Pengingat postur aktif! Aku ingatkan tiap {cur_min} menit ya nya~ 🧘", 3500)
+        else:
+            self.say("Pengingat postur dinonaktifkan nya! 🐾", 3000)
+
+    def _prompt_stretch_interval(self):
+        cur_min = self.settings.get("stretch_reminder_min", 60)
+        val, ok = QInputDialog.getInt(
+            self, "Timer Pengingat Peregangan",
+            "Masukkan interval pengingat regang badan (dalam menit):\nContoh: 15 untuk tes cepat, 45 atau 60 untuk kerja normal.",
+            value=cur_min, min=1, max=300, step=5
+        )
+        if ok and val > 0:
+            self.set_stretch_interval(val)
+
+    def set_stretch_interval(self, minutes):
+        self.settings["stretch_reminder_min"] = minutes
+        self.settings["stretch_reminder_enabled"] = True
+        save_settings(self.settings)
+        self.pomodoro.start_health_timers()
+        self.say(f"Timer regang badan diatur ke tiap {minutes} menit nya! ⏱️🧘", 4000)
+
+    def _on_posture_reminder(self):
+        """Triggered periodically when user has been working continuously."""
+        self.trigger_stretch(auto=True)
 
     def _toggle_hydration_reminder(self, checked):
         self.settings["hydration_reminder_enabled"] = checked
@@ -1212,68 +1259,6 @@ class DesktopPet(QWidget):
     def _on_hydration_reminder(self):
         """Triggered periodically when user has been working continuously without drinking water."""
         self.trigger_drink_water(auto=True)
-
-    def trigger_drink_water(self, auto=False):
-        """
-        Executes the kawaii cat drinking water animation.
-        Smoothly glides & scales to screen center, drinks from ceramic water bowl, then glides back!
-        """
-        if self.state in ["drag", "pet"] or self._glide_timer.isActive():
-            return
-
-        if not self._is_hydration_mode:
-            self._is_hydration_mode = True
-            self._pre_hydration_size = self.sprite_size
-            self._pre_hydration_pos = (self.x(), self.y())
-
-            # Target centered size (1.6x or min 200px)
-            target_size = max(200, int(self.sprite_size * 1.6))
-            screen_geo = self._get_current_screen_geometry()
-            center_x = screen_geo.center().x() - target_size // 2
-            center_y = screen_geo.center().y() - target_size // 2
-
-            # Smooth glide to center while scaling
-            self.set_state("celebrate", duration_seconds=1.0)
-            set_win32_topmost(self)
-
-            def on_arrived_center():
-                self.set_state("drink_water", duration_seconds=7.0)
-                # Play cute bubbly retro drinking sound chimes
-                self._play_sound_blip(freq=1100, dur=60)
-                QTimer.singleShot(120, lambda: self._play_sound_blip(freq=1450, dur=70))
-                QTimer.singleShot(240, lambda: self._play_sound_blip(freq=1750, dur=90))
-
-                if auto:
-                    msg = random.choice([
-                        "Waktunya minum air putih! 🥛💧✨\nTubuh terhidrasi = pikiran segar & fokus!",
-                        "Segelas air putih siap membantumu tetap sehat, yuk minum bareng aku! 💧🐾",
-                        "Istirahatkan mata sejenak dan minum air dulu yuk nya! 🥛🌸"
-                    ])
-                    self.say(msg, 6500)
-                else:
-                    self.say("Slurp slurp nyaaa~ Segernya minum air putih! 🥛💧✨\nJangan lupa minum juga ya!", 5500)
-
-                # Automatically glide back to original position after 7.0 seconds
-                self._hydration_end_timer.start(7000)
-
-            self._start_smooth_glide(center_x, center_y, target_size, duration=0.55, on_complete=on_arrived_center)
-        else:
-            self.set_state("drink_water", duration_seconds=7.0)
-            self._hydration_end_timer.start(7000)
-
-    def _end_hydration_mode(self):
-        """Smoothly glides and scales back to previous desktop position after drinking water."""
-        if self._is_hydration_mode and not self._glide_timer.isActive():
-            orig_x, orig_y = self._pre_hydration_pos
-            orig_size = self._pre_hydration_size
-
-            def on_returned_home():
-                self._is_hydration_mode = False
-                self.set_state("idle")
-                self.say("Segernya! Lanjut kerja dengan fokus & sehat ya nya~ 🐾💧", 3500)
-
-            self.set_state("celebrate", duration_seconds=1.0)
-            self._start_smooth_glide(orig_x, orig_y, orig_size, duration=0.55, on_complete=on_returned_home)
 
     def _prompt_sticky_note(self):
         current_note = self.settings.get("sticky_note", "")
