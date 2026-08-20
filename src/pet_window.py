@@ -27,6 +27,7 @@ from src.local_watcher import LocalWatcher
 from src.global_hooks import GlobalInputWatcher
 from src.settings import save_settings
 from src.autostart import is_startup_enabled, set_startup_enabled
+from src.pomodoro_badge import PomodoroBadge
 
 
 def set_win32_topmost(widget):
@@ -149,6 +150,10 @@ class DesktopPet(QWidget):
 
         # Speech Bubble
         self.speech_bubble = SpeechBubble()
+
+        # Floating Pomodoro Countdown Badge (Pixel Art Mini UI)
+        self.pomodoro_badge = PomodoroBadge()
+        self.pomodoro_badge.clicked.connect(self._on_pomodoro_badge_clicked)
 
         # Pomodoro & Reminders
         self.pomodoro = PomodoroManager(self.settings)
@@ -366,6 +371,8 @@ class DesktopPet(QWidget):
     def _update_bubble_position(self):
         if self.speech_bubble.isVisible():
             self.speech_bubble.update_position_relative_to(self.pos(), self.sprite_size)
+        if self.pomodoro_badge.isVisible():
+            self.pomodoro_badge.update_position_relative_to(self.pos(), self.sprite_size)
 
     # -------------------------------------------------------------
     # State & Animation Controller
@@ -859,13 +866,24 @@ class DesktopPet(QWidget):
         if mode == "work":
             self.set_state("work")
             duration = self.settings.get("pomodoro_work_min", 25)
+            total_secs = duration * 60
             self.say(f"Fokus mode aktif! ({duration} menit) Ayo selesaikan tugasnya nya~ 💻🔥", 4000)
         elif mode == "break":
             self.set_state("sleep")
             duration = self.settings.get("pomodoro_break_min", 5)
+            total_secs = duration * 60
             self.say(f"Waktu istirahat ({duration} menit)! Rehat dulu ya nya~ ☕😴", 4000)
+        else:
+            return
+
+        # Show floating pomodoro badge
+        self.pomodoro_badge.start(mode, total_secs)
+        self.pomodoro_badge.update_position_relative_to(self.pos(), self.sprite_size)
 
     def _on_pomodoro_finish(self, finished_mode):
+        # Hide floating pomodoro badge
+        self.pomodoro_badge.stop()
+
         if finished_mode == "work":
             self.set_state("celebrate", duration_seconds=6)
             self.say("YAY! Sesi fokus selesai! Waktunya istirahat sejenak nya~ 🎉🥳", 6000)
@@ -878,6 +896,16 @@ class DesktopPet(QWidget):
         secs = remaining % 60
         title = "Fokus" if mode == "work" else "Break"
         self.setToolTip(f"NyangBuddy - {title} [{mins:02d}:{secs:02d}] (Ctrl+Scroll: Zoom)")
+
+        # Update floating badge countdown & progress bar
+        self.pomodoro_badge.update_tick(remaining)
+
+    def _on_pomodoro_badge_clicked(self):
+        """User clicked the floating pomodoro badge to stop the session."""
+        self.pomodoro.stop()
+        self.pomodoro_badge.stop()
+        self.set_state("idle")
+        self.say("Sesi Pomodoro dihentikan nya~ 🐾", 3000)
 
     def _on_reminder(self, text):
         self.say(text, 5000)
@@ -965,7 +993,7 @@ class DesktopPet(QWidget):
             start_break.triggered.connect(lambda: self.pomodoro.start_break(5))
         else:
             stop_action = pom_menu.addAction(f"⏹️ Hentikan ({self.pomodoro.format_time()})")
-            stop_action.triggered.connect(self.pomodoro.stop)
+            stop_action.triggered.connect(self._on_pomodoro_badge_clicked)
 
         # 4. Stretch & Posture Submenu
         stretch_menu = menu.addMenu("🧘 Pengingat Regang & Postur")
