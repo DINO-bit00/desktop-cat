@@ -115,6 +115,15 @@ class DesktopPet(QWidget):
         self._stretch_end_timer.setSingleShot(True)
         self._stretch_end_timer.timeout.connect(self._end_stretch_mode)
 
+        # Smooth 60 FPS Glide & Scale Interpolation Controller
+        self._glide_timer = QTimer(self)
+        self._glide_timer.timeout.connect(self._on_glide_tick)
+        self._glide_start_time = 0.0
+        self._glide_duration = 0.55
+        self._glide_from = (0.0, 0.0, 128)
+        self._glide_to = (0.0, 0.0, 128)
+        self._glide_callback = None
+
         # Frame Pixmap Cache
         self.pixmap_cache = {}
         self._load_skin_sprites(self.skin)
@@ -288,6 +297,9 @@ class DesktopPet(QWidget):
     # 60 FPS Game Loop & Advanced Physics (Dynamic Hunt & Eye Follow)
     # -------------------------------------------------------------
     def _update_physics_loop(self):
+        if self._glide_timer.isActive():
+            return
+
         if self.is_dragging:
             # Smooth inertia wobble physics (damped spring return)
             self.mochi_tilt += (self.drag_velocity_x * 0.45 - self.mochi_tilt) * 0.20
@@ -992,12 +1004,51 @@ class DesktopPet(QWidget):
         """Triggered periodically when user has been working continuously."""
         self.trigger_stretch(auto=True)
 
+    def _start_smooth_glide(self, target_x, target_y, target_size, duration=0.55, on_complete=None):
+        """Smooth 60 FPS cubic ease-in-out movement and scaling interpolation."""
+        self._glide_from = (float(self.x()), float(self.y()), self.sprite_size)
+        self._glide_to = (float(target_x), float(target_y), int(target_size))
+        self._glide_start_time = time.time()
+        self._glide_duration = duration
+        self._glide_callback = on_complete
+        self._glide_timer.start(16)
+
+    def _on_glide_tick(self):
+        now = time.time()
+        elapsed = now - self._glide_start_time
+        t = min(1.0, elapsed / self._glide_duration)
+
+        # Cubic Ease-In-Out S-Curve: smooth acceleration & smooth deceleration
+        ease = 4 * t * t * t if t < 0.5 else 1.0 - math.pow(-2.0 * t + 2.0, 3) / 2.0
+
+        fx, fy, fsize = self._glide_from
+        tx, ty, tsize = self._glide_to
+
+        cur_x = int(fx + (tx - fx) * ease)
+        cur_y = int(fy + (ty - fy) * ease)
+        cur_size = int(fsize + (tsize - fsize) * ease)
+
+        if cur_size != self.sprite_size:
+            self.set_sprite_size(cur_size, show_dialogue=False)
+
+        self.move(cur_x, cur_y)
+        self.pos_x_f = float(cur_x)
+        self.pos_y_f = float(cur_y)
+        self._update_bubble_position()
+
+        if t >= 1.0:
+            self._glide_timer.stop()
+            if self._glide_callback:
+                cb = self._glide_callback
+                self._glide_callback = None
+                cb()
+
     def trigger_stretch(self, auto=False):
         """
         Executes the kawaii cat stretch yoga posture.
-        Automatically enlarges character and glides to screen center!
+        Smoothly glides & scales to screen center, performs stretch, then glides back!
         """
-        if self.state in ["drag", "pet"]:
+        if self.state in ["drag", "pet"] or self._glide_timer.isActive():
             return
 
         if not self._is_stretch_mode:
@@ -1005,48 +1056,52 @@ class DesktopPet(QWidget):
             self._pre_stretch_size = self.sprite_size
             self._pre_stretch_pos = (self.x(), self.y())
 
-            # Enlarge to prominent size (1.6x of normal or min 200px)
+            # Target centered size (1.6x or min 200px)
             target_size = max(200, int(self.sprite_size * 1.6))
             screen_geo = self._get_current_screen_geometry()
             center_x = screen_geo.center().x() - target_size // 2
             center_y = screen_geo.center().y() - target_size // 2
 
-            self.set_sprite_size(target_size, show_dialogue=False)
-            self.move(center_x, center_y)
-            self.pos_x_f = float(center_x)
-            self.pos_y_f = float(center_y)
+            # Smooth glide to center while scaling
+            self.set_state("celebrate", duration_seconds=1.0)
             set_win32_topmost(self)
 
-        self.set_state("stretch", duration_seconds=7.0)
-        self._play_sound_blip(freq=1250, dur=70)
-        QTimer.singleShot(120, lambda: self._play_sound_blip(freq=1650, dur=90))
+            def on_arrived_center():
+                self.set_state("stretch", duration_seconds=7.0)
+                self._play_sound_blip(freq=1250, dur=70)
+                QTimer.singleShot(140, lambda: self._play_sound_blip(freq=1650, dur=90))
 
-        if auto:
-            msg = random.choice([
-                "Waktunya istirahat sejenak! 🧘✨\nYuk berdiri dan regangkan badan bareng aku!",
-                "Udah duduk lama nih, boss! 🧘🐾\nLuruskan punggung & tarik nafas dalam-dalam ya!",
-                "Saatnya peregangan otot! 🌸🐾\nRegangkan badan biar tetap bugar & fokus!"
-            ])
-            self.say(msg, 6500)
+                if auto:
+                    msg = random.choice([
+                        "Waktunya istirahat sejenak! 🧘✨\nYuk berdiri dan regangkan badan bareng aku!",
+                        "Udah duduk lama nih, boss! 🧘🐾\nLuruskan punggung & tarik nafas dalam-dalam ya!",
+                        "Saatnya peregangan otot! 🌸🐾\nRegangkan badan biar tetap bugar & fokus!"
+                    ])
+                    self.say(msg, 6500)
+                else:
+                    self.say("Ngulet dulu nyaaa~ segernya badan! 🧘✨\nYuk luruskan punggung bareng aku!", 5500)
+
+                # Automatically glide back to original position after 7.0 seconds
+                self._stretch_end_timer.start(7000)
+
+            self._start_smooth_glide(center_x, center_y, target_size, duration=0.55, on_complete=on_arrived_center)
         else:
-            self.say("Ngulet dulu nyaaa~ segernya badan! 🧘✨\nYuk luruskan punggung bareng aku!", 5500)
-
-        # Automatically restore size and return to original position after 7 seconds
-        self._stretch_end_timer.start(7000)
+            self.set_state("stretch", duration_seconds=7.0)
+            self._stretch_end_timer.start(7000)
 
     def _end_stretch_mode(self):
-        """Restores size and returns to previous desktop position after stretch ends."""
-        if self._is_stretch_mode:
-            self._is_stretch_mode = False
-            # Restore original scale
-            self.set_sprite_size(self._pre_stretch_size, show_dialogue=False)
-            # Restore original position
+        """Smoothly glides and scales back to previous desktop position."""
+        if self._is_stretch_mode and not self._glide_timer.isActive():
             orig_x, orig_y = self._pre_stretch_pos
-            self.move(orig_x, orig_y)
-            self.pos_x_f = float(orig_x)
-            self.pos_y_f = float(orig_y)
-            self.set_state("idle")
-            self.say("Segernya! Lanjut fokus kerja lagi ya nya~ 🐾💪", 3500)
+            orig_size = self._pre_stretch_size
+
+            def on_returned_home():
+                self._is_stretch_mode = False
+                self.set_state("idle")
+                self.say("Segernya! Lanjut fokus kerja lagi ya nya~ 🐾💪", 3500)
+
+            self.set_state("celebrate", duration_seconds=1.0)
+            self._start_smooth_glide(orig_x, orig_y, orig_size, duration=0.55, on_complete=on_returned_home)
 
     def _prompt_sticky_note(self):
         current_note = self.settings.get("sticky_note", "")
