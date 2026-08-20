@@ -785,6 +785,111 @@ def _draw_thinking(p: dict, frame_idx: int) -> Image.Image:
     return img
 
 
+# ─── 11. CAT STRETCH / YOGA POSTURE REMINDER ────────────────────────────────
+def _draw_cat_stretch(p: dict, frame_idx: int) -> Image.Image:
+    """
+    Cute downward cat yoga stretch:
+    Paws extended flat forward, spine sloping down, hips/butt elevated,
+    perky tail arched high with animated flick, and blissful closed face.
+    """
+    img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+
+    O = p["fur_main"]
+    S = p["fur_shade"]
+    W = p["fur_belly"]
+    E = p["inner_ear"]
+    K = p["outline"]
+
+    fi = frame_idx % 4
+
+    # 1. Perky Tail Arched High with 4-frame animated flick
+    tail_flicks = [
+        [(5, 13), (3, 9), (2, 6), (4, 3), (6, 4)],
+        [(5, 13), (3, 8), (3, 5), (5, 2), (7, 3)],
+        [(5, 13), (4, 8), (4, 5), (6, 2), (8, 3)],
+        [(5, 13), (3, 9), (2, 6), (4, 3), (6, 4)],
+    ]
+    pts = tail_flicks[fi]
+    for i in range(len(pts) - 1):
+        d.line([pts[i], pts[i + 1]], fill=K, width=3)
+    for i in range(len(pts) - 1):
+        d.line([pts[i], pts[i + 1]], fill=O, width=1)
+    d.point(pts[-1], fill=W)
+
+    # 2. Elevated Hind Legs & Butt
+    d.ellipse([4, 11, 14, 23], fill=O, outline=K)
+    d.rectangle([5, 19, 10, 27], fill=O, outline=K)
+    d.rectangle([5, 25, 11, 27], fill=W, outline=K)
+    d.line([(10, 18), (10, 24)], fill=S)
+
+    # 3. Sloping Torso & Back
+    body_pts = [(9, 12), (16, 17), (21, 22), (23, 26), (17, 27), (11, 25), (7, 19)]
+    d.polygon(body_pts, fill=O, outline=K)
+
+    # Spine tiger stripes
+    d.line([(10, 13), (12, 16)], fill=S)
+    d.line([(14, 16), (16, 20)], fill=S)
+    d.line([(18, 20), (20, 23)], fill=S)
+
+    # White belly & chest patch
+    d.polygon([(14, 21), (20, 23), (22, 26), (16, 26)], fill=W)
+
+    # 4. Front Paws (Stretched flat forward)
+    d.rectangle([20, 24, 26, 27], fill=O, outline=K)
+    d.rectangle([23, 25, 27, 27], fill=W, outline=K)
+
+    reach = 29 if fi in (1, 2) else 28
+    d.rectangle([18, 25, reach, 27], fill=O, outline=K)
+    d.rectangle([reach - 4, 25, reach, 27], fill=W, outline=K)
+    if fi in (1, 2):
+        img.putpixel((reach, 26), (255, 160, 175, 255))
+
+    # 5. Collar & Gold Bell / Chain
+    if p.get("has_chain", False):
+        d.line([(17, 20), (21, 22)], fill=(255, 215, 0, 255), width=2)
+    else:
+        collar_col = p.get("collar", (235, 55, 75, 255))
+        d.line([(17, 20), (21, 22)], fill=collar_col, width=2)
+        accent_col = p.get("accent", (255, 215, 35, 255))
+        d.rectangle([19, 22, 21, 24], fill=accent_col, outline=K)
+
+    # 6. Head & Kawaii Closed Face
+    head_x = 16
+    head_y = 14
+
+    d.polygon([(head_x, head_y), (head_x - 2, head_y - 4), (head_x + 3, head_y - 1)], fill=O, outline=K)
+    d.polygon([(head_x + 1, head_y - 1), (head_x - 1, head_y - 3), (head_x + 2, head_y - 1)], fill=E)
+
+    d.polygon([(head_x + 7, head_y + 1), (head_x + 9, head_y - 3), (head_x + 11, head_y + 2)], fill=O, outline=K)
+    d.polygon([(head_x + 8, head_y + 1), (head_x + 9, head_y - 2), (head_x + 10, head_y + 2)], fill=E)
+
+    d.ellipse([head_x, head_y, head_x + 11, head_y + 10], fill=O, outline=K)
+    d.ellipse([head_x + 4, head_y + 4, head_x + 11, head_y + 9], fill=W)
+
+    if p.get("has_shades", False):
+        d.rectangle([head_x + 3, head_y + 3, head_x + 11, head_y + 6], fill=(18, 18, 22, 255), outline=K)
+        img.putpixel((head_x + 5, head_y + 4), (255, 255, 255, 255))
+        img.putpixel((head_x + 9, head_y + 4), (255, 255, 255, 255))
+    else:
+        d.line([(head_x + 3, head_y + 4), (head_x + 5, head_y + 3)], fill=K)
+        d.line([(head_x + 5, head_y + 3), (head_x + 7, head_y + 4)], fill=K)
+        img.putpixel((head_x + 2, head_y + 6), (255, 140, 160, 255))
+        img.putpixel((head_x + 3, head_y + 6), (255, 140, 160, 255))
+
+    img.putpixel((head_x + 9, head_y + 5), (255, 120, 140, 255))
+
+    # Stretch sparkles aura
+    if fi in (1, 2):
+        spark_y = 6 if fi == 1 else 5
+        d.line([(12, spark_y), (14, spark_y)], fill=(255, 215, 50, 255))
+        d.line([(13, spark_y - 1), (13, spark_y + 1)], fill=(255, 215, 50, 255))
+        d.line([(18, spark_y + 3), (20, spark_y + 3)], fill=(255, 215, 50, 255))
+        d.line([(19, spark_y + 2), (19, spark_y + 4)], fill=(255, 215, 50, 255))
+
+    return img
+
+
 # ─── MAIN FRAME DISPATCHER (PUBLIC API) ────────────────────────────────────
 def render_cat_frame(skin_key: str = "boss_oyen",
                      state: str = "idle",
@@ -818,6 +923,8 @@ def render_cat_frame(skin_key: str = "boss_oyen",
         native = _draw_pet_purr(p, fi)
     elif state == "sleep":
         native = _draw_sleep_loaf(p, fi)
+    elif state in ("stretch", "yoga", "posture"):
+        native = _draw_cat_stretch(p, fi)
     elif state in ("drag", "dangle", "mochi"):
         native = _draw_mochi_drag(p, fi)
     elif state in ("celebrate", "jump", "done"):

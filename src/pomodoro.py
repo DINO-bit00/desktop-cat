@@ -1,17 +1,19 @@
 """
 Pomodoro & Health Reminders System
-Manages focus timers, short breaks, and ergonomic/hydration reminders.
+Manages focus timers, short breaks, posture stretches, and hydration reminders.
 """
 
+import random
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 
 
 class PomodoroManager(QObject):
     # Signals
-    tick = pyqtSignal(int, str)             # remaining_seconds, mode ("work" / "break")
-    session_started = pyqtSignal(str)       # mode ("work" / "break")
-    session_finished = pyqtSignal(str)      # mode ("work" / "break")
-    reminder_triggered = pyqtSignal(str)    # reminder text
+    tick = pyqtSignal(int, str)                 # remaining_seconds, mode ("work" / "break")
+    session_started = pyqtSignal(str)           # mode ("work" / "break")
+    session_finished = pyqtSignal(str)          # mode ("work" / "break")
+    reminder_triggered = pyqtSignal(str)        # general reminder text
+    posture_reminder_triggered = pyqtSignal()   # stretch/posture trigger
 
     def __init__(self, settings):
         super().__init__()
@@ -24,17 +26,32 @@ class PomodoroManager(QObject):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._on_tick)
 
-        # Hydration / Stretch reminder timer
-        self.reminder_timer = QTimer(self)
-        self.reminder_timer.timeout.connect(self._on_hydration_check)
-        self._start_reminder_timer()
+        # Hydration reminder timer
+        self.hydration_timer = QTimer(self)
+        self.hydration_timer.timeout.connect(self._on_hydration_check)
 
-    def _start_reminder_timer(self):
-        interval_min = self.settings.get("hydration_reminder_min", 45)
-        if interval_min > 0:
-            self.reminder_timer.start(interval_min * 60 * 1000)
+        # Posture & Stretch reminder timer (every 60 min)
+        self.posture_timer = QTimer(self)
+        self.posture_timer.timeout.connect(self._on_posture_check)
+
+        self.start_health_timers()
+
+    def start_health_timers(self):
+        """Starts/restarts hydration and posture timers based on current settings."""
+        # Hydration
+        hyd_min = self.settings.get("hydration_reminder_min", 45)
+        if hyd_min > 0:
+            self.hydration_timer.start(hyd_min * 60 * 1000)
         else:
-            self.reminder_timer.stop()
+            self.hydration_timer.stop()
+
+        # Posture / Stretch
+        stretch_enabled = self.settings.get("stretch_reminder_enabled", True)
+        stretch_min = self.settings.get("stretch_reminder_min", 60)
+        if stretch_enabled and stretch_min > 0:
+            self.posture_timer.start(stretch_min * 60 * 1000)
+        else:
+            self.posture_timer.stop()
 
     def start_focus(self, minutes=None):
         if minutes is None:
@@ -72,12 +89,13 @@ class PomodoroManager(QObject):
     def _on_hydration_check(self):
         messages = [
             "Meow! Waktunya minum air putih dulu biar tetap segar! 💧",
-            "Jangan lupa regangkan leher dan punggungmu nya~ 🧘",
             "Kedipkan mata dan istirahatkan pandangan sejenak nya! 👀",
-            "Postur tubuh tegak ya! Semangat terus kerjanya~ ✨"
+            "Segelas air putih siap membantumu tetap fokus, yuk minum! 🥛✨"
         ]
-        import random
         self.reminder_triggered.emit(random.choice(messages))
+
+    def _on_posture_check(self):
+        self.posture_reminder_triggered.emit()
 
     def format_time(self):
         mins = self.remaining_seconds // 60

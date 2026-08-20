@@ -120,6 +120,7 @@ class DesktopPet(QWidget):
         self.pomodoro.session_finished.connect(self._on_pomodoro_finish)
         self.pomodoro.tick.connect(self._on_pomodoro_tick)
         self.pomodoro.reminder_triggered.connect(self._on_reminder)
+        self.pomodoro.posture_reminder_triggered.connect(self._on_posture_reminder)
 
         # Local File Event Watcher
         self.watcher = LocalWatcher(self)
@@ -159,7 +160,7 @@ class DesktopPet(QWidget):
         self.pixmap_cache.clear()
         states = [
             "idle", "walk_left", "walk_right", "sleep", "work", "overheat",
-            "paper_unroll", "pet", "celebrate", "thinking", "drag", "land"
+            "paper_unroll", "pet", "stretch", "celebrate", "thinking", "drag", "land"
         ]
 
         for st in states:
@@ -355,7 +356,7 @@ class DesktopPet(QWidget):
             return
 
         # ── 3. TEMPORARY STATES TIMEOUT ──
-        if self.state in ["celebrate", "thinking", "land"]:
+        if self.state in ["celebrate", "thinking", "land", "stretch"]:
             self.state_ticks += 1
             if self.state_ticks > self.max_state_ticks:
                 self.set_state("idle")
@@ -369,8 +370,8 @@ class DesktopPet(QWidget):
                 self.set_state("idle")
             return
 
-        # Do not wander if Pomodoro is active, typing/overheated, or rolling paper
-        if not self.settings.get("wander_mode", True) or self.pomodoro.is_active or self.state in ["work", "overheat", "paper_unroll", "sleep"]:
+        # Do not wander if Pomodoro is active, typing/overheated, stretching, or rolling paper
+        if not self.settings.get("wander_mode", True) or self.pomodoro.is_active or self.state in ["work", "overheat", "paper_unroll", "sleep", "stretch"]:
             return
 
         # ── 4. AUTONOMOUS WANDER LOGIC ──
@@ -813,6 +814,7 @@ class DesktopPet(QWidget):
         act_menu.addAction("📜 Gelar Kertas (Paper Unroll)", lambda: self.set_state("paper_unroll", 4))
         act_menu.addAction("😴 Tidur (Sleep)", lambda: self.set_state("sleep"))
         act_menu.addAction("🎉 Melompat Senang (Jump)", lambda: self.set_state("celebrate", 4))
+        act_menu.addAction("🧘 Regangkan Badan (Stretch)", lambda: self.trigger_stretch(auto=False))
         act_menu.addAction("🤔 Berpikir (Thinking)", lambda: self.set_state("thinking", 4))
         act_menu.addAction("❤️ Dielus / Purring (Pet)", lambda: self.set_state("pet", 4))
 
@@ -842,6 +844,11 @@ class DesktopPet(QWidget):
         sound_act.setCheckable(True)
         sound_act.setChecked(self.settings.get("sound_enabled", True))
         sound_act.triggered.connect(self._toggle_sound)
+
+        stretch_act = menu.addAction("🧘 Pengingat Postur & Regang (Tiap 60m)")
+        stretch_act.setCheckable(True)
+        stretch_act.setChecked(self.settings.get("stretch_reminder_enabled", True))
+        stretch_act.triggered.connect(self._toggle_stretch_reminder)
 
         startup_act = menu.addAction("🚀 Jalankan saat Startup (Auto-Start)")
         startup_act.setCheckable(True)
@@ -917,6 +924,34 @@ class DesktopPet(QWidget):
                 self.say("Auto-startup dinonaktifkan nya! 🐾", 3000)
         else:
             self.say("Gagal mengubah pengaturan startup nya! 😿", 3000)
+
+    def _toggle_stretch_reminder(self, checked):
+        self.settings["stretch_reminder_enabled"] = checked
+        save_settings(self.settings)
+        self.pomodoro.start_health_timers()
+        if checked:
+            self.say("Pengingat postur aktif! Aku ingatkan tiap 60 menit ya nya~ 🧘", 3500)
+        else:
+            self.say("Pengingat postur dinonaktifkan nya! 🐾", 3000)
+
+    def _on_posture_reminder(self):
+        """Triggered periodically when user has been working continuously."""
+        self.trigger_stretch(auto=True)
+
+    def trigger_stretch(self, auto=False):
+        """Executes the kawaii cat stretch yoga posture."""
+        if self.state not in ["drag", "pet"]:
+            self.set_state("stretch", duration_seconds=4.5)
+            self._play_sound_blip(freq=1250, dur=60)
+            if auto:
+                msg = random.choice([
+                    "Udah duduk lama nih, yuk luruskan punggung dan regangkan badan bareng aku! 🧘🐾",
+                    "Ngulet dulu nyaaa~ Regangkan badan biar nggak kaku! 🧘✨",
+                    "Tarik nafas dalam-dalam... Regangkan otot leher dan punggung ya! 🐾🌸"
+                ])
+                self.say(msg, 4500)
+            else:
+                self.say("Ngulet dulu nyaaa~ segernya badan! 🧘✨", 3500)
 
     def _prompt_sticky_note(self):
         current_note = self.settings.get("sticky_note", "")
