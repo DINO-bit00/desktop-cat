@@ -1437,7 +1437,6 @@ class DesktopPet(QWidget):
 
     def _execute_reminder_step(self, reminder_type: str, auto: bool, duration: float):
         """Executes one step in the health routine or Pomodoro transition."""
-        self._active_custom_msg = custom_message
         self._active_reminder_type = reminder_type
 
         if reminder_type in ["pomodoro_work_done", "pomodoro_break_done"]:

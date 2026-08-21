@@ -105,7 +105,7 @@ class StickyNote(QWidget):
         text_rect = self.rect().adjusted(10, 10, -10, -5)
         painter.drawText(
             text_rect,
-            Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.TextWordWrap,
+            Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
             self._text
         )
 
