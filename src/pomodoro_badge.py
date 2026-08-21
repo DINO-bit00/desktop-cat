@@ -95,7 +95,6 @@ class PomodoroBadge(QWidget):
     # ── Public API ──────────────────────────────────────────────
 
     def start(self, mode: str, total_seconds: int, cycle_label: str = ""):
-        self._temporarily_hidden = False
         """Show the badge and start tracking a Pomodoro session."""
         self._mode = mode
         self._total_seconds = max(1, total_seconds)
@@ -107,9 +106,23 @@ class PomodoroBadge(QWidget):
         badge_w = _BADGE_W + 42 if cycle_label else _BADGE_W
         self.setFixedSize(badge_w, _BADGE_H)
 
-        self.show()
-        _set_badge_topmost(self)
+        if not self._temporarily_hidden:
+            self.show()
+            _set_badge_topmost(self)
         self.update()
+
+    def temp_hide(self):
+        """Temporarily hide the badge (e.g. while speech bubble is active)."""
+        self._temporarily_hidden = True
+        self.hide()
+
+    def temp_show(self):
+        """Restore visibility if there is an active session."""
+        self._temporarily_hidden = False
+        if self._total_seconds > 0 and self._remaining > 0:
+            self.show()
+            _set_badge_topmost(self)
+            self.update()
 
     def update_tick(self, remaining_seconds: int):
         """Called every second to update the countdown and progress bar."""
@@ -121,8 +134,9 @@ class PomodoroBadge(QWidget):
         self.update()
 
     def stop(self):
-        self._temporarily_hidden = False
         """Hide the badge when Pomodoro session ends."""
+        self._temporarily_hidden = False
+        self._total_seconds = 0
         self._remaining = 0
         self._progress = 0.0
         self.hide()
