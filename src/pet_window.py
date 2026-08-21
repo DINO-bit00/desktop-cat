@@ -42,8 +42,7 @@ def set_win32_topmost(widget):
             SWP_NOSIZE = 0x0001
             SWP_NOMOVE = 0x0002
             SWP_NOACTIVATE = 0x0010
-            SWP_SHOWWINDOW = 0x0040
-            flags = SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE | SWP_SHOWWINDOW
+            flags = SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
 
             # Set WS_EX_TOPMOST extended style for bulletproof topmost
             GWL_EXSTYLE = -20
@@ -425,13 +424,6 @@ class DesktopPet(QWidget):
         self.state_ticks = 0
         if duration_seconds:
             self.max_state_ticks = int(duration_seconds * 60)
-            
-        # Dynamic CPU Throttling
-        if new_state in ["idle", "sleep", "thinking", "work", "paper_unroll", "overheat"]:
-            self.physics_timer.setInterval(32) # ~30fps for static states
-        else:
-            self.physics_timer.setInterval(16) # 60fps for moving/smooth states
-            
         self.update()
 
     def _update_animation(self):
