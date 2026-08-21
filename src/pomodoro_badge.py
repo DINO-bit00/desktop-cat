@@ -95,6 +95,7 @@ class PomodoroBadge(QWidget):
     # ── Public API ──────────────────────────────────────────────
 
     def start(self, mode: str, total_seconds: int, cycle_label: str = ""):
+        self._temporarily_hidden = False
         """Show the badge and start tracking a Pomodoro session."""
         self._mode = mode
         self._total_seconds = max(1, total_seconds)
@@ -120,6 +121,7 @@ class PomodoroBadge(QWidget):
         self.update()
 
     def stop(self):
+        self._temporarily_hidden = False
         """Hide the badge when Pomodoro session ends."""
         self._remaining = 0
         self._progress = 0.0

@@ -19,6 +19,7 @@ DEFAULT_SETTINGS = {
     "stretch_reminder_enabled": True, # Posture reminder toggle
     "sound_enabled": True,          # Cute synthesized retro blip
     "sticky_note": "",              # Pinned focus goal / note
+    "user_name": "",                # Panggilan nama user
     "scale": 1.0,                   # Size scale
     "run_on_startup": False         # Windows Registry Run on startup
 }

@@ -29,6 +29,8 @@ from src.settings import save_settings
 from src.autostart import is_startup_enabled, set_startup_enabled
 from src.pomodoro_badge import PomodoroBadge
 from src.pomodoro_dialog import CustomPomodoroDialog
+from src.sticky_note import StickyNote
+from src.alarm_dialog import CustomAlarmDialog
 
 
 def set_win32_topmost(widget):
@@ -150,12 +152,12 @@ class DesktopPet(QWidget):
         # Load ONLY the essential idle + walk sprites synchronously (instant startup)
         self._load_essential_sprites(self.skin)
 
-        # Speech Bubble
+        # Floating Widgets (Speech, Pomodoro Badge, Sticky Note)
         self.speech_bubble = SpeechBubble()
-
-        # Floating Pomodoro Countdown Badge (Pixel Art Mini UI)
+        self.speech_bubble.bubble_hidden.connect(self._on_bubble_hidden)
         self.pomodoro_badge = PomodoroBadge()
         self.pomodoro_badge.clicked.connect(self._on_pomodoro_badge_clicked)
+        self.sticky_note = StickyNote()
 
         # Pomodoro & Reminders
         self.pomodoro = PomodoroManager(self.settings)
@@ -387,6 +389,8 @@ class DesktopPet(QWidget):
             self.speech_bubble.update_position_relative_to(self.pos(), self.sprite_size)
         if self.pomodoro_badge.isVisible():
             self.pomodoro_badge.update_position_relative_to(self.pos(), self.sprite_size)
+        if self.sticky_note.isVisible() or self.sticky_note._text:
+            self.sticky_note.update_position_relative_to(self.pos(), self.sprite_size)
 
     # -------------------------------------------------------------
     # State & Animation Controller
@@ -810,13 +814,33 @@ class DesktopPet(QWidget):
     # Dialogues & Responses
     # -------------------------------------------------------------
     def say(self, message, duration_ms=4500):
+        self.sticky_note.temp_hide()
+        if hasattr(self.pomodoro_badge, "temp_hide"):
+            self.pomodoro_badge.temp_hide()
+        else:
+            self.pomodoro_badge.hide()
         self.speech_bubble.show_message(message, duration_ms)
         self._update_bubble_position()
         self._play_sound_blip()
 
+
+    def _on_bubble_hidden(self):
+        # Restore floating widgets when speech bubble hides
+        self.sticky_note.temp_show()
+        if hasattr(self.pomodoro_badge, "temp_show"):
+            self.pomodoro_badge.temp_show()
+        elif self.pomodoro.is_active:
+            self.pomodoro_badge.show()
     def _say_welcome(self):
         pet_name = PALETTES.get(self.skin, {}).get("name", "Nyang")
-        self.say(f"Halo! Aku {pet_name} siap nemenin kamu kerja nya~ 🐾")
+        user_name = self.settings.get("user_name", "").strip()
+        greeting = f"Halo {user_name}!" if user_name else "Halo!"
+        self.say(f"{greeting} Aku {pet_name} siap nemenin kamu kerja nya~ 🐾")
+
+        # Initialize sticky note if exists
+        saved_note = self.settings.get("sticky_note", "").strip()
+        if saved_note:
+            self.sticky_note.start(saved_note)
 
     def _on_pet_clicked(self):
         """Single left-click response: Shows dialogue and cute sound without changing animation."""
@@ -1184,8 +1208,13 @@ class DesktopPet(QWidget):
         menu.addSeparator()
 
         # 7. Sticky Note / Pinned Focus
+        # 7. Personalization & Reminders
+        name_action = menu.addAction("?? Set Panggilan Nama")
+        name_action.triggered.connect(self._prompt_user_name)
         note_action = menu.addAction("📌 Set Target Fokus / Note")
         note_action.triggered.connect(self._prompt_sticky_note)
+        alarm_action = menu.addAction("? Setel Alarm (Custom)")
+        alarm_action.triggered.connect(self._prompt_custom_alarm)
 
         # 7. Options
         hunt_act = menu.addAction("🎯 Kejar Kursor Cepat (Mouse Hunt)")
@@ -1369,7 +1398,7 @@ class DesktopPet(QWidget):
                 self._glide_callback = None
                 cb()
 
-    def _start_centered_reminder(self, reminder_type: str, auto: bool = False, duration: float = 7.0, queue_next: list = None, on_finish_callback: callable = None):
+    def _start_centered_reminder(self, reminder_type: str, auto: bool = False, duration: float = 7.0, queue_next: list = None, on_finish_callback: callable = None, custom_message: str = None):
         """
         Unified Center-Stage Reminder & Sequential Combo Manager (Option A).
         If another reminder arrives while already centered or gliding, it queues seamlessly as the next routine step!
@@ -1385,6 +1414,7 @@ class DesktopPet(QWidget):
             return
 
         # Capture true desktop home location ONLY when departing from desktop
+        self._active_custom_msg = custom_message
         self._active_reminder_type = reminder_type
         self._reminder_queue = list(queue_next) if queue_next else []
         self._was_combo = len(self._reminder_queue) > 0
@@ -1407,6 +1437,7 @@ class DesktopPet(QWidget):
 
     def _execute_reminder_step(self, reminder_type: str, auto: bool, duration: float):
         """Executes one step in the health routine or Pomodoro transition."""
+        self._active_custom_msg = custom_message
         self._active_reminder_type = reminder_type
 
         if reminder_type in ["pomodoro_work_done", "pomodoro_break_done"]:
@@ -1460,6 +1491,11 @@ class DesktopPet(QWidget):
             else:
                 msg = f"YAY! Sesi fokus selesai! 🎉🥳\nSaatnya istirahat {break_min} menit, rehat sejenak nya~"
             self.say(msg, int(duration * 1000 - 500))
+
+        elif reminder_type == "alarm_done":
+            self._play_sound_blip(freq=1500, dur=100)
+            msg = self._active_custom_msg if self._active_custom_msg else "Waktunya habis!"
+            self.say(f"? Pengingat: {msg}", int(duration * 1000 - 500))
 
         elif reminder_type == "pomodoro_break_done":
             self._play_sound_blip(freq=1200, dur=70)
@@ -1584,16 +1620,71 @@ class DesktopPet(QWidget):
         """Triggered periodically when user has been working continuously without drinking water."""
         self.trigger_drink_water(auto=True)
 
+
+    def _prompt_user_name(self):
+        current_name = self.settings.get("user_name", "")
+        text, ok = QInputDialog.getText(
+            self, "Panggilan Nama", "NyangBuddy harus panggil kamu apa?", text=current_name
+        )
+        if ok:
+            text = text.strip()
+            self.settings["user_name"] = text
+            save_settings(self.settings)
+            if text:
+                self.say(f"Halo {text}! Salam kenal ya nya~ ??", 5000)
+            else:
+                self.say("Oke, aku panggil kamu secara umum aja nya~", 4000)
+
+    def _prompt_custom_alarm(self):
+        dialog = CustomAlarmDialog(parent=None)
+        
+        # Center dialog
+        geo = self._get_current_screen_geometry()
+        dialog.move(
+            geo.center().x() - dialog.width() // 2,
+            geo.center().y() - dialog.height() // 2
+        )
+        
+        accepted = (dialog.exec() == 1) # QDialog.DialogCode.Accepted is 1
+        
+        self.show()
+        self.raise_()
+        if self.settings.get("stay_on_top", True):
+            set_win32_topmost(self)
+            
+        if accepted:
+            minutes, msg = dialog.get_values()
+            
+            def alarm_callback():
+                self.set_state("idle")
+
+            # QTimer singleShot expects milliseconds
+            QTimer.singleShot(minutes * 60 * 1000, lambda: self._start_centered_reminder(
+                "alarm_done",
+                auto=True,
+                duration=6.0,
+                on_finish_callback=alarm_callback,
+                custom_message=msg
+            ))
+            
+            self.say(f"Siap! Aku ingetin {minutes} menit lagi ya nya! ?", 5000)
+
     def _prompt_sticky_note(self):
         current_note = self.settings.get("sticky_note", "")
         text, ok = QInputDialog.getText(
-            self, "Target Fokus / Catatan", "Tulis fokus kerjamu sekarang nya:", text=current_note
+            self, "Target Fokus / Catatan", "Tulis fokus kerjamu sekarang (Kosongkan untuk menghapus):", text=current_note
         )
-        if ok and text:
+        if ok:
+            text = text.strip()
             self.settings["sticky_note"] = text
             save_settings(self.settings)
-            self.say(f"Target: \"{text}\" - Aku pantau terus ya nya! 🎯", 6000)
-
+            if text:
+                self.sticky_note.start(text)
+                self.say(f"Catatan disematkan: \"{text}\"! ??", 5000)
+            else:
+                self.sticky_note.stop()
+                self.say("Catatan dilepas nya~", 3000)
+            self._update_bubble_position()
     def close_app(self):
         self.input_watcher.stop()
         self.speech_bubble.close()

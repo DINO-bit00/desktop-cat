@@ -5,7 +5,7 @@ Displays charming retro/modern dialogue bubbles above the cat with auto-dismissa
 
 import sys
 import ctypes
-from PyQt6.QtCore import Qt, QTimer, QPoint, QRectF
+from PyQt6.QtCore import Qt, QTimer, QPoint, pyqtSignal
 from PyQt6.QtGui import QPainter, QColor, QFont, QPainterPath, QPen
 from PyQt6.QtWidgets import QWidget, QLabel, QVBoxLayout
 
@@ -34,6 +34,7 @@ def set_win32_topmost(widget):
 
 
 class SpeechBubble(QWidget):
+    bubble_hidden = pyqtSignal()
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowFlags(
@@ -78,6 +79,7 @@ class SpeechBubble(QWidget):
             self.timer.start(duration_ms)
 
     def hide_bubble(self):
+        self.bubble_hidden.emit()
         self.timer.stop()
         self.hide()
 
