@@ -1534,12 +1534,11 @@ class DesktopPet(QWidget):
             work_min = self.pomodoro.work_minutes
 
             if is_auto and cycle < total:
-                msg = f"Waktu istirahat selesai! ☕
-Siap mulai sesi fokus ke-{cycle + 1} dari {total} ({work_min} menit) nya? 💻✨"
+                msg = f"Waktu istirahat selesai! ☕\nSiap mulai sesi fokus ke-{cycle + 1} dari {total} ({work_min} menit) nya? 💻✨"
             elif is_auto and cycle >= total:
                 msg = f"Selamat! Semua {total} siklus Pomodoro selesai! 🎉🐾\nKamu luar biasa fokus hari ini! Istirahat total ya~ ✨"
             else:
-            msg = "Waktu istirahat selesai! Siap mulai lagi nya? ☕✨"
+                msg = "Waktu istirahat selesai! Siap mulai lagi nya? ☕✨"
             self.say(msg, int(duration * 1000 - 500))
 
         # Start unified step countdown timer
