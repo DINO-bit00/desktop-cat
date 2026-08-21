@@ -5,7 +5,7 @@ Displays charming retro/modern dialogue bubbles above the cat with auto-dismissa
 
 import sys
 import ctypes
-from PyQt6.QtCore import Qt, QTimer, QPoint, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, QPoint, QRectF, pyqtSignal
 from PyQt6.QtGui import QPainter, QColor, QFont, QPainterPath, QPen
 from PyQt6.QtWidgets import QWidget, QLabel, QVBoxLayout
 
