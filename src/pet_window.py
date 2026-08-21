@@ -937,7 +937,7 @@ class DesktopPet(QWidget):
             self.set_state("work")
             duration = self.pomodoro.work_minutes
             total_secs = duration * 60
-            self.say(f"Fokus mode aktif! ({duration} menit){cycle_text} Ayo selesaikan tugasnya nya~ 💻🔥", 4000)
+            self.say(f"Fokus mode aktif! ({duration} menit){cycle_text} Ayo selesaikan tugasnya nya~ 💻✨", 4000)
         elif mode == "break":
             self.set_state("sleep")
             duration = self.pomodoro.break_minutes
@@ -948,6 +948,8 @@ class DesktopPet(QWidget):
 
         # Show floating pomodoro badge with cycle info
         self.pomodoro_badge.start(mode, total_secs, cycle_info)
+        if self.speech_bubble.isVisible():
+            self.pomodoro_badge.temp_hide()
         self.pomodoro_badge.update_position_relative_to(self.pos(), self.sprite_size)
 
     def _on_pomodoro_finish(self, finished_mode):
@@ -1236,11 +1238,11 @@ class DesktopPet(QWidget):
 
         # 7. Sticky Note / Pinned Focus
         # 7. Personalization & Reminders
-        name_action = menu.addAction("?? Set Panggilan Nama")
+        name_action = menu.addAction("👤 Set Panggilan Nama")
         name_action.triggered.connect(self._prompt_user_name)
         note_action = menu.addAction("📌 Set Target Fokus / Note")
         note_action.triggered.connect(self._prompt_sticky_note)
-        alarm_action = menu.addAction("? Setel Alarm (Custom)")
+        alarm_action = menu.addAction("⏰ Setel Alarm (Custom)")
         alarm_action.triggered.connect(self._prompt_custom_alarm)
 
         # 7. Options
@@ -1349,7 +1351,7 @@ class DesktopPet(QWidget):
             self.settings["run_on_startup"] = checked
             save_settings(self.settings)
             if checked:
-                self.say("NyangBuddy sekarang otomatis nemenin kamu tiap laptop nyala nya! 🚀🐾", 4000)
+                self.say("NyangBuddy sekarang otomatis nemenin kamu tiap laptop nyala nya! 🚀✨", 4000)
             else:
                 self.say("Auto-startup dinonaktifkan nya! 🐾", 3000)
         else:
@@ -1521,7 +1523,7 @@ class DesktopPet(QWidget):
         elif reminder_type == "alarm_done":
             self._play_sound_blip(freq=1500, dur=100)
             msg = self._active_custom_msg if self._active_custom_msg else "Waktunya habis!"
-            self.say(f"? Pengingat: {msg}", int(duration * 1000 - 500))
+            self.say(f"⏰ Pengingat: {msg}", int(duration * 1000 - 500))
 
         elif reminder_type == "pomodoro_break_done":
             self._play_sound_blip(freq=1200, dur=70)
@@ -1532,11 +1534,12 @@ class DesktopPet(QWidget):
             work_min = self.pomodoro.work_minutes
 
             if is_auto and cycle < total:
-                msg = f"Waktu istirahat selesai! ☕✨\nSiap mulai sesi fokus ke-{cycle + 1} dari {total} ({work_min} menit) nya? 💻🔥"
+                msg = f"Waktu istirahat selesai! ☕
+Siap mulai sesi fokus ke-{cycle + 1} dari {total} ({work_min} menit) nya? 💻✨"
             elif is_auto and cycle >= total:
                 msg = f"Selamat! Semua {total} siklus Pomodoro selesai! 🎉🐾\nKamu luar biasa fokus hari ini! Istirahat total ya~ ✨"
             else:
-                msg = "Waktu istirahat selesai! Siap mulai lagi nya? 😺✨"
+            msg = "Waktu istirahat selesai! Siap mulai lagi nya? ☕✨"
             self.say(msg, int(duration * 1000 - 500))
 
         # Start unified step countdown timer
@@ -1657,7 +1660,7 @@ class DesktopPet(QWidget):
             self.settings["user_name"] = text
             save_settings(self.settings)
             if text:
-                self.say(f"Halo {text}! Salam kenal ya nya~ ??", 5000)
+                self.say(f"Halo {text}! Salam kenal ya nya~ 🐾", 5000)
             else:
                 self.say("Oke, aku panggil kamu secara umum aja nya~", 4000)
 
@@ -1706,7 +1709,7 @@ class DesktopPet(QWidget):
             save_settings(self.settings)
             if text:
                 self.sticky_note.start(text)
-                self.say(f"Catatan disematkan: \"{text}\"! ??", 5000)
+                self.say(f"Catatan disematkan: \"{text}\"! 📝", 5000)
             else:
                 self.sticky_note.stop()
                 self.say("Catatan dilepas nya~", 3000)
