@@ -7,6 +7,7 @@ open-source Python code, and local-only interactions.
 import sys
 import os
 import ctypes
+import time
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import Qt
 
@@ -16,6 +17,11 @@ from src.tray import CatTrayIcon
 
 
 def main():
+    if "--startup" in sys.argv:
+        # Defer heavy loading by 5 seconds on Windows boot
+        # so it doesn't fight for resources with other startup apps.
+        time.sleep(5)
+
     # Ensure CWD is the project root (critical for autostart from Windows Registry
     # which would otherwise launch from C:\Windows\System32)
     project_root = os.path.dirname(os.path.abspath(__file__))

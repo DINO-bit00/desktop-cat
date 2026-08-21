@@ -34,7 +34,7 @@ def get_startup_command() -> str:
         else:
             python_exe = sys.executable
 
-    return f'"{python_exe}" "{main_py}"'
+    return f'"{python_exe}" "{main_py}" --startup'
 
 
 def is_startup_enabled() -> bool:

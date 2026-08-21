@@ -190,11 +190,11 @@ class DesktopPet(QWidget):
         self.physics_timer.timeout.connect(self._update_physics_loop)
         self.physics_timer.start(16)
 
-        # Aggressive Always-On-Top Enforcement Timer (every 3 seconds)
+        # Aggressive Always-On-Top Enforcement Timer (every 1 second for reliable z-order)
         self._topmost_timer = QTimer(self)
         self._topmost_timer.timeout.connect(self._enforce_topmost)
         if self.settings.get("stay_on_top", True):
-            self._topmost_timer.start(3000)
+            self._topmost_timer.start(1000)
 
         # Position on screen
         self._snap_to_initial_position()
@@ -217,6 +217,25 @@ class DesktopPet(QWidget):
         """Aggressively re-enforces topmost z-order using Win32 extended window styles."""
         if self.settings.get("stay_on_top", True):
             set_win32_topmost(self)
+            if hasattr(self, 'speech_bubble') and self.speech_bubble.isVisible():
+                set_win32_topmost(self.speech_bubble)
+            if hasattr(self, 'pomodoro_badge') and self.pomodoro_badge.isVisible():
+                set_win32_topmost(self.pomodoro_badge)
+            if hasattr(self, 'sticky_note') and self.sticky_note.isVisible():
+                set_win32_topmost(self.sticky_note)
+
+    def changeEvent(self, event):
+        from PyQt6.QtCore import QEvent
+        if event.type() == QEvent.Type.ActivationChange:
+            if not self.isActiveWindow() and self.settings.get("stay_on_top", True):
+                set_win32_topmost(self)
+                if hasattr(self, 'speech_bubble') and self.speech_bubble.isVisible():
+                    set_win32_topmost(self.speech_bubble)
+                if hasattr(self, 'pomodoro_badge') and self.pomodoro_badge.isVisible():
+                    set_win32_topmost(self.pomodoro_badge)
+                if hasattr(self, 'sticky_note') and self.sticky_note.isVisible():
+                    set_win32_topmost(self.sticky_note)
+        super().changeEvent(event)
 
     # -------------------------------------------------------------
     # Sprite & Cache Management (Pre-cached for instant 60 FPS O(1) rendering)
@@ -255,15 +274,16 @@ class DesktopPet(QWidget):
         self._process_next_sprite_batch()
 
     def _process_next_sprite_batch(self):
-        """Processes 2 states per tick to avoid blocking the UI thread."""
-        for _ in range(2):
-            if not self._deferred_batch_queue:
-                break
-            st = self._deferred_batch_queue.pop(0)
-            self._render_state_frames(self._deferred_skin, st)
+        """Processes 1 state per tick to avoid blocking the UI thread."""
+        if not self._deferred_batch_queue:
+            self._deferred_load_idle_eyes()
+            return
+            
+        st = self._deferred_batch_queue.pop(0)
+        self._render_state_frames(self._deferred_skin, st)
 
         if self._deferred_batch_queue:
-            QTimer.singleShot(16, self._process_next_sprite_batch)
+            QTimer.singleShot(24, self._process_next_sprite_batch)
         else:
             # All states loaded — now pre-cache idle eye directions
             self._deferred_load_idle_eyes()
@@ -405,6 +425,13 @@ class DesktopPet(QWidget):
         self.state_ticks = 0
         if duration_seconds:
             self.max_state_ticks = int(duration_seconds * 60)
+            
+        # Dynamic CPU Throttling
+        if new_state in ["idle", "sleep", "thinking", "work", "paper_unroll", "overheat"]:
+            self.physics_timer.setInterval(32) # ~30fps for static states
+        else:
+            self.physics_timer.setInterval(16) # 60fps for moving/smooth states
+            
         self.update()
 
     def _update_animation(self):
