@@ -120,6 +120,11 @@ class DesktopPet(QWidget):
         self.scroll_reset_timer.timeout.connect(self._on_scroll_timeout)
         self._scroll_delta_accum = 0.0
 
+        # State Continuity & Interruption Memory (Preserves active feature during typing/scroll)
+        self.pre_interruption_state = "idle"
+        self.pre_interruption_ticks = 0
+        self.pre_interruption_max_ticks = 99999999
+
         # Unified Center-Stage Reminder Manager (Prevents state collision & guarantees 100% accurate home restoration)
         self._active_reminder_type = None  # None, "stretch", "drink_water", etc.
         self._reminder_queue = []          # Sequential combo queue: [(type, auto, duration), ...]
@@ -452,17 +457,33 @@ class DesktopPet(QWidget):
 
     def get_default_resume_state(self) -> str:
         """Returns the appropriate state to return to after temporary interruptions."""
+        # 1. Active AI Thinking session takes top priority
         if hasattr(self, "ai_watcher") and self.ai_watcher.is_active_ai_session:
             return "thinking"
+        # 2. Active Pomodoro session
+        if hasattr(self, "pomodoro") and self.pomodoro.is_active:
+            if self.pomodoro.state == "break":
+                return "sleep"
+            return "idle"
+        # 3. Active Screen Edge Peek mode
         if hasattr(self, "is_peeking") and self.is_peeking:
             return f"peek_{self.peek_side}"
+        # 4. Previous active feature before interruption (stretch, drink_water, sleep, celebrate)
+        if hasattr(self, "pre_interruption_state") and self.pre_interruption_state not in [
+            "work", "overheat", "paper_unroll", "drag", "land", "hunt"
+        ]:
+            return self.pre_interruption_state
         return "idle"
 
     def resume_default_state(self):
-        """Restores the active continuous state (thinking, peek, or idle)."""
+        """Restores the active continuous state (thinking, pomodoro, peek, or previous state)."""
         target = self.get_default_resume_state()
         if self.state != target:
-            self.set_state(target)
+            if hasattr(self, "pre_interruption_state") and target == self.pre_interruption_state and self.pre_interruption_max_ticks < 10000:
+                rem_ticks = max(60, self.pre_interruption_max_ticks - self.pre_interruption_ticks)
+                self.set_state(target, duration_seconds=(rem_ticks / 60.0))
+            else:
+                self.set_state(target)
 
     def _update_animation(self):
         self.frame_index = (self.frame_index + 1) % 4
@@ -480,14 +501,9 @@ class DesktopPet(QWidget):
     def is_reminder_locked(self) -> bool:
         """
         Returns True if the cat is executing a centered ergonomic reminder sequence
-        (Stretch, Posture, Hydration, Break) or gliding across the screen.
-        Completely blocks typing, scrolling, hunting, and auto-wandering to avoid animation clashes.
+        to ensure critical health dialogs are shown clearly.
         """
-        return (
-            self._active_reminder_type is not None
-            or self._glide_timer.isActive()
-            or self.state in ["stretch", "drink_water"]
-        )
+        return self._active_reminder_type is not None
 
     def _update_physics_loop(self):
         if self.is_reminder_locked:
@@ -641,15 +657,18 @@ class DesktopPet(QWidget):
     # Global Input Reactions (Comnyang Phase 2 Features)
     # -------------------------------------------------------------
     def _on_global_typing_start(self):
-        """User started typing -> cat begins keyboard kneading (if not in a protected or AI session)."""
-        if self.is_reminder_locked or self.is_peeking or self.ai_watcher.is_active_ai_session:
+        """User started typing -> cat begins keyboard kneading, preserving active session/previous state."""
+        if self.is_reminder_locked:
             return
-        if self.state not in ["drag", "land", "pet", "overheat", "stretch", "drink_water", "celebrate", "thinking"]:
+        if self.state not in ["drag", "land", "pet", "overheat", "work"]:
+            self.pre_interruption_state = self.state
+            self.pre_interruption_ticks = self.state_ticks
+            self.pre_interruption_max_ticks = self.max_state_ticks
             self.is_hunting = False
             self.set_state("work")
 
     def _on_global_typing_stop(self):
-        """User stopped typing -> resume active state."""
+        """User stopped typing -> resume active/previous state."""
         if self.is_reminder_locked:
             return
         if self.state in ["work", "overheat"]:
@@ -657,9 +676,13 @@ class DesktopPet(QWidget):
 
     def _on_global_overheat_start(self):
         """Typing super fast -> Overheat mode with steam puffs!"""
-        if self.is_reminder_locked or self.is_peeking or self.ai_watcher.is_active_ai_session:
+        if self.is_reminder_locked:
             return
-        if self.state not in ["drag", "land", "pet", "stretch", "drink_water", "celebrate", "thinking"]:
+        if self.state not in ["drag", "land", "pet", "overheat"]:
+            if self.state != "work":
+                self.pre_interruption_state = self.state
+                self.pre_interruption_ticks = self.state_ticks
+                self.pre_interruption_max_ticks = self.max_state_ticks
             self.set_state("overheat")
             self._play_sound_blip(freq=1650, dur=55)
             if random.random() < 0.35:
@@ -676,19 +699,23 @@ class DesktopPet(QWidget):
         """
         Comnyang Feature #10: Paper Unroll!
         Spinning the paper roll with paws as user scrolls documents / pages.
-        Does not interrupt protected high-priority or active AI/Peek sessions.
+        Resumes previous active state (AI Thinking, Pomodoro, Peek, Stretch, etc.) once scrolling ends.
         """
-        if self.is_reminder_locked or self.pomodoro.is_active or self.is_peeking or self.ai_watcher.is_active_ai_session:
+        if self.is_reminder_locked:
             return
-        if self.state not in ["drag", "pet", "stretch", "drink_water", "celebrate", "thinking"]:
+        if self.state not in ["drag", "pet"]:
             if self.state != "paper_unroll":
+                if self.state not in ["work", "overheat"]:
+                    self.pre_interruption_state = self.state
+                    self.pre_interruption_ticks = self.state_ticks
+                    self.pre_interruption_max_ticks = self.max_state_ticks
                 self.set_state("paper_unroll")
             self.frame_index = (self.frame_index + 1) % 4
             self.update()
             self.scroll_reset_timer.start(400)
 
     def _on_scroll_timeout(self):
-        """Scroll stopped -> return to active state."""
+        """Scroll stopped -> return to active/previous state."""
         self._scroll_delta_accum = 0.0
         if self.state == "paper_unroll":
             self.resume_default_state()
