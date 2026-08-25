@@ -914,34 +914,17 @@ class DesktopPet(QWidget):
                 dist_bottom = (screen.bottom() - self.sprite_size) - self.pos_y_f
                 dist_top = self.pos_y_f - screen.top()
 
-                # If the cat was peeking before drag, snap to the edge closest to drop location
+                # If the cat was peeking before drag, snap cleanly to nearest screen edge (left, right, or bottom)
                 if getattr(self, "_was_peeking_before_drag", False):
-                    is_far_center = (
-                        dist_left > 220 and
-                        dist_right > 220 and
-                        dist_bottom > 180 and
-                        dist_top > 150
-                    )
-                    if is_far_center:
-                        # Dragged far into screen center -> naturally exit Peek Mode
-                        self.is_peeking = False
-                        self._auto_peeked = False
-                        self.settings["pos_x"] = int(self.pos_x_f)
-                        self.settings["pos_y"] = int(self.pos_y_f)
-                        save_settings(self.settings)
-                        self.set_state("land")
-                        self._play_sound_blip(freq=950, dur=50)
-                        QTimer.singleShot(350, self.resume_default_state)
+                    if self.pos_y_f >= screen.bottom() - self.sprite_size - 130 and (dist_bottom < min(dist_left, dist_right)):
+                        target_side = "bottom"
+                    elif self.pos_x_f >= mid_x:
+                        target_side = "right"
                     else:
-                        # Re-snap to nearest edge (left, right, or bottom)
-                        if dist_bottom < 90 and dist_bottom < min(dist_left, dist_right):
-                            target_side = "bottom"
-                        elif self.pos_x_f >= mid_x:
-                            target_side = "right"
-                        else:
-                            target_side = "left"
-                        self.enter_peek_mode(side=target_side, manual=False)
-                        self._play_sound_blip(freq=1350, dur=40)
+                        target_side = "left"
+
+                    self.enter_peek_mode(side=target_side, manual=False)
+                    self._play_sound_blip(freq=1350, dur=40)
                 else:
                     self.settings["pos_x"] = int(self.pos_x_f)
                     self.settings["pos_y"] = int(self.pos_y_f)
