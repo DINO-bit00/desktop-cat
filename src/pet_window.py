@@ -31,6 +31,7 @@ from src.pomodoro_badge import PomodoroBadge
 from src.pomodoro_dialog import CustomPomodoroDialog
 from src.sticky_note import StickyNote
 from src.alarm_dialog import CustomAlarmDialog
+from src.ai_watcher import AIAgentWatcher
 
 
 def set_win32_topmost(widget):
@@ -170,6 +171,11 @@ class DesktopPet(QWidget):
         # Local File Event Watcher
         self.watcher = LocalWatcher(self)
         self.watcher.event_received.connect(self._on_external_event)
+
+        # AI Agent Auto-Watcher (Comnyang AI auto-thinking & celebration)
+        self.ai_watcher = AIAgentWatcher(self.settings, parent=self)
+        self.ai_watcher.ai_thinking_started.connect(self._on_ai_thinking_started)
+        self.ai_watcher.ai_task_completed.connect(self._on_ai_task_completed)
 
         # Global Input Watcher (Comnyang-style cadence reaction to typing, overheat, and scrolling)
         self.input_watcher = GlobalInputWatcher(self)
@@ -1108,6 +1114,20 @@ class DesktopPet(QWidget):
         if message:
             self.say(message, duration * 1000)
 
+    def _on_ai_thinking_started(self, tool_name):
+        """Auto-triggered when an active AI coding tool starts generating / thinking."""
+        if self.is_reminder_locked or self.is_dragging:
+            return
+        if self.state not in ["drag", "land", "stretch", "drink_water"]:
+            self.trigger_thinking(duration=6, message=f"AI ({tool_name}) sedang berpikir nya~ 🧠💭")
+
+    def _on_ai_task_completed(self, tool_name):
+        """Auto-triggered when an active AI coding tool finishes generating / task complete."""
+        if self.is_reminder_locked or self.is_dragging:
+            return
+        if self.state not in ["drag", "land", "stretch", "drink_water"]:
+            self.trigger_celebrate(duration=4, message=f"YAY! {tool_name} selesai bekerja nya! 🎉✨")
+
     # -------------------------------------------------------------
     # Context Menu
     # -------------------------------------------------------------
@@ -1309,6 +1329,11 @@ class DesktopPet(QWidget):
         sound_act.setChecked(self.settings.get("sound_enabled", True))
         sound_act.triggered.connect(self._toggle_sound)
 
+        ai_act = menu.addAction("🤖 Deteksi AI Agent Otomatis (Auto AI Watcher)")
+        ai_act.setCheckable(True)
+        ai_act.setChecked(self.settings.get("ai_watcher_enabled", True))
+        ai_act.triggered.connect(self._toggle_ai_watcher)
+
         startup_act = menu.addAction("🚀 Jalankan saat Startup (Auto-Start)")
         startup_act.setCheckable(True)
         startup_act.setChecked(is_startup_enabled())
@@ -1367,7 +1392,7 @@ class DesktopPet(QWidget):
         self.show()
         if checked:
             set_win32_topmost(self)
-            self._topmost_timer.start(3000)
+            self._topmost_timer.start(1000)
         else:
             self._topmost_timer.stop()
             # Actively remove topmost using HWND_NOTOPMOST
@@ -1387,6 +1412,14 @@ class DesktopPet(QWidget):
     def _toggle_sound(self, checked):
         self.settings["sound_enabled"] = checked
         save_settings(self.settings)
+
+    def _toggle_ai_watcher(self, checked):
+        self.ai_watcher.set_enabled(checked)
+        save_settings(self.settings)
+        if checked:
+            self.say("Deteksi AI Agent diaktifkan nya! 🤖✨", 3500)
+        else:
+            self.say("Deteksi AI Agent dinonaktifkan nya! 🐾", 3000)
 
     def _toggle_startup(self, checked):
         success = set_startup_enabled(checked)
