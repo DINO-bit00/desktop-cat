@@ -29,137 +29,156 @@ def _synthesize_wav(samples: list, sample_rate: int = 22050) -> bytes:
     return buf.getvalue()
 
 
-def _generate_sound(sound_type: str, sample_rate: int = 22050) -> bytes:
-    """Procedurally synthesizes 8-bit retro sound waveforms."""
+def _generate_sound(sound_type: str, sample_rate: int = 44100) -> bytes:
+    """Procedurally synthesizes soft, sweet, kawaii feline vocalizations and pleasant UI chimes."""
     samples = []
 
     if sound_type == "meow_cute":
-        # Classic 8-bit Game Boy / NES kitten meow (pitch sweep with gentle vibrato)
-        dur = 0.28
+        # Sweet, high-pitch tiny kitten "Mew~!" (0.35s)
+        dur = 0.35
         total = int(sample_rate * dur)
         for i in range(total):
             t = i / sample_rate
             prog = i / total
-            if prog < 0.4:
-                freq = 650.0 + (1150.0 - 650.0) * (prog / 0.4)
+            if prog < 0.35:
+                f0 = 680.0 + (890.0 - 680.0) * math.sin((prog / 0.35) * (math.pi / 2.0))
             else:
-                freq = 1150.0 - (1150.0 - 750.0) * ((prog - 0.4) / 0.6)
-            freq += 35.0 * math.sin(2 * math.pi * 18.0 * t)
-            vol = (prog / 0.15) if prog < 0.15 else ((1.0 - prog) / 0.3 if prog > 0.7 else 1.0)
-            phase = (t * freq) % 1.0
-            val = 0.75 if phase < 0.25 else -0.75  # 25% duty cycle pulse wave
-            samples.append(val * vol * 0.55 * 32767)
+                f0 = 890.0 - (890.0 - 720.0) * ((prog - 0.35) / 0.65) ** 1.3
+            f0 += 12.0 * math.sin(2.0 * math.pi * 7.5 * t)
+            vol = (prog / 0.12) ** 2.0 if prog < 0.12 else (((1.0 - prog) / 0.35) ** 1.8 if prog > 0.65 else 1.0)
+            
+            s = 0.65 * math.sin(2.0 * math.pi * f0 * t)
+            s += 0.28 * math.sin(2.0 * math.pi * (f0 * 2.0) * t + 0.3)
+            s += 0.12 * math.sin(2.0 * math.pi * (f0 * 3.0) * t + 0.6)
+            s += 0.05 * math.sin(2.0 * math.pi * (f0 * 4.0) * t + 0.9)
+            s *= (1.0 + 0.08 * math.sin(2.0 * math.pi * 32.0 * t))
+            samples.append(s * vol * 0.42 * 32767)
 
     elif sound_type == "meow_happy":
-        # Cheerful 3-note ascending arpeggio chirp (B5 -> E6 -> A6)
-        notes = [(987.77, 0.075), (1318.51, 0.085), (1760.00, 0.14)]
-        for freq, dur in notes:
-            n_samples = int(sample_rate * dur)
-            for i in range(n_samples):
-                t = i / sample_rate
-                prog = i / n_samples
-                vol = (1.0 - prog * 0.7) * min(1.0, prog * 8.0)
-                phase = (t * freq) % 1.0
-                val = 0.8 if phase < 0.5 else -0.8
-                samples.append(val * vol * 0.5 * 32767)
-
-    elif sound_type == "meow_boss":
-        # Deep, cool 8-bit chirp tailored for Boss Oyen (triangle/square blend)
-        dur = 0.26
-        total = int(sample_rate * dur)
-        for i in range(total):
-            t = i / sample_rate
-            prog = i / total
-            freq = 430.0 + 310.0 * math.sin(math.pi * prog)
-            vol = 1.0 - prog * 0.75
-            phase = (t * freq) % 1.0
-            val = (2.0 * phase - 1.0) if phase < 0.5 else (1.0 - 2.0 * (phase - 0.5))
-            samples.append(val * vol * 0.6 * 32767)
-
-    elif sound_type == "meow_chibi":
-        # High squeaky tiny kitten chirp for Mochi / Snowball
-        dur = 0.18
-        total = int(sample_rate * dur)
-        for i in range(total):
-            t = i / sample_rate
-            prog = i / total
-            freq = 1350.0 + 900.0 * prog - 400.0 * (prog ** 2)
-            vol = (1.0 - prog) * min(1.0, prog * 10.0)
-            phase = (t * freq) % 1.0
-            val = 0.7 if phase < 0.3 else -0.7
-            samples.append(val * vol * 0.5 * 32767)
-
-    elif sound_type == "purr":
-        # Soothing low-frequency purr rumble for petting
+        # Cheerful, melodic "Nyaa~!" (0.42s)
         dur = 0.42
         total = int(sample_rate * dur)
         for i in range(total):
             t = i / sample_rate
-            base = math.sin(2 * math.pi * 92.0 * t)
-            mod = 0.5 + 0.5 * math.sin(2 * math.pi * 22.0 * t)
-            samples.append(base * mod * 0.45 * 32767)
-
-    elif sound_type == "celebrate":
-        # Ascending 4-note victory sparkle chime (C6, E6, G6, C7)
-        chime_notes = [(1046.50, 0.07), (1318.51, 0.07), (1567.98, 0.08), (2093.00, 0.24)]
-        for freq, dur in chime_notes:
-            n_samples = int(sample_rate * dur)
-            for i in range(n_samples):
-                t = i / sample_rate
-                prog = i / n_samples
-                vol = (1.0 - prog * 0.6) * min(1.0, prog * 12.0)
-                phase = (t * freq) % 1.0
-                val = 0.75 if phase < 0.5 else -0.75
-                val += 0.35 * math.sin(2 * math.pi * (freq * 2.0) * t)
-                samples.append(val * vol * 0.45 * 32767)
-
-    elif sound_type == "pop":
-        # Short bubbly pop for bubble dialogues & peek mode
-        dur = 0.06
-        total = int(sample_rate * dur)
-        for i in range(total):
-            t = i / sample_rate
             prog = i / total
-            freq = 400.0 + 1600.0 * (1.0 - prog)
-            vol = (1.0 - prog) ** 2
-            val = math.sin(2 * math.pi * freq * t)
-            samples.append(val * vol * 0.65 * 32767)
+            if prog < 0.25:
+                f0 = 560.0 + 260.0 * (prog / 0.25)
+            elif prog < 0.6:
+                f0 = 820.0 - 60.0 * ((prog - 0.25) / 0.35)
+            else:
+                f0 = 760.0 - 120.0 * ((prog - 0.6) / 0.4) ** 1.2
+            f0 += 15.0 * math.sin(2.0 * math.pi * 6.8 * t)
+            vol = (prog / 0.08) if prog < 0.08 else (((1.0 - prog) / 0.3) ** 1.5 if prog > 0.7 else 1.0)
+            
+            s = 0.60 * math.sin(2.0 * math.pi * f0 * t)
+            s += 0.25 * math.sin(2.0 * math.pi * (f0 * 2.0) * t)
+            s += 0.14 * math.sin(2.0 * math.pi * (f0 * 3.0) * t)
+            s += 0.06 * math.sin(2.0 * math.pi * (f0 * 4.0) * t)
+            samples.append(s * vol * 0.40 * 32767)
 
-    elif sound_type == "water":
-        # Upward bubbly splash for hydration reminder
+    elif sound_type == "meow_boss":
+        # Cool, mellow, low gentle purr-meow for Boss Oyen (0.32s)
         dur = 0.32
         total = int(sample_rate * dur)
         for i in range(total):
             t = i / sample_rate
             prog = i / total
-            freq = 500.0 + 900.0 * prog + 80.0 * math.sin(2 * math.pi * 30.0 * t)
+            f0 = 360.0 + 140.0 * math.sin(math.pi * prog)
+            f0 += 8.0 * math.sin(2.0 * math.pi * 5.0 * t)
+            vol = math.sin(math.pi * prog) ** 1.2
+            
+            s = 0.70 * math.sin(2.0 * math.pi * f0 * t)
+            s += 0.22 * math.sin(2.0 * math.pi * (f0 * 2.0) * t)
+            s += 0.08 * math.sin(2.0 * math.pi * (f0 * 3.0) * t)
+            samples.append(s * vol * 0.45 * 32767)
+
+    elif sound_type == "meow_chibi":
+        # Ultra tiny soft high squeak kitten mew for Mochi / Snowball (0.22s)
+        dur = 0.22
+        total = int(sample_rate * dur)
+        for i in range(total):
+            t = i / sample_rate
+            prog = i / total
+            f0 = 850.0 + 350.0 * math.sin(math.pi * prog) - 50.0 * prog
+            vol = math.sin(math.pi * prog) ** 1.4
+            
+            s = 0.75 * math.sin(2.0 * math.pi * f0 * t)
+            s += 0.20 * math.sin(2.0 * math.pi * (f0 * 2.0) * t)
+            s += 0.05 * math.sin(2.0 * math.pi * (f0 * 3.0) * t)
+            samples.append(s * vol * 0.38 * 32767)
+
+    elif sound_type == "purr":
+        # Real soothing low-frequency purr vibration (0.55s)
+        dur = 0.55
+        total = int(sample_rate * dur)
+        for i in range(total):
+            t = i / sample_rate
+            f0 = 75.0 + 10.0 * math.sin(2.0 * math.pi * 3.0 * t)
+            vol = math.sin(math.pi * (i / total)) ** 0.8
+            flutter = 0.5 + 0.5 * math.sin(2.0 * math.pi * 25.0 * t)
+            s = math.sin(2.0 * math.pi * f0 * t) * flutter + 0.3 * math.sin(2.0 * math.pi * (f0 * 2.0) * t) * flutter
+            samples.append(s * vol * 0.35 * 32767)
+
+    elif sound_type == "celebrate":
+        # Gentle celesta chime arpeggio for victory/celebration
+        notes = [(1046.50, 0.08), (1318.51, 0.08), (1567.98, 0.09), (2093.00, 0.28)]
+        for freq, d in notes:
+            n_samples = int(sample_rate * d)
+            for j in range(n_samples):
+                t = j / sample_rate
+                prog = j / n_samples
+                vol = math.exp(-4.5 * prog)
+                s = math.sin(2.0 * math.pi * freq * t) + 0.25 * math.sin(2.0 * math.pi * (freq * 2.0) * t)
+                samples.append(s * vol * 0.35 * 32767)
+
+    elif sound_type == "pop":
+        # Ultra soft wooden drop / bubble pop
+        dur = 0.05
+        total = int(sample_rate * dur)
+        for i in range(total):
+            t = i / sample_rate
+            prog = i / total
+            f0 = 800.0 * (1.0 - 0.6 * prog)
+            vol = math.exp(-12.0 * prog)
+            s = math.sin(2.0 * math.pi * f0 * t)
+            samples.append(s * vol * 0.38 * 32767)
+
+    elif sound_type == "water":
+        # Gentle bubbling splash for hydration reminder
+        dur = 0.32
+        total = int(sample_rate * dur)
+        for i in range(total):
+            t = i / sample_rate
+            prog = i / total
+            f0 = 450.0 + 350.0 * prog + 40.0 * math.sin(2.0 * math.pi * 18.0 * t)
             vol = math.sin(math.pi * prog)
-            val = math.sin(2 * math.pi * freq * t)
-            samples.append(val * vol * 0.5 * 32767)
+            s = math.sin(2.0 * math.pi * f0 * t)
+            samples.append(s * vol * 0.35 * 32767)
 
     elif sound_type == "stretch":
-        # Cute sleepy stretch yawn sweep (descending then rising)
+        # Cute sleepy stretch yawn vocalization
         dur = 0.38
         total = int(sample_rate * dur)
         for i in range(total):
             t = i / sample_rate
             prog = i / total
             if prog < 0.5:
-                freq = 780.0 - 280.0 * (prog / 0.5)
+                f0 = 620.0 - 180.0 * (prog / 0.5)
             else:
-                freq = 500.0 + 450.0 * ((prog - 0.5) / 0.5)
-            vol = math.sin(math.pi * prog)
-            phase = (t * freq) % 1.0
-            val = (2.0 * phase - 1.0) if phase < 0.5 else (1.0 - 2.0 * (phase - 0.5))
-            samples.append(val * vol * 0.5 * 32767)
+                f0 = 440.0 + 260.0 * ((prog - 0.5) / 0.5)
+            vol = math.sin(math.pi * prog) ** 1.2
+            s = 0.70 * math.sin(2.0 * math.pi * f0 * t) + 0.25 * math.sin(2.0 * math.pi * (f0 * 2.0) * t)
+            samples.append(s * vol * 0.38 * 32767)
 
     else:
-        # Default simple blip
-        dur = 0.05
+        # Default simple soft blip
+        dur = 0.04
         total = int(sample_rate * dur)
         for i in range(total):
             t = i / sample_rate
-            samples.append(math.sin(2 * math.pi * 1200.0 * t) * 0.4 * 32767)
+            prog = i / total
+            vol = math.exp(-15.0 * prog)
+            samples.append(math.sin(2.0 * math.pi * 950.0 * t) * vol * 0.35 * 32767)
 
     return _synthesize_wav(samples, sample_rate)
 
