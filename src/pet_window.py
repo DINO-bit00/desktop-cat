@@ -1123,13 +1123,14 @@ class DesktopPet(QWidget):
             if message:
                 self.say(message, duration * 1000)
 
-    def trigger_thinking(self, duration=5, message=None):
+    def trigger_thinking(self, duration=None, message=None):
         """AI Agent Thinking reaction: curious head tilt + animated floating thought cloud."""
         self.set_state("thinking", duration_seconds=duration)
         self._play_sound_blip(freq=1250, dur=40)
         QTimer.singleShot(80, lambda: self._play_sound_blip(freq=1450, dur=60))
         if message:
-            self.say(message, duration * 1000)
+            dur_ms = int(duration * 1000) if duration else 4000
+            self.say(message, dur_ms)
 
     def trigger_celebrate(self, duration=4, message=None):
         """AI Agent Done / Celebrate Jump reaction: 4-frame victory jump with stars & celebratory chime."""
@@ -1145,7 +1146,8 @@ class DesktopPet(QWidget):
         if self.is_reminder_locked or self.is_dragging:
             return
         if self.state not in ["drag", "land", "stretch", "drink_water"]:
-            self.trigger_thinking(duration=6, message=f"AI ({tool_name}) sedang berpikir nya~ 🧠💭")
+            # Persistent thinking state until AI task completed signal arrives
+            self.trigger_thinking(duration=None, message=f"AI ({tool_name}) sedang berpikir nya~ 🧠💭")
 
     def _on_ai_task_completed(self, tool_name):
         """Auto-triggered when an active AI coding tool finishes generating / task complete."""
