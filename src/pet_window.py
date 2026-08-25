@@ -457,7 +457,7 @@ class DesktopPet(QWidget):
         self.update()
 
     def get_default_resume_state(self) -> str:
-        """Returns the appropriate state to return to after temporary interruptions."""
+        """Returns the appropriate resting state to return to after temporary interruptions."""
         # 1. Active AI Thinking session takes top priority
         if hasattr(self, "ai_watcher") and self.ai_watcher.is_active_ai_session:
             return "thinking"
@@ -469,9 +469,9 @@ class DesktopPet(QWidget):
         # 3. Active Screen Edge Peek mode
         if hasattr(self, "is_peeking") and self.is_peeking:
             return f"peek_{self.peek_side}"
-        # 4. Previous active feature before interruption (stretch, drink_water, sleep, celebrate)
-        if hasattr(self, "pre_interruption_state") and self.pre_interruption_state not in [
-            "work", "overheat", "paper_unroll", "drag", "land", "hunt"
+        # 4. Long-running persistent activities (stretch, drink_water, sleep)
+        if hasattr(self, "pre_interruption_state") and self.pre_interruption_state in [
+            "stretch", "drink_water", "sleep"
         ]:
             return self.pre_interruption_state
         return "idle"
@@ -662,9 +662,12 @@ class DesktopPet(QWidget):
         if self.is_reminder_locked:
             return
         if self.state not in ["drag", "land", "pet", "overheat", "work"]:
-            self.pre_interruption_state = self.state
-            self.pre_interruption_ticks = self.state_ticks
-            self.pre_interruption_max_ticks = self.max_state_ticks
+            if self.state in ["stretch", "drink_water", "sleep"]:
+                self.pre_interruption_state = self.state
+                self.pre_interruption_ticks = self.state_ticks
+                self.pre_interruption_max_ticks = self.max_state_ticks
+            else:
+                self.pre_interruption_state = "idle"
             self.is_hunting = False
             self.set_state("work")
 
@@ -681,9 +684,12 @@ class DesktopPet(QWidget):
             return
         if self.state not in ["drag", "land", "pet", "overheat"]:
             if self.state != "work":
-                self.pre_interruption_state = self.state
-                self.pre_interruption_ticks = self.state_ticks
-                self.pre_interruption_max_ticks = self.max_state_ticks
+                if self.state in ["stretch", "drink_water", "sleep"]:
+                    self.pre_interruption_state = self.state
+                    self.pre_interruption_ticks = self.state_ticks
+                    self.pre_interruption_max_ticks = self.max_state_ticks
+                else:
+                    self.pre_interruption_state = "idle"
             self.set_state("overheat")
             self._play_sound_blip(freq=1650, dur=55)
             if random.random() < 0.35:
@@ -707,9 +713,12 @@ class DesktopPet(QWidget):
         if self.state not in ["drag", "pet"]:
             if self.state != "paper_unroll":
                 if self.state not in ["work", "overheat"]:
-                    self.pre_interruption_state = self.state
-                    self.pre_interruption_ticks = self.state_ticks
-                    self.pre_interruption_max_ticks = self.max_state_ticks
+                    if self.state in ["stretch", "drink_water", "sleep"]:
+                        self.pre_interruption_state = self.state
+                        self.pre_interruption_ticks = self.state_ticks
+                        self.pre_interruption_max_ticks = self.max_state_ticks
+                    else:
+                        self.pre_interruption_state = "idle"
                 self.set_state("paper_unroll")
             self.frame_index = (self.frame_index + 1) % 4
             self.update()
