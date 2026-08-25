@@ -1564,11 +1564,11 @@ class DesktopPet(QWidget):
         auto_peek_act.setChecked(self.settings.get("auto_peek_fullscreen", True))
         auto_peek_act.triggered.connect(self._toggle_auto_peek_fullscreen)
 
-        # 8. 8-Bit Meow & Sound FX Test Submenu
-        sound_menu = menu.addMenu("🔊 Uji Suara Meong (8-Bit)")
-        sound_menu.addAction("🐱 Meow Klasik (Cute)", lambda: self._test_sound("meow_cute"))
-        sound_menu.addAction("😸 Meow Ceria (Happy)", lambda: self._test_sound("meow_happy"))
-        sound_menu.addAction("😎 Meow Boss Oyen", lambda: self._test_sound("meow_boss"))
+        # 8. Real Cat Meow & Sound FX Test Submenu
+        sound_menu = menu.addMenu("🔊 Uji Suara Meong (Kucing Asli)")
+        sound_menu.addAction("🐱 Meow Lembut Manis (Cute)", lambda: self._test_sound("meow_cute"))
+        sound_menu.addAction("😸 Meow Ceria Nyaring (Happy)", lambda: self._test_sound("meow_happy"))
+        sound_menu.addAction("😎 Meow Boss Oyen (Deep Meow)", lambda: self._test_sound("meow_boss"))
         sound_menu.addAction("🐾 Meow Kitten Chibi (Mochi)", lambda: self._test_sound("meow_chibi"))
         sound_menu.addAction("❤️ Dengkuran Purr (Petting)", lambda: self._test_sound("purr"))
         sound_menu.addAction("✨ Selebrasi Kemenangan (Sparkle)", lambda: self._test_sound("celebrate"))
@@ -1602,7 +1602,7 @@ class DesktopPet(QWidget):
         ontop_act.setChecked(self.settings.get("stay_on_top", True))
         ontop_act.triggered.connect(self._toggle_stay_on_top)
 
-        sound_act = menu.addAction("🔔 Suara Efek 8-Bit")
+        sound_act = menu.addAction("🔔 Suara Efek & Meong Kucing")
         sound_act.setCheckable(True)
         sound_act.setChecked(self.settings.get("sound_enabled", True))
         sound_act.triggered.connect(self._toggle_sound)
@@ -1691,7 +1691,7 @@ class DesktopPet(QWidget):
         if not self.settings.get("sound_enabled", True):
             self.settings["sound_enabled"] = True
             save_settings(self.settings)
-            self.say("Suara 8-Bit diaktifkan nya! 🔊🐾", 2000)
+            self.say("Suara Kucing diaktifkan nya! 🔊🐾", 2000)
         audio.play_sound(sound_type, self.settings, force=True)
 
     def _toggle_sound(self, checked):
@@ -1699,7 +1699,7 @@ class DesktopPet(QWidget):
         save_settings(self.settings)
         if checked:
             audio.play_sound("meow_cute", self.settings, force=True)
-            self.say("Suara 8-Bit diaktifkan nya! 🔊🐾", 3000)
+            self.say("Suara Kucing diaktifkan nya! 🔊🐾", 3000)
         else:
             self.say("Suara dimatikan nya! 🔇🐾", 3000)
 

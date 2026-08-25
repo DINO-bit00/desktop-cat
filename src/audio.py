@@ -190,7 +190,7 @@ _SOUND_FILES: Dict[str, str] = {}
 
 
 def init_audio():
-    """Pre-caches all standard sound effects in memory and generates local WAV files for instant async playback."""
+    """Pre-caches all standard sound effects in memory and maps local WAV files for instant async playback."""
     global _INITIALIZED
     if _INITIALIZED:
         return
@@ -206,10 +206,20 @@ def init_audio():
         "purr", "celebrate", "pop", "water", "stretch", "blip"
     ]
     for p in presets:
+        file_path = os.path.join(sound_dir, f"{p}.wav")
+        if os.path.exists(file_path):
+            # Load authentic recorded WAV file
+            try:
+                with open(file_path, "rb") as f:
+                    _AUDIO_CACHE[p] = f.read()
+                _SOUND_FILES[p] = file_path
+                continue
+            except Exception:
+                pass
+                
+        # Generate procedural audio if file not found
         wav_data = _generate_sound(p)
         _AUDIO_CACHE[p] = wav_data
-        
-        file_path = os.path.join(sound_dir, f"{p}.wav")
         try:
             with open(file_path, "wb") as f:
                 f.write(wav_data)
