@@ -417,6 +417,8 @@ class DesktopPet(QWidget):
     def set_state(self, new_state, duration_seconds=None):
         if new_state == "walk":
             new_state = "walk_right"
+        elif new_state == "jump":
+            new_state = "celebrate"
         if new_state not in ("hunt", "alert"):
             self._ensure_state_frames(new_state)
         self.state = new_state
@@ -697,6 +699,33 @@ class DesktopPet(QWidget):
             ox = (self.sprite_size - w) // 2
             oy = self.sprite_size - h
             painter.drawPixmap(ox, oy, w, h, pixmap)
+
+        elif self.state in ["celebrate", "jump"]:
+            fi = self.frame_index % 4
+            if fi == 0:
+                # Squash prep
+                w = int(self.sprite_size * 1.06)
+                h = int(self.sprite_size * 0.92)
+                ox = (self.sprite_size - w) // 2
+                oy = self.sprite_size - h
+                painter.drawPixmap(ox, oy, w, h, pixmap)
+            elif fi == 1:
+                # Upward launch stretch
+                w = int(self.sprite_size * 0.94)
+                h = int(self.sprite_size * 1.06)
+                ox = (self.sprite_size - w) // 2
+                oy = int(-self.sprite_size * 0.08)
+                painter.drawPixmap(ox, oy, w, h, pixmap)
+            elif fi == 2:
+                # High apex jump in air
+                ox = 0
+                oy = int(-self.sprite_size * 0.14)
+                painter.drawPixmap(ox, oy, self.sprite_size, self.sprite_size, pixmap)
+            else:
+                # Soft descent
+                ox = 0
+                oy = int(-self.sprite_size * 0.04)
+                painter.drawPixmap(ox, oy, self.sprite_size, self.sprite_size, pixmap)
 
         else:
             painter.drawPixmap(0, 0, self.sprite_size, self.sprite_size, pixmap)
@@ -1054,6 +1083,8 @@ class DesktopPet(QWidget):
 
         if state == "thinking":
             self.trigger_thinking(duration=duration, message=message)
+        elif state in ["celebrate", "jump"]:
+            self.trigger_celebrate(duration=duration, message=message)
         else:
             if state:
                 self.set_state(state, duration_seconds=duration)
@@ -1065,6 +1096,15 @@ class DesktopPet(QWidget):
         self.set_state("thinking", duration_seconds=duration)
         self._play_sound_blip(freq=1250, dur=40)
         QTimer.singleShot(80, lambda: self._play_sound_blip(freq=1450, dur=60))
+        if message:
+            self.say(message, duration * 1000)
+
+    def trigger_celebrate(self, duration=4, message=None):
+        """AI Agent Done / Celebrate Jump reaction: 4-frame victory jump with stars & celebratory chime."""
+        self.set_state("celebrate", duration_seconds=duration)
+        self._play_sound_blip(freq=1200, dur=40)
+        QTimer.singleShot(70, lambda: self._play_sound_blip(freq=1450, dur=50))
+        QTimer.singleShot(140, lambda: self._play_sound_blip(freq=1800, dur=75))
         if message:
             self.say(message, duration * 1000)
 
@@ -1230,7 +1270,7 @@ class DesktopPet(QWidget):
         act_menu.addAction("🔥 Mode Overheat (Steam)", lambda: self.set_state("overheat", 5))
         act_menu.addAction("📜 Gelar Kertas (Paper Unroll)", lambda: self.set_state("paper_unroll", 4))
         act_menu.addAction("😴 Tidur (Sleep)", lambda: self.set_state("sleep"))
-        act_menu.addAction("🎉 Melompat Senang (Jump)", lambda: self.set_state("celebrate", 4))
+        act_menu.addAction("🎉 Melompat Senang (AI Done Jump)", lambda: self.trigger_celebrate(duration=4, message="Tugas selesai dengan sukses nya! 🎉✨"))
         act_menu.addAction("🧘 Regangkan Badan (Stretch)", lambda: self.trigger_stretch(auto=False))
         act_menu.addAction("💧 Minum Air (Drink Water)", lambda: self.trigger_drink_water(auto=False))
         act_menu.addAction("🌟 Paket Sehat (Regang + Minum)", self.trigger_combo_routine)

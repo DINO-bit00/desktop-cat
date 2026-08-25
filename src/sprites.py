@@ -714,37 +714,177 @@ def _draw_mochi_drag(p: dict, frame_idx: int) -> Image.Image:
     return img
 
 
-# ─── 9. CELEBRATE / JUMP ───────────────────────────────────────────────────
+# ─── 9. CELEBRATE / JUMP / AI AGENT DONE ──────────────────────────────────
 def _draw_celebrate_jump(p: dict, frame_idx: int) -> Image.Image:
-    """Jumping high in the air with open paws and star sparkles."""
+    """
+    Dynamic 4-frame jumping celebrate animation:
+    Frame 0: Crouch & squash prep.
+    Frame 1: Upward launch stretch with sparkling particles.
+    Frame 2: High apex victory pose with big sparkling stars & cheerful blush.
+    Frame 3: Soft graceful descent landing.
+    """
     img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
 
     O = p["fur_main"]
+    S = p["fur_shade"]
     W = p["fur_belly"]
+    E = p["inner_ear"]
     K = p["outline"]
 
-    d.ellipse([8, 5, 23, 18], fill=O, outline=K)
-    d.polygon([(8, 5), (8, 1), (12, 5)], fill=O, outline=K)
-    d.polygon([(19, 5), (23, 1), (23, 5)], fill=O, outline=K)
+    fi = frame_idx % 4
 
-    d.line([(10, 9), (12, 11), (14, 9)], fill=K, width=2)
-    d.line([(17, 9), (19, 11), (21, 9)], fill=K, width=2)
+    # Star & sparkle colors
+    star_gold = (255, 220, 50, 255)
+    star_pink = (255, 150, 180, 255)
+    star_cyan = (130, 220, 255, 255)
 
-    d.ellipse([12, 12, 19, 16], fill=W)
-    img.putpixel((15, 14), (240, 70, 90, 255))
+    if fi == 0:
+        # ── Frame 0: Crouch & Prep (Squash) ──
+        d.ellipse([6, 17, 26, 28], fill=O, outline=K)
+        d.ellipse([10, 18, 22, 26], fill=W)
+        d.rectangle([7, 26, 12, 29], fill=W, outline=K)
+        d.rectangle([20, 26, 25, 29], fill=W, outline=K)
 
-    d.ellipse([9, 16, 22, 24], fill=O, outline=K)
-    d.rectangle([4, 11, 8, 15], fill=W, outline=K)
-    d.rectangle([23, 11, 27, 15], fill=W, outline=K)
-    d.rectangle([8, 24, 12, 27], fill=W, outline=K)
-    d.rectangle([19, 24, 23, 27], fill=W, outline=K)
+        d.line([(6, 23), (3, 22), (2, 19), (4, 17)], fill=K, width=3)
+        d.line([(6, 23), (3, 22), (2, 19), (4, 17)], fill=O, width=1)
 
-    star_col = (255, 225, 50, 255)
-    d.line([(3, 4), (5, 4)], fill=star_col)
-    d.line([(4, 3), (4, 5)], fill=star_col)
-    d.line([(26, 5), (28, 5)], fill=star_col)
-    d.line([(27, 4), (27, 6)], fill=star_col)
+        d.ellipse([7, 10, 25, 20], fill=O, outline=K)
+        d.polygon([(8, 10), (7, 5), (12, 10)], fill=O, outline=K)
+        d.polygon([(8, 9), (8, 6), (11, 9)], fill=E)
+        d.polygon([(20, 10), (25, 5), (24, 10)], fill=O, outline=K)
+        d.polygon([(21, 9), (24, 6), (24, 9)], fill=E)
+
+        if p.get("has_shades", False):
+            d.rectangle([9, 12, 23, 15], fill=(20, 20, 26, 255), outline=K)
+            img.putpixel((11, 13), (255, 255, 255, 255))
+            img.putpixel((18, 13), (255, 255, 255, 255))
+        else:
+            d.line([(10, 13), (12, 12), (14, 13)], fill=K, width=2)
+            d.line([(18, 13), (20, 12), (22, 13)], fill=K, width=2)
+
+        d.ellipse([11, 14, 16, 17], fill=W)
+        d.ellipse([16, 14, 21, 17], fill=W)
+        img.putpixel((16, 14), (240, 70, 90, 255))
+
+        img.putpixel((5, 28), (200, 200, 210, 255))
+        img.putpixel((27, 28), (200, 200, 210, 255))
+
+    elif fi == 1:
+        # ── Frame 1: Launch Upward (Stretch) ──
+        d.ellipse([9, 10, 23, 23], fill=O, outline=K)
+        d.ellipse([12, 11, 20, 20], fill=W)
+
+        d.line([(16, 23), (16, 28), (17, 30)], fill=K, width=3)
+        d.line([(16, 23), (16, 28), (17, 30)], fill=O, width=1)
+
+        d.rectangle([10, 23, 13, 27], fill=W, outline=K)
+        d.rectangle([19, 23, 22, 27], fill=W, outline=K)
+
+        d.ellipse([7, 3, 25, 13], fill=O, outline=K)
+        d.polygon([(8, 3), (7, 0), (12, 3)], fill=O, outline=K)
+        d.polygon([(8, 2), (8, 0), (11, 2)], fill=E)
+        d.polygon([(20, 3), (25, 0), (24, 3)], fill=O, outline=K)
+        d.polygon([(21, 2), (24, 0), (24, 2)], fill=E)
+
+        d.rectangle([5, 8, 8, 12], fill=W, outline=K)
+        d.rectangle([24, 8, 27, 12], fill=W, outline=K)
+
+        if p.get("has_shades", False):
+            d.rectangle([9, 5, 23, 8], fill=(20, 20, 26, 255), outline=K)
+            img.putpixel((11, 6), (255, 255, 255, 255))
+            img.putpixel((18, 6), (255, 255, 255, 255))
+        else:
+            d.ellipse([10, 5, 13, 8], fill=(255, 255, 255, 255), outline=K)
+            d.ellipse([19, 5, 22, 8], fill=(255, 255, 255, 255), outline=K)
+            img.putpixel((11, 6), (20, 20, 20, 255))
+            img.putpixel((20, 6), (20, 20, 20, 255))
+
+        d.ellipse([11, 7, 16, 10], fill=W)
+        d.ellipse([16, 7, 21, 10], fill=W)
+        img.putpixel((16, 7), (240, 70, 90, 255))
+        img.putpixel((16, 9), (230, 40, 60, 255))
+
+        img.putpixel((3, 6), star_gold)
+        img.putpixel((28, 6), star_cyan)
+
+    elif fi == 2:
+        # ── Frame 2: Apex High Celebrate (Paws Spread & Big Stars) ──
+        d.ellipse([8, 8, 24, 20], fill=O, outline=K)
+        d.ellipse([11, 9, 21, 18], fill=W)
+
+        d.rectangle([3, 4, 7, 8], fill=W, outline=K)
+        d.rectangle([25, 4, 29, 8], fill=W, outline=K)
+
+        d.rectangle([9, 20, 13, 24], fill=W, outline=K)
+        d.rectangle([19, 20, 23, 24], fill=W, outline=K)
+
+        d.line([(16, 20), (13, 23), (12, 26), (14, 28)], fill=K, width=3)
+        d.line([(16, 20), (13, 23), (12, 26), (14, 28)], fill=O, width=1)
+
+        d.ellipse([7, 2, 25, 12], fill=O, outline=K)
+        d.polygon([(8, 2), (7, 0), (12, 2)], fill=O, outline=K)
+        d.polygon([(8, 1), (8, 0), (11, 1)], fill=E)
+        d.polygon([(20, 2), (25, 0), (24, 2)], fill=O, outline=K)
+        d.polygon([(21, 1), (24, 0), (24, 1)], fill=E)
+
+        if p.get("has_shades", False):
+            d.rectangle([9, 4, 23, 7], fill=(20, 20, 26, 255), outline=K)
+            img.putpixel((11, 5), (255, 255, 255, 255))
+            img.putpixel((18, 5), (255, 255, 255, 255))
+        else:
+            d.line([(10, 5), (12, 4), (14, 5)], fill=K, width=2)
+            d.line([(18, 5), (20, 4), (22, 5)], fill=K, width=2)
+
+        d.ellipse([11, 6, 16, 9], fill=W)
+        d.ellipse([16, 6, 21, 9], fill=W)
+        img.putpixel((16, 6), (240, 70, 90, 255))
+        d.ellipse([14, 8, 18, 11], fill=(235, 45, 75, 255))
+
+        img.putpixel((8, 8), (255, 160, 180, 255))
+        img.putpixel((24, 8), (255, 160, 180, 255))
+
+        d.line([(1, 3), (3, 3)], fill=star_gold)
+        d.line([(2, 2), (2, 4)], fill=star_gold)
+        img.putpixel((2, 3), (255, 255, 255, 255))
+
+        d.line([(28, 3), (30, 3)], fill=star_gold)
+        d.line([(29, 2), (29, 4)], fill=star_gold)
+        img.putpixel((29, 3), (255, 255, 255, 255))
+
+        img.putpixel((6, 0), star_pink)
+        img.putpixel((26, 0), star_cyan)
+
+    else:
+        # ── Frame 3: Soft Glide Landing ──
+        d.ellipse([8, 12, 24, 23], fill=O, outline=K)
+        d.ellipse([11, 13, 21, 21], fill=W)
+
+        d.rectangle([5, 14, 9, 18], fill=W, outline=K)
+        d.rectangle([23, 14, 27, 18], fill=W, outline=K)
+        d.rectangle([8, 22, 12, 26], fill=W, outline=K)
+        d.rectangle([20, 22, 24, 26], fill=W, outline=K)
+
+        d.ellipse([7, 5, 25, 15], fill=O, outline=K)
+        d.polygon([(8, 5), (7, 1), (12, 5)], fill=O, outline=K)
+        d.polygon([(8, 4), (8, 2), (11, 4)], fill=E)
+        d.polygon([(20, 5), (25, 1), (24, 5)], fill=O, outline=K)
+        d.polygon([(21, 4), (24, 2), (24, 4)], fill=E)
+
+        if p.get("has_shades", False):
+            d.rectangle([9, 7, 23, 10], fill=(20, 20, 26, 255), outline=K)
+            img.putpixel((11, 8), (255, 255, 255, 255))
+            img.putpixel((18, 8), (255, 255, 255, 255))
+        else:
+            d.line([(10, 8), (12, 7), (14, 8)], fill=K, width=2)
+            d.line([(18, 8), (20, 7), (22, 8)], fill=K, width=2)
+
+        d.ellipse([11, 9, 16, 12], fill=W)
+        d.ellipse([16, 9, 21, 12], fill=W)
+        img.putpixel((16, 9), (240, 70, 90, 255))
+
+        img.putpixel((2, 10), star_cyan)
+        img.putpixel((30, 10), star_pink)
 
     return img
 
