@@ -218,7 +218,7 @@ class DesktopPet(QWidget):
         self._fullscreen_timer = QTimer(self)
         self._fullscreen_timer.timeout.connect(self._check_fullscreen_activity)
         if self.settings.get("auto_peek_fullscreen", True):
-            self._fullscreen_timer.start(1200)
+            self._fullscreen_timer.start(350)
 
         # Position on screen
         self._snap_to_initial_position()
@@ -1220,12 +1220,14 @@ class DesktopPet(QWidget):
             return
 
         is_fs = self._is_active_window_fullscreen()
-        if is_fs and not self.is_peeking:
-            self._auto_peeked = True
-            self.enter_peek_mode(side="right", manual=False)
-        elif not is_fs and self.is_peeking and self._auto_peeked:
-            self._auto_peeked = False
-            self.exit_peek_mode(manual=False)
+        if is_fs:
+            if not self.is_peeking:
+                self._auto_peeked = True
+                self.enter_peek_mode(side="right", manual=False)
+        else:
+            if self.is_peeking and self._auto_peeked:
+                self._auto_peeked = False
+                self.exit_peek_mode(manual=False)
 
     def _is_active_window_fullscreen(self) -> bool:
         if sys.platform != "win32":
@@ -1235,17 +1237,56 @@ class DesktopPet(QWidget):
             hwnd = user32.GetForegroundWindow()
             if not hwnd or hwnd == int(self.winId()):
                 return False
+
             class_buf = ctypes.create_unicode_buffer(256)
             user32.GetClassNameW(hwnd, class_buf, 256)
             cls = class_buf.value
             if cls in ("Progman", "WorkerW", "Shell_TrayWnd", "Windows.UI.Core.CoreWindow", "Qt6QWindowIcon"):
                 return False
+
             rect = ctypes.wintypes.RECT()
             user32.GetWindowRect(hwnd, ctypes.byref(rect))
-            w = rect.right - rect.left
-            h = rect.bottom - rect.top
-            screen = self._get_current_screen_geometry()
-            return (w >= screen.width() and h >= screen.height())
+
+            MONITOR_DEFAULTTONEAREST = 2
+            hmon = user32.MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST)
+            if not hmon:
+                return False
+
+            class MONITORINFO(ctypes.Structure):
+                _fields_ = [
+                    ("cbSize", ctypes.wintypes.DWORD),
+                    ("rcMonitor", ctypes.wintypes.RECT),
+                    ("rcWork", ctypes.wintypes.RECT),
+                    ("dwFlags", ctypes.wintypes.DWORD)
+                ]
+
+            mi = MONITORINFO()
+            mi.cbSize = ctypes.sizeof(MONITORINFO)
+            if not user32.GetMonitorInfoW(hmon, ctypes.byref(mi)):
+                return False
+
+            mon = mi.rcMonitor
+            work = mi.rcWork
+
+            # Covers the physical display resolution (covering taskbar)
+            covers_monitor = (
+                rect.left <= mon.left and
+                rect.top <= mon.top and
+                rect.right >= mon.right and
+                rect.bottom >= mon.bottom
+            )
+            if not covers_monitor:
+                return False
+
+            # If taskbar exists on monitor and window covers past work area -> true fullscreen
+            if (work.bottom - work.top < mon.bottom - mon.top) or (work.right - work.left < mon.right - mon.left):
+                return True
+
+            # If taskbar is hidden, verify window lacks standard title bar caption
+            GWL_STYLE = -16
+            style = user32.GetWindowLongW(hwnd, GWL_STYLE)
+            WS_CAPTION = 0x00C00000
+            return not bool(style & WS_CAPTION)
         except Exception:
             return False
 
@@ -1306,7 +1347,7 @@ class DesktopPet(QWidget):
         self.settings["auto_peek_fullscreen"] = checked
         save_settings(self.settings)
         if checked:
-            self._fullscreen_timer.start(1200)
+            self._fullscreen_timer.start(350)
             self.say("Auto-Peek Fullscreen aktif nya! 🎬🫣", 3000)
         else:
             self._fullscreen_timer.stop()
