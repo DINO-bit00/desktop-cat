@@ -22,7 +22,8 @@ DEFAULT_SETTINGS = {
     "user_name": "",                # Panggilan nama user
     "scale": 1.0,                   # Size scale
     "run_on_startup": False,        # Windows Registry Run on startup
-    "ai_watcher_enabled": True      # Auto-detect AI Agent thinking & celebration
+    "ai_watcher_enabled": True,     # Auto-detect AI Agent thinking & celebration
+    "auto_peek_fullscreen": True    # Auto-peek at screen edge during fullscreen/gaming
 }
 
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "settings.json")

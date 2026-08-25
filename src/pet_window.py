@@ -201,6 +201,16 @@ class DesktopPet(QWidget):
         if self.settings.get("stay_on_top", True):
             self._topmost_timer.start(1000)
 
+        # Peek Mode State & Auto Fullscreen Scanner
+        self.is_peeking = False
+        self.peek_side = "right"
+        self._peek_return_pos = None
+        self._auto_peeked = False
+        self._fullscreen_timer = QTimer(self)
+        self._fullscreen_timer.timeout.connect(self._check_fullscreen_activity)
+        if self.settings.get("auto_peek_fullscreen", True):
+            self._fullscreen_timer.start(1200)
+
         # Position on screen
         self._snap_to_initial_position()
 
@@ -1091,6 +1101,22 @@ class DesktopPet(QWidget):
             self.trigger_thinking(duration=duration, message=message)
         elif state in ["celebrate", "jump"]:
             self.trigger_celebrate(duration=duration, message=message)
+        elif state in ["peek", "peek_right"]:
+            self.enter_peek_mode(side="right", manual=True)
+            if message:
+                self.say(message, duration * 1000)
+        elif state == "peek_left":
+            self.enter_peek_mode(side="left", manual=True)
+            if message:
+                self.say(message, duration * 1000)
+        elif state in ["peek_bottom", "peek_down"]:
+            self.enter_peek_mode(side="bottom", manual=True)
+            if message:
+                self.say(message, duration * 1000)
+        elif state in ["unpeek", "exit_peek"]:
+            self.exit_peek_mode(manual=True)
+            if message:
+                self.say(message, duration * 1000)
         else:
             if state:
                 self.set_state(state, duration_seconds=duration)
@@ -1127,6 +1153,106 @@ class DesktopPet(QWidget):
             return
         if self.state not in ["drag", "land", "stretch", "drink_water"]:
             self.trigger_celebrate(duration=4, message=f"YAY! {tool_name} selesai bekerja nya! 🎉✨")
+
+    def _check_fullscreen_activity(self):
+        """Auto-detect fullscreen gaming/video and enter/exit peek mode."""
+        if not self.settings.get("auto_peek_fullscreen", True):
+            return
+        if self.is_reminder_locked or self.is_dragging or self.pomodoro.is_active:
+            return
+
+        is_fs = self._is_active_window_fullscreen()
+        if is_fs and not self.is_peeking:
+            self._auto_peeked = True
+            self.enter_peek_mode(side="right", manual=False)
+        elif not is_fs and self.is_peeking and self._auto_peeked:
+            self._auto_peeked = False
+            self.exit_peek_mode(manual=False)
+
+    def _is_active_window_fullscreen(self) -> bool:
+        if sys.platform != "win32":
+            return False
+        try:
+            user32 = ctypes.windll.user32
+            hwnd = user32.GetForegroundWindow()
+            if not hwnd or hwnd == int(self.winId()):
+                return False
+            class_buf = ctypes.create_unicode_buffer(256)
+            user32.GetClassNameW(hwnd, class_buf, 256)
+            cls = class_buf.value
+            if cls in ("Progman", "WorkerW", "Shell_TrayWnd", "Windows.UI.Core.CoreWindow", "Qt6QWindowIcon"):
+                return False
+            rect = ctypes.wintypes.RECT()
+            user32.GetWindowRect(hwnd, ctypes.byref(rect))
+            w = rect.right - rect.left
+            h = rect.bottom - rect.top
+            screen = self._get_current_screen_geometry()
+            return (w >= screen.width() and h >= screen.height())
+        except Exception:
+            return False
+
+    def enter_peek_mode(self, side: str = "right", manual: bool = True):
+        """Enters Peek Mode: glides to screen edge and peeks with head & paws."""
+        if self.is_reminder_locked:
+            return
+
+        if not self.is_peeking:
+            self._peek_return_pos = (self.pos_x_f, self.pos_y_f)
+
+        self.is_peeking = True
+        self.peek_side = side
+        screen = self._get_current_screen_geometry()
+
+        if side == "left":
+            target_x = screen.left() - int(self.sprite_size * 0.45)
+            target_y = max(screen.top() + 40, min(int(self.pos_y_f), screen.bottom() - self.sprite_size - 40))
+        elif side == "bottom":
+            target_x = max(screen.left() + 40, min(int(self.pos_x_f), screen.right() - self.sprite_size - 40))
+            target_y = screen.bottom() - int(self.sprite_size * 0.48)
+        else:  # "right"
+            target_x = screen.right() - int(self.sprite_size * 0.55)
+            target_y = max(screen.top() + 40, min(int(self.pos_y_f), screen.bottom() - self.sprite_size - 40))
+
+        def on_arrived():
+            self.set_state(f"peek_{side}")
+            self._play_sound_blip(freq=1350, dur=40)
+            if manual:
+                self.say("Mode Mengintip aktif! Aku di tepi layar ya nya~ 🫣🐾", 3000)
+
+        self._start_smooth_glide(target_x, target_y, self.sprite_size, duration=0.45, on_complete=on_arrived)
+
+    def exit_peek_mode(self, manual: bool = True):
+        """Exits Peek Mode: glides back to original position."""
+        if not self.is_peeking:
+            return
+
+        self.is_peeking = False
+        self._auto_peeked = False
+        screen = self._get_current_screen_geometry()
+
+        if self._peek_return_pos:
+            ret_x, ret_y = self._peek_return_pos
+        else:
+            ret_x = screen.right() - self.sprite_size - 60
+            ret_y = screen.bottom() - self.sprite_size - 60
+
+        def on_returned():
+            self.set_state("idle")
+            self._play_sound_blip(freq=1450, dur=45)
+            if manual:
+                self.say("Kembali ke layar utama nya! 🐾✨", 2500)
+
+        self._start_smooth_glide(ret_x, ret_y, self.sprite_size, duration=0.45, on_complete=on_returned)
+
+    def _toggle_auto_peek_fullscreen(self, checked):
+        self.settings["auto_peek_fullscreen"] = checked
+        save_settings(self.settings)
+        if checked:
+            self._fullscreen_timer.start(1200)
+            self.say("Auto-Peek Fullscreen aktif nya! 🎬🫣", 3000)
+        else:
+            self._fullscreen_timer.stop()
+            self.say("Auto-Peek dinonaktifkan nya! 🐾", 3000)
 
     # -------------------------------------------------------------
     # Context Menu
@@ -1296,6 +1422,19 @@ class DesktopPet(QWidget):
         act_menu.addAction("🌟 Paket Sehat (Regang + Minum)", self.trigger_combo_routine)
         act_menu.addAction("🧠 Mode Berpikir (AI Thinking)", lambda: self.trigger_thinking(duration=5, message="Hmm... Sedang menganalisis nya~ 🧠💭"))
         act_menu.addAction("❤️ Dielus / Purring (Pet)", lambda: self.set_state("pet", 4))
+
+        # 7. Peek Mode Submenu (Screen Edge Peeking)
+        peek_menu = menu.addMenu("🫣 Mode Mengintip (Peek Mode)")
+        peek_menu.addAction("➡️ Mengintip dari Kanan (Right Edge)", lambda: self.enter_peek_mode("right", manual=True))
+        peek_menu.addAction("⬅️ Mengintip dari Kiri (Left Edge)", lambda: self.enter_peek_mode("left", manual=True))
+        peek_menu.addAction("⬇️ Mengintip dari Bawah (Bottom Edge)", lambda: self.enter_peek_mode("bottom", manual=True))
+        if self.is_peeking:
+            peek_menu.addAction("↩️ Keluar dari Mode Mengintip", lambda: self.exit_peek_mode(manual=True))
+        peek_menu.addSeparator()
+        auto_peek_act = peek_menu.addAction("✅ Otomatis Mengintip saat Fullscreen / Nonton")
+        auto_peek_act.setCheckable(True)
+        auto_peek_act.setChecked(self.settings.get("auto_peek_fullscreen", True))
+        auto_peek_act.triggered.connect(self._toggle_auto_peek_fullscreen)
 
         menu.addSeparator()
 

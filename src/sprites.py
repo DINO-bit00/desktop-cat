@@ -993,7 +993,140 @@ def _draw_thinking(p: dict, frame_idx: int) -> Image.Image:
     return img
 
 
-# ─── 11. CAT STRETCH / YOGA POSTURE REMINDER ────────────────────────────────
+# ─── 11. PEEK MODE (SCREEN EDGE PEEKING) ──────────────────────────────────
+def _draw_peek(p: dict, frame_idx: int, side: str = "right") -> Image.Image:
+    """
+    Cute edge-peeking animation when user is watching fullscreen video or gaming:
+    - 'right': Peeking from right edge towards center-left.
+    - 'left': Peeking from left edge towards center-right.
+    - 'bottom': Peeking up from taskbar / bottom edge.
+    """
+    img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+
+    O = p["fur_main"]
+    S = p["fur_shade"]
+    W = p["fur_belly"]
+    E = p["inner_ear"]
+    K = p["outline"]
+
+    fi = frame_idx % 4
+    bob = 1 if fi in (1, 2) else 0
+
+    if side == "right":
+        # Peeking from the right edge toward the left
+        d.ellipse([14, 10 + bob, 34, 28 + bob], fill=O, outline=K)
+
+        head_x, head_y = 6 + bob, 8 + bob
+        d.ellipse([head_x, head_y, head_x + 16, head_y + 13], fill=O, outline=K)
+
+        # Ears
+        d.polygon([(head_x + 1, head_y + 2), (head_x + 2, head_y - 4), (head_x + 6, head_y + 2)], fill=O, outline=K)
+        d.polygon([(head_x + 2, head_y + 1), (head_x + 3, head_y - 2), (head_x + 5, head_y + 1)], fill=E)
+
+        d.polygon([(head_x + 11, head_y + 2), (head_x + 15, head_y - 4), (head_x + 16, head_y + 2)], fill=O, outline=K)
+        d.polygon([(head_x + 12, head_y + 1), (head_x + 14, head_y - 2), (head_x + 15, head_y + 1)], fill=E)
+
+        # Eyes looking left towards content
+        if p.get("has_shades", False):
+            d.rectangle([head_x + 2, head_y + 4, head_x + 14, head_y + 7], fill=(20, 20, 26, 255), outline=K)
+            img.putpixel((head_x + 4, head_y + 5), (255, 255, 255, 255))
+            img.putpixel((head_x + 11, head_y + 5), (255, 255, 255, 255))
+        else:
+            d.ellipse([head_x + 3, head_y + 4, head_x + 6, head_y + 7], fill=(255, 255, 255, 255), outline=K)
+            d.ellipse([head_x + 10, head_y + 4, head_x + 13, head_y + 7], fill=(255, 255, 255, 255), outline=K)
+            img.putpixel((head_x + 3, head_y + 5), (20, 20, 20, 255))
+            img.putpixel((head_x + 10, head_y + 5), (20, 20, 20, 255))
+            img.putpixel((head_x + 4, head_y + 5), (255, 255, 255, 200))
+            img.putpixel((head_x + 11, head_y + 5), (255, 255, 255, 200))
+
+        # Muzzle
+        d.ellipse([head_x + 4, head_y + 8, head_x + 8, head_y + 11], fill=W)
+        d.ellipse([head_x + 8, head_y + 8, head_x + 12, head_y + 11], fill=W)
+        img.putpixel((head_x + 8, head_y + 8), (225, 75, 55, 255))
+
+        # Two cute paws gripping the edge
+        paw_wave = 1 if fi == 2 else 0
+        d.rectangle([head_x - 1, head_y + 12, head_x + 3, head_y + 15], fill=W, outline=K)
+        d.rectangle([head_x + 2, head_y + 16 - paw_wave, head_x + 6, head_y + 19 - paw_wave], fill=W, outline=K)
+
+    elif side == "left":
+        # Peeking from the left edge toward the right
+        d.ellipse([-2, 10 + bob, 18, 28 + bob], fill=O, outline=K)
+
+        head_x, head_y = 10 - bob, 8 + bob
+        d.ellipse([head_x, head_y, head_x + 16, head_y + 13], fill=O, outline=K)
+
+        # Ears
+        d.polygon([(head_x + 1, head_y + 2), (head_x + 2, head_y - 4), (head_x + 6, head_y + 2)], fill=O, outline=K)
+        d.polygon([(head_x + 2, head_y + 1), (head_x + 3, head_y - 2), (head_x + 5, head_y + 1)], fill=E)
+
+        d.polygon([(head_x + 11, head_y + 2), (head_x + 15, head_y - 4), (head_x + 16, head_y + 2)], fill=O, outline=K)
+        d.polygon([(head_x + 12, head_y + 1), (head_x + 14, head_y - 2), (head_x + 15, head_y + 1)], fill=E)
+
+        # Eyes looking right towards content
+        if p.get("has_shades", False):
+            d.rectangle([head_x + 2, head_y + 4, head_x + 14, head_y + 7], fill=(20, 20, 26, 255), outline=K)
+            img.putpixel((head_x + 4, head_y + 5), (255, 255, 255, 255))
+            img.putpixel((head_x + 11, head_y + 5), (255, 255, 255, 255))
+        else:
+            d.ellipse([head_x + 3, head_y + 4, head_x + 6, head_y + 7], fill=(255, 255, 255, 255), outline=K)
+            d.ellipse([head_x + 10, head_y + 4, head_x + 13, head_y + 7], fill=(255, 255, 255, 255), outline=K)
+            img.putpixel((head_x + 5, head_y + 5), (20, 20, 20, 255))
+            img.putpixel((head_x + 12, head_y + 5), (20, 20, 20, 255))
+            img.putpixel((head_x + 4, head_y + 5), (255, 255, 255, 200))
+            img.putpixel((head_x + 11, head_y + 5), (255, 255, 255, 200))
+
+        # Muzzle
+        d.ellipse([head_x + 4, head_y + 8, head_x + 8, head_y + 11], fill=W)
+        d.ellipse([head_x + 8, head_y + 8, head_x + 12, head_y + 11], fill=W)
+        img.putpixel((head_x + 8, head_y + 8), (225, 75, 55, 255))
+
+        # Two cute paws gripping the edge
+        paw_wave = 1 if fi == 2 else 0
+        d.rectangle([head_x + 13, head_y + 12, head_x + 17, head_y + 15], fill=W, outline=K)
+        d.rectangle([head_x + 10, head_y + 16 - paw_wave, head_x + 14, head_y + 19 - paw_wave], fill=W, outline=K)
+
+    else:
+        # Peeking up from the bottom edge (Taskbar / screen bottom)
+        d.ellipse([8, 14 - bob, 24, 34 - bob], fill=O, outline=K)
+
+        head_x, head_y = 8, 8 - bob
+        d.ellipse([head_x, head_y, head_x + 16, head_y + 12], fill=O, outline=K)
+
+        # Ears perked up high
+        d.polygon([(head_x + 1, head_y + 2), (head_x + 2, head_y - 5), (head_x + 6, head_y + 2)], fill=O, outline=K)
+        d.polygon([(head_x + 2, head_y + 1), (head_x + 3, head_y - 3), (head_x + 5, head_y + 1)], fill=E)
+
+        d.polygon([(head_x + 10, head_y + 2), (head_x + 14, head_y - 5), (head_x + 15, head_y + 2)], fill=O, outline=K)
+        d.polygon([(head_x + 11, head_y + 1), (head_x + 13, head_y - 3), (head_x + 14, head_y + 1)], fill=E)
+
+        # Big round eyes looking up
+        if p.get("has_shades", False):
+            d.rectangle([head_x + 2, head_y + 3, head_x + 14, head_y + 6], fill=(20, 20, 26, 255), outline=K)
+            img.putpixel((head_x + 4, head_y + 4), (255, 255, 255, 255))
+            img.putpixel((head_x + 11, head_y + 4), (255, 255, 255, 255))
+        else:
+            d.ellipse([head_x + 3, head_y + 3, head_x + 6, head_y + 6], fill=(255, 255, 255, 255), outline=K)
+            d.ellipse([head_x + 10, head_y + 3, head_x + 13, head_y + 6], fill=(255, 255, 255, 255), outline=K)
+            img.putpixel((head_x + 4, head_y + 4), (20, 20, 20, 255))
+            img.putpixel((head_x + 11, head_y + 4), (20, 20, 20, 255))
+            img.putpixel((head_x + 4, head_y + 3), (255, 255, 255, 220))
+            img.putpixel((head_x + 11, head_y + 3), (255, 255, 255, 220))
+
+        # Muzzle
+        d.ellipse([head_x + 4, head_y + 6, head_x + 8, head_y + 9], fill=W)
+        d.ellipse([head_x + 8, head_y + 6, head_x + 12, head_y + 9], fill=W)
+        img.putpixel((head_x + 8, head_y + 6), (225, 75, 55, 255))
+
+        # Two front paws resting on the bottom edge
+        d.rectangle([head_x + 1, head_y + 11, head_x + 5, head_y + 14], fill=W, outline=K)
+        d.rectangle([head_x + 11, head_y + 11, head_x + 15, head_y + 14], fill=W, outline=K)
+
+    return img
+
+
+# ─── 12. CAT STRETCH / YOGA POSTURE REMINDER ────────────────────────────────
 def _draw_cat_stretch(p: dict, frame_idx: int) -> Image.Image:
     """
     Cute downward cat yoga stretch:
@@ -1271,6 +1404,12 @@ def render_cat_frame(skin_key: str = "boss_oyen",
         native = _draw_celebrate_jump(p, fi)
     elif state in ("thinking", "alert"):
         native = _draw_thinking(p, fi)
+    elif state in ("peek_right", "peek"):
+        native = _draw_peek(p, fi, side="right")
+    elif state in ("peek_left",):
+        native = _draw_peek(p, fi, side="left")
+    elif state in ("peek_bottom", "peek_down"):
+        native = _draw_peek(p, fi, side="bottom")
     else:
         native = _draw_idle_front(p, fi, look_dx=look_dx, look_dy=look_dy)
 
@@ -1285,7 +1424,8 @@ def pregenerate_all_sprites(output_dir: str = "assets/sprites") -> None:
     os.makedirs(output_dir, exist_ok=True)
     states = [
         "idle", "walk_left", "walk_right", "work", "overheat",
-        "paper_unroll", "pet", "sleep", "drag", "celebrate", "thinking"
+        "paper_unroll", "pet", "sleep", "drag", "celebrate", "thinking",
+        "peek_right", "peek_left", "peek_bottom"
     ]
     for skin in PALETTES:
         skin_dir = os.path.join(output_dir, skin)
