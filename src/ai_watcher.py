@@ -103,11 +103,6 @@ class AIAgentWatcher(QObject):
         self.celebrated_steps = set()
         self.last_seen_step_index = None
 
-        # Heuristic Web AI generation auto-done timer
-        self._web_generation_timer = QTimer(self)
-        self._web_generation_timer.setSingleShot(True)
-        self._web_generation_timer.timeout.connect(self._on_web_generation_timeout)
-
         # 1. Antigravity State Initialization
         self._init_antigravity_state()
 
@@ -183,7 +178,7 @@ class AIAgentWatcher(QObject):
                 self.last_seen_step_index = step_idx
 
     def on_user_pressed_enter(self):
-        """Called by GlobalInputWatcher when Enter key is pressed without shift."""
+        """Called by GlobalInputWatcher when Enter key is pressed without shift in an AI window."""
         if not self.is_enabled():
             return
         title = _get_active_window_title()
@@ -195,13 +190,7 @@ class AIAgentWatcher(QObject):
             if kw in title_lower:
                 tool_display = kw.capitalize()
                 self.trigger_thinking_start(tool_name=tool_display)
-                self._web_generation_timer.start(5500)
                 break
-
-    def _on_web_generation_timeout(self):
-        """Auto-completes web AI thinking after typical generation timeframe."""
-        if self.is_active_ai_session and self.active_tool_name != "Antigravity":
-            self.trigger_task_done(tool_name=self.active_tool_name or "AI")
 
     def _scan_all_sources(self):
         if not self.is_enabled():
@@ -239,14 +228,12 @@ class AIAgentWatcher(QObject):
                 if step_type == "USER_INPUT" or tc_count > 0 or step_type == "GENERIC":
                     self.is_active_ai_session = True
                     self.active_tool_name = "Antigravity"
-                    self._web_generation_timer.stop()
                     self.ai_thinking_started.emit("Antigravity")
                 elif step_type == "PLANNER_RESPONSE" and tc_count == 0 and source == "MODEL":
                     if step_idx not in self.celebrated_steps:
                         self.celebrated_steps.add(step_idx)
                         self.is_active_ai_session = False
                         self.active_tool_name = ""
-                        self._web_generation_timer.stop()
                         self.ai_task_completed.emit("Antigravity")
 
     def trigger_thinking_start(self, tool_name="AI Agent"):
@@ -259,5 +246,4 @@ class AIAgentWatcher(QObject):
         """Programmatic / Webhook trigger for completing AI task -> jump celebrate."""
         self.is_active_ai_session = False
         self.active_tool_name = ""
-        self._web_generation_timer.stop()
         self.ai_task_completed.emit(tool_name)
