@@ -1,37 +1,21 @@
 """
-AI Agent Auto-Watcher Module (Upgraded Real-time Synchronous Engine)
-Monitors active AI coding agents (Antigravity, Claude Code, Aider, Cursor, Copilot)
-in real-time using live transcript/log streaming and IPC triggers.
+AI Agent Auto-Watcher Module (Deterministic Step-Level State Engine)
+Directly parses Antigravity / Gemini Agent transcript steps in real-time
+with 0-latency synchronization and zero guesswork.
 
-When an AI agent starts processing -> triggers cat's thinking pose [O O] + [...]
-When the AI agent finishes -> triggers cat's celebrate jump + victory meow!
+State Flow:
+- User submits prompt (USER_INPUT) -> Thinking state [O O] + [...]
+- AI runs tools / bash / search (PLANNER_RESPONSE with tool_calls / GENERIC) -> Stays in Thinking state
+- AI finishes final response (PLANNER_RESPONSE with 0 tool_calls) -> Celebrate Jump + Victory Meow!
 """
 
 import os
 import sys
 import time
+import json
 import glob
 import ctypes
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
-
-
-def _get_active_window_title() -> str:
-    """Fast, zero-overhead Win32 active window title fetcher."""
-    if sys.platform != "win32":
-        return ""
-    try:
-        user32 = ctypes.windll.user32
-        hwnd = user32.GetForegroundWindow()
-        if not hwnd:
-            return ""
-        length = user32.GetWindowTextLengthW(hwnd)
-        if length <= 0:
-            return ""
-        buff = ctypes.create_unicode_buffer(length + 1)
-        user32.GetWindowTextW(hwnd, buff, length + 1)
-        return buff.value
-    except Exception:
-        return ""
 
 
 class AIAgentWatcher(QObject):
@@ -44,23 +28,16 @@ class AIAgentWatcher(QObject):
         self.settings = settings
         self.is_active_ai_session = False
         self.active_tool_name = ""
-        self._last_ai_active_time = 0.0
+        self.celebrated_steps = set()
+        self.last_seen_step_index = None
 
-        # Antigravity / Gemini real-time transcript tracker
-        self._ag_active_file = None
-        self._ag_last_size = 0
-        self._ag_last_mtime = 0.0
+        self._init_current_state()
 
-        # Aider / Local logs tracker
-        self._local_log_files = {}
-
-        self._init_transcripts()
-
-        # High-cadence real-time poll timer (400ms interval, <0.01% CPU)
+        # High-frequency low-overhead scan timer (200ms interval, <0.01% CPU)
         self.timer = QTimer(self)
-        self.timer.timeout.connect(self._scan_all_ai_sources)
+        self.timer.timeout.connect(self._scan_ai_activity)
         if self.is_enabled():
-            self.timer.start(400)
+            self.timer.start(200)
 
     def is_enabled(self) -> bool:
         return self.settings.get("ai_watcher_enabled", True)
@@ -68,110 +45,99 @@ class AIAgentWatcher(QObject):
     def set_enabled(self, enabled: bool):
         self.settings["ai_watcher_enabled"] = enabled
         if enabled:
-            self._init_transcripts()
-            self.timer.start(400)
+            self._init_current_state()
+            self.timer.start(200)
         else:
             self.timer.stop()
             self.is_active_ai_session = False
 
-    def _init_transcripts(self):
-        """Initializes existing transcript baseline sizes so old historical files don't false-trigger."""
-        gemini_dir = os.path.expanduser(r"~\.gemini\antigravity\brain")
-        if os.path.exists(gemini_dir):
-            transcripts = glob.glob(os.path.join(gemini_dir, "*", ".system_generated", "logs", "transcript.jsonl"))
-            if transcripts:
-                transcripts.sort(key=lambda p: os.path.getmtime(p), reverse=True)
-                latest = transcripts[0]
-                self._ag_active_file = latest
-                try:
-                    self._ag_last_mtime = os.path.getmtime(latest)
-                    self._ag_last_size = os.path.getsize(latest)
-                except Exception:
-                    pass
-
-    def _check_antigravity_activity(self, now: float) -> bool:
-        """Checks if Antigravity / Gemini Agent is actively appending logs/thoughts."""
+    def _get_latest_antigravity_transcript(self):
         gemini_dir = os.path.expanduser(r"~\.gemini\antigravity\brain")
         if not os.path.exists(gemini_dir):
-            return False
-
+            return None
         transcripts = glob.glob(os.path.join(gemini_dir, "*", ".system_generated", "logs", "transcript.jsonl"))
         if not transcripts:
-            return False
-
+            return None
         transcripts.sort(key=lambda p: os.path.getmtime(p), reverse=True)
-        latest = transcripts[0]
+        return transcripts[0]
 
+    def _read_last_step(self, path: str):
         try:
-            cur_mtime = os.path.getmtime(latest)
-            cur_size = os.path.getsize(latest)
-        except Exception:
-            return False
-
-        if latest != self._ag_active_file:
-            # Switched to a new conversation
-            self._ag_active_file = latest
-            self._ag_last_mtime = cur_mtime
-            self._ag_last_size = cur_size
-            return False
-
-        # Active append detected (file grew in size or was modified within 2.2 seconds)
-        has_appended = (cur_size > self._ag_last_size) or (cur_mtime > self._ag_last_mtime and (now - cur_mtime < 2.2))
-
-        self._ag_last_mtime = cur_mtime
-        self._ag_last_size = cur_size
-        return has_appended
-
-    def _check_local_workspace_agents(self, now: float) -> bool:
-        """Checks for active Aider, Claude Code, or local agent log modifications."""
-        candidates = [
-            ".aider.chat.history.md",
-            ".aider.input.history"
-        ]
-        for rel in candidates:
-            if os.path.exists(rel):
+            with open(path, "rb") as f:
                 try:
-                    mtime = os.path.getmtime(rel)
-                    size = os.path.getsize(rel)
-                    prev_size, prev_mtime = self._local_log_files.get(rel, (size, mtime))
-                    self._local_log_files[rel] = (size, mtime)
-                    if size > prev_size or (mtime > prev_mtime and (now - mtime < 2.0)):
-                        return True
-                except Exception:
+                    f.seek(-8192, os.SEEK_END)
+                except OSError:
                     pass
-        return False
+                raw = f.read().decode("utf-8", errors="ignore").strip()
+                if not raw:
+                    return None
+                lines = raw.splitlines()
+                if not lines:
+                    return None
+                return json.loads(lines[-1])
+        except Exception:
+            return None
 
-    def _scan_all_ai_sources(self):
+    def _init_current_state(self):
+        latest = self._get_latest_antigravity_transcript()
+        if not latest:
+            return
+        last_step = self._read_last_step(latest)
+        if last_step:
+            step_idx = last_step.get("step_index")
+            if step_idx is not None:
+                self.celebrated_steps.add(step_idx)
+                self.last_seen_step_index = step_idx
+
+    def _scan_ai_activity(self):
         if not self.is_enabled():
             return
 
+        latest = self._get_latest_antigravity_transcript()
+        if not latest:
+            return
+
+        try:
+            mtime = os.path.getmtime(latest)
+        except Exception:
+            return
+
         now = time.time()
-        is_ag_thinking = self._check_antigravity_activity(now)
-        is_local_thinking = self._check_local_workspace_agents(now)
+        time_since_mod = now - mtime
 
-        active_detected = is_ag_thinking or is_local_thinking
-        detected_tool = "Antigravity" if is_ag_thinking else ("AI Agent" if is_local_thinking else "")
+        step = self._read_last_step(latest)
+        if not step:
+            return
 
-        if active_detected:
-            self._last_ai_active_time = now
-            if not self.is_active_ai_session:
-                self.is_active_ai_session = True
-                self.active_tool_name = detected_tool
-                self.ai_thinking_started.emit(detected_tool)
-        else:
-            # If AI was previously thinking and has been silent for > 2.0s -> task completed!
-            if self.is_active_ai_session:
-                if now - self._last_ai_active_time > 2.0:
-                    completed_tool = self.active_tool_name or "AI Agent"
+        step_idx = step.get("step_index")
+        step_type = step.get("type")
+        tool_calls = step.get("tool_calls", [])
+        tc_count = len(tool_calls) if tool_calls else 0
+        source = step.get("source")
+
+        # Active session within recent 30 seconds
+        if time_since_mod < 30.0:
+            if step_type == "USER_INPUT" or tc_count > 0 or step_type == "GENERIC":
+                if not self.is_active_ai_session:
+                    self.is_active_ai_session = True
+                    self.active_tool_name = "Antigravity"
+                    self.ai_thinking_started.emit("Antigravity")
+            elif step_type == "PLANNER_RESPONSE" and tc_count == 0 and source == "MODEL":
+                if step_idx is not None and step_idx not in self.celebrated_steps:
+                    self.celebrated_steps.add(step_idx)
                     self.is_active_ai_session = False
                     self.active_tool_name = ""
-                    self.ai_task_completed.emit(completed_tool)
+                    self.ai_task_completed.emit("Antigravity")
+        else:
+            # Idle timeout
+            if self.is_active_ai_session:
+                self.is_active_ai_session = False
+                self.active_tool_name = ""
 
     def trigger_thinking_start(self, tool_name="AI Agent"):
         """Programmatic trigger for starting AI thinking."""
         self.is_active_ai_session = True
         self.active_tool_name = tool_name
-        self._last_ai_active_time = time.time()
         self.ai_thinking_started.emit(tool_name)
 
     def trigger_task_done(self, tool_name="AI Agent"):
