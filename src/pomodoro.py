@@ -45,6 +45,10 @@ class PomodoroManager(QObject):
 
         self.start_health_timers()
 
+    @property
+    def state(self) -> str:
+        return self.mode
+
     def start_health_timers(self):
         """Starts/restarts hydration and posture timers based on current settings."""
         # Hydration

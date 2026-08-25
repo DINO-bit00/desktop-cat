@@ -462,7 +462,7 @@ class DesktopPet(QWidget):
             return "thinking"
         # 2. Active Pomodoro session
         if hasattr(self, "pomodoro") and self.pomodoro.is_active:
-            if self.pomodoro.state == "break":
+            if self.pomodoro.mode == "break":
                 return "sleep"
             return "idle"
         # 3. Active Screen Edge Peek mode
