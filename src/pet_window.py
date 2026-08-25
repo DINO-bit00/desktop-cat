@@ -1052,8 +1052,19 @@ class DesktopPet(QWidget):
         message = data.get("message")
         duration = data.get("duration", 4)
 
-        if state:
-            self.set_state(state, duration_seconds=duration)
+        if state == "thinking":
+            self.trigger_thinking(duration=duration, message=message)
+        else:
+            if state:
+                self.set_state(state, duration_seconds=duration)
+            if message:
+                self.say(message, duration * 1000)
+
+    def trigger_thinking(self, duration=5, message=None):
+        """AI Agent Thinking reaction: curious head tilt + animated floating thought cloud."""
+        self.set_state("thinking", duration_seconds=duration)
+        self._play_sound_blip(freq=1250, dur=40)
+        QTimer.singleShot(80, lambda: self._play_sound_blip(freq=1450, dur=60))
         if message:
             self.say(message, duration * 1000)
 
@@ -1223,7 +1234,7 @@ class DesktopPet(QWidget):
         act_menu.addAction("🧘 Regangkan Badan (Stretch)", lambda: self.trigger_stretch(auto=False))
         act_menu.addAction("💧 Minum Air (Drink Water)", lambda: self.trigger_drink_water(auto=False))
         act_menu.addAction("🌟 Paket Sehat (Regang + Minum)", self.trigger_combo_routine)
-        act_menu.addAction("🤔 Berpikir (Thinking)", lambda: self.set_state("thinking", 4))
+        act_menu.addAction("🧠 Mode Berpikir (AI Thinking)", lambda: self.trigger_thinking(duration=5, message="Hmm... Sedang menganalisis nya~ 🧠💭"))
         act_menu.addAction("❤️ Dielus / Purring (Pet)", lambda: self.set_state("pet", 4))
 
         menu.addSeparator()

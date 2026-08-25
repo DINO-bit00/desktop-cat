@@ -749,38 +749,104 @@ def _draw_celebrate_jump(p: dict, frame_idx: int) -> Image.Image:
     return img
 
 
-# ─── 10. THINKING ──────────────────────────────────────────────────────────
+# ─── 10. THINKING / AI AGENT PROCESSING ───────────────────────────────────────
 def _draw_thinking(p: dict, frame_idx: int) -> Image.Image:
-    """Curious tilted head with 3 animated floating dots."""
+    """
+    Curious tilted head with expressive upwards gaze and 4-frame dynamic
+    retro floating thought bubbles & AI processing particles.
+    """
     img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
 
     O = p["fur_main"]
+    S = p["fur_shade"]
     W = p["fur_belly"]
+    E = p["inner_ear"]
     K = p["outline"]
 
+    fi = frame_idx % 4
+
+    tilt_x = 1 if fi in (1, 2) else 0
+    bob_y = 1 if fi in (2, 3) else 0
+
+    # 1. Body & Paws
     d.ellipse([7, 17, 24, 28], fill=O, outline=K)
     d.ellipse([11, 18, 20, 26], fill=W)
     d.rectangle([9, 27, 13, 29], fill=W, outline=K)
     d.rectangle([18, 27, 22, 29], fill=W, outline=K)
 
-    d.ellipse([8, 7, 25, 18], fill=O, outline=K)
-    d.polygon([(8, 7), (8, 2), (13, 7)], fill=O, outline=K)
-    d.polygon([(19, 8), (24, 4), (25, 9)], fill=O, outline=K)
+    # 2. Tail with subtle sway
+    tail_pts = [(7, 24), (4, 21), (3, 17 + bob_y), (5, 14 + bob_y)]
+    for i in range(len(tail_pts) - 1):
+        d.line([tail_pts[i], tail_pts[i + 1]], fill=K, width=3)
+    for i in range(len(tail_pts) - 1):
+        d.line([tail_pts[i], tail_pts[i + 1]], fill=O, width=1)
 
-    d.ellipse([11, 10, 14, 13], fill=(255, 255, 255, 255), outline=K)
-    d.ellipse([18, 10, 21, 13], fill=(255, 255, 255, 255), outline=K)
-    img.putpixel((12, 10), (20, 20, 20, 255))
-    img.putpixel((19, 10), (20, 20, 20, 255))
+    # 3. Head (Tilted curiously with upwards gaze)
+    head_left = 7 + tilt_x
+    head_top = 7 + bob_y
+    d.ellipse([head_left, head_top, head_left + 16, head_top + 11], fill=O, outline=K)
 
-    d.ellipse([12, 13, 16, 16], fill=W)
-    d.ellipse([16, 13, 20, 16], fill=W)
-    img.putpixel((16, 13), (225, 75, 55, 255))
+    # Ears
+    d.polygon([(head_left, head_top + 1), (head_left, head_top - 5), (head_left + 5, head_top + 1)], fill=O, outline=K)
+    d.polygon([(head_left + 1, head_top), (head_left + 1, head_top - 3), (head_left + 4, head_top)], fill=E)
 
-    dot_count = (frame_idx % 3) + 1
-    dot_col = (90, 160, 255, 255)
-    for i in range(dot_count):
-        d.rectangle([21 + i * 3, 2, 22 + i * 3, 3], fill=dot_col)
+    d.polygon([(head_left + 11, head_top + 1), (head_left + 15, head_top - 3), (head_left + 16, head_top + 3)], fill=O, outline=K)
+    d.polygon([(head_left + 12, head_top + 1), (head_left + 14, head_top - 1), (head_left + 15, head_top + 2)], fill=E)
+
+    # Eyes / Glasses (Gazing Upwards-Right towards Thought Bubble)
+    if p.get("has_shades", False):
+        d.rectangle([head_left + 2, head_top + 3, head_left + 14, head_top + 6], fill=(20, 20, 26, 255), outline=K)
+        img.putpixel((head_left + 4, head_top + 4), (255, 255, 255, 255))
+        img.putpixel((head_left + 11, head_top + 4), (255, 255, 255, 255))
+    else:
+        d.ellipse([head_left + 3, head_top + 3, head_left + 6, head_top + 6], fill=(255, 255, 255, 255), outline=K)
+        d.ellipse([head_left + 10, head_top + 3, head_left + 13, head_top + 6], fill=(255, 255, 255, 255), outline=K)
+        img.putpixel((head_left + 5, head_top + 4), (20, 20, 20, 255))
+        img.putpixel((head_left + 12, head_top + 4), (20, 20, 20, 255))
+        img.putpixel((head_left + 4, head_top + 4), (255, 255, 255, 220))
+        img.putpixel((head_left + 11, head_top + 4), (255, 255, 255, 220))
+
+    d.ellipse([head_left + 4, head_top + 6, head_left + 8, head_top + 9], fill=W)
+    d.ellipse([head_left + 8, head_top + 6, head_left + 12, head_top + 9], fill=W)
+    img.putpixel((head_left + 8, head_top + 6), (225, 75, 55, 255))
+
+    if p.get("has_collar", False):
+        collar_c = p.get("collar", (56, 189, 248, 255))
+        d.rectangle([head_left + 2, head_top + 10, head_left + 14, head_top + 11], fill=collar_c)
+        img.putpixel((head_left + 8, head_top + 11), (255, 215, 0, 255))
+
+    cloud_c = (147, 197, 253, 255)
+    cloud_dark = (59, 130, 246, 255)
+    sparkle_c = (253, 224, 71, 255)
+
+    trail_1 = (head_left + 13, head_top - 1)
+    trail_2 = (head_left + 15, head_top - 3)
+    img.putpixel(trail_1, cloud_dark)
+    if fi >= 1:
+        d.rectangle([trail_2[0], trail_2[1], trail_2[0] + 1, trail_2[1] + 1], fill=cloud_c, outline=cloud_dark)
+
+    bx, by = head_left + 14, max(1, head_top - 6)
+    if fi == 0:
+        d.rectangle([bx, by + 1, bx + 4, by + 4], fill=cloud_c, outline=cloud_dark)
+        img.putpixel((bx + 2, by + 2), (255, 255, 255, 255))
+    elif fi == 1:
+        d.rectangle([bx - 1, by, bx + 5, by + 4], fill=cloud_c, outline=cloud_dark)
+        img.putpixel((bx + 1, by + 2), cloud_dark)
+        img.putpixel((bx + 3, by + 2), cloud_dark)
+    elif fi == 2:
+        d.rectangle([bx - 2, by - 1, bx + 6, by + 4], fill=cloud_c, outline=cloud_dark)
+        img.putpixel((bx, by + 2), cloud_dark)
+        img.putpixel((bx + 2, by + 2), cloud_dark)
+        img.putpixel((bx + 4, by + 2), cloud_dark)
+        img.putpixel((bx + 1, by), (255, 255, 255, 255))
+    else:
+        d.rectangle([bx - 2, by - 1, bx + 6, by + 4], fill=cloud_c, outline=cloud_dark)
+        img.putpixel((bx + 2, by), sparkle_c)
+        img.putpixel((bx + 1, by + 1), sparkle_c)
+        img.putpixel((bx + 2, by + 1), (255, 255, 255, 255))
+        img.putpixel((bx + 3, by + 1), sparkle_c)
+        img.putpixel((bx + 2, by + 2), sparkle_c)
 
     return img
 
