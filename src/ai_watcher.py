@@ -2,9 +2,8 @@
 AI Agent Auto-Watcher & Local Webhook Hub (Multi-Layer AI Engine)
 Provides 100% synchronized reactions for:
 1. Native Antigravity / Gemini Agent (Live Step-Level Transcript Streaming)
-2. Web AI Prompt Detection (Gemini Web, ChatGPT Web, Claude Web via Global Enter Hook)
-3. Embedded Local Webhook Server (http://127.0.0.1:59999) with Tampermonkey / cURL / Extension support
-4. CLI / Workspace Agents (Aider, Claude Code, Local Models)
+2. Web AI DOM Synchronization via Userscript (GM_xmlhttpRequest to http://127.0.0.1:59999)
+3. Zero-Setup Intelligent Heuristic Fallback for Gemini, ChatGPT, Claude, DeepSeek
 """
 
 import os
@@ -18,7 +17,6 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 
-# Keywords identifying web or desktop AI tools in window titles
 AI_WINDOW_KEYWORDS = [
     "gemini", "chatgpt", "claude", "perplexity", "deepseek",
     "antigravity", "cursor", "windsurf", "copilot", "aider", "ollama"
@@ -72,7 +70,7 @@ class CatWebhookHandler(BaseHTTPRequestHandler):
         if CatWebhookHandler.watcher_instance:
             watcher = CatWebhookHandler.watcher_instance
             if path in ("/thinking", "/start", "/think"):
-                watcher.trigger_thinking_start(tool_name=tool)
+                watcher.trigger_thinking_start(tool_name=tool, source="webhook")
             elif path in ("/celebrate", "/done", "/finish", "/jump"):
                 watcher.trigger_task_done(tool_name=tool)
             elif path in ("/say", "/notify"):
@@ -102,6 +100,10 @@ class AIAgentWatcher(QObject):
         self.active_tool_name = ""
         self.celebrated_steps = set()
         self.last_seen_step_index = None
+
+        # Tracking session source & duration
+        self._session_source = "none"  # "webhook", "antigravity", "enter_hook"
+        self._thinking_start_time = 0.0
 
         # 1. Antigravity State Initialization
         self._init_antigravity_state()
@@ -189,12 +191,29 @@ class AIAgentWatcher(QObject):
         for kw in AI_WINDOW_KEYWORDS:
             if kw in title_lower:
                 tool_display = kw.capitalize()
-                self.trigger_thinking_start(tool_name=tool_display)
+                self.trigger_thinking_start(tool_name=tool_display, source="enter_hook")
                 break
+
+    def on_user_activity(self):
+        """Called when user types or scrolls — helps resolve enter_hook sessions."""
+        if not self.is_active_ai_session or self._session_source != "enter_hook":
+            return
+        now = time.time()
+        # If user resumes typing/scrolling after at least 3.5s, AI response has arrived!
+        if now - self._thinking_start_time > 3.5:
+            self.trigger_task_done(tool_name=self.active_tool_name or "AI")
 
     def _scan_all_sources(self):
         if not self.is_enabled():
             return
+
+        now = time.time()
+
+        # Heuristic timeout for enter_hook sessions if no activity (max 16 seconds)
+        if self.is_active_ai_session and self._session_source == "enter_hook":
+            if now - self._thinking_start_time > 16.0:
+                self.trigger_task_done(tool_name=self.active_tool_name or "AI")
+                return
 
         latest = self._get_latest_antigravity_transcript()
         if not latest:
@@ -205,7 +224,6 @@ class AIAgentWatcher(QObject):
         except Exception:
             return
 
-        now = time.time()
         time_since_mod = now - mtime
 
         step = self._read_last_step(latest)
@@ -228,22 +246,28 @@ class AIAgentWatcher(QObject):
                 if step_type == "USER_INPUT" or tc_count > 0 or step_type == "GENERIC":
                     self.is_active_ai_session = True
                     self.active_tool_name = "Antigravity"
+                    self._session_source = "antigravity"
+                    self._thinking_start_time = now
                     self.ai_thinking_started.emit("Antigravity")
                 elif step_type == "PLANNER_RESPONSE" and tc_count == 0 and source == "MODEL":
                     if step_idx not in self.celebrated_steps:
                         self.celebrated_steps.add(step_idx)
                         self.is_active_ai_session = False
                         self.active_tool_name = ""
+                        self._session_source = "none"
                         self.ai_task_completed.emit("Antigravity")
 
-    def trigger_thinking_start(self, tool_name="AI Agent"):
-        """Programmatic / Webhook trigger for starting AI thinking."""
+    def trigger_thinking_start(self, tool_name="AI Agent", source="webhook"):
+        """Programmatic / Webhook / Enter-hook trigger for starting AI thinking."""
         self.is_active_ai_session = True
         self.active_tool_name = tool_name
+        self._session_source = source
+        self._thinking_start_time = time.time()
         self.ai_thinking_started.emit(tool_name)
 
     def trigger_task_done(self, tool_name="AI Agent"):
         """Programmatic / Webhook trigger for completing AI task -> jump celebrate."""
         self.is_active_ai_session = False
         self.active_tool_name = ""
+        self._session_source = "none"
         self.ai_task_completed.emit(tool_name)

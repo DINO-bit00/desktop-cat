@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Desktop Cat AI Companion (Gemini, ChatGPT, Claude, DeepSeek)
 // @namespace    https://github.com/dino-bit00s/desktop-cat
-// @version      1.2
+// @version      1.3
 // @description  Frame-perfect real-time synchronization between Gemini Web, ChatGPT, Claude.ai, DeepSeek and your Desktop Cat!
 // @author       Desktop Cat Team
 // @match        https://gemini.google.com/*
@@ -12,6 +12,7 @@
 // @match        https://chat.deepseek.com/*
 // @grant        GM_xmlhttpRequest
 // @connect      127.0.0.1
+// @connect      localhost
 // @run-at       document-idle
 // ==/UserScript==
 
@@ -24,11 +25,26 @@
 
     function sendPetSignal(endpoint, toolName) {
         try {
-            fetch(`${PET_API}/${endpoint}?tool=${encodeURIComponent(toolName)}`, {
-                method: 'GET',
-                mode: 'no-cors'
-            }).catch(() => {});
-        } catch (e) {}
+            if (typeof GM_xmlhttpRequest !== 'undefined') {
+                GM_xmlhttpRequest({
+                    method: 'GET',
+                    url: `${PET_API}/${endpoint}?tool=${encodeURIComponent(toolName)}`,
+                    onload: function(res) {
+                        console.log(`[Desktop Cat] Sent /${endpoint} (${toolName}) -> HTTP ${res.status}`);
+                    },
+                    onerror: function(err) {
+                        console.error(`[Desktop Cat] Failed to send /${endpoint}:`, err);
+                    }
+                });
+            } else {
+                fetch(`${PET_API}/${endpoint}?tool=${encodeURIComponent(toolName)}`, {
+                    method: 'GET',
+                    mode: 'no-cors'
+                }).catch(() => {});
+            }
+        } catch (e) {
+            console.error('[Desktop Cat] sendPetSignal exception:', e);
+        }
     }
 
     function detectToolName() {
@@ -94,7 +110,7 @@
         }
     }
 
-    // High-cadence real-time poll (every 150ms)
+    // Real-time polling every 150ms
     setInterval(evaluateAiState, 150);
 
     // Immediate reaction on Enter key or Send button click
@@ -121,5 +137,5 @@
         }
     }, true);
 
-    console.log(`[Desktop Cat] Web AI Companion active for ${detectToolName()} -> Connected to ${PET_API}`);
+    console.log(`[Desktop Cat v1.3] Active for ${detectToolName()} -> Bridge to ${PET_API}`);
 })();

@@ -181,10 +181,12 @@ class DesktopPet(QWidget):
         # Global Input Watcher (Comnyang-style cadence reaction to typing, overheat, and scrolling)
         self.input_watcher = GlobalInputWatcher(self)
         self.input_watcher.typing_started.connect(self._on_global_typing_start)
+        self.input_watcher.typing_started.connect(self.ai_watcher.on_user_activity)
         self.input_watcher.typing_stopped.connect(self._on_global_typing_stop)
         self.input_watcher.overheat_started.connect(self._on_global_overheat_start)
         self.input_watcher.overheat_ended.connect(self._on_global_overheat_end)
         self.input_watcher.mouse_scrolled.connect(self._on_global_scroll)
+        self.input_watcher.mouse_scrolled.connect(lambda dx, dy: self.ai_watcher.on_user_activity())
         self.input_watcher.enter_pressed.connect(self.ai_watcher.on_user_pressed_enter)
 
         # Animation Loop Timer (110ms per frame for smooth 9-10 FPS sprite cycling)
