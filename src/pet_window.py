@@ -176,6 +176,7 @@ class DesktopPet(QWidget):
         self.ai_watcher = AIAgentWatcher(self.settings, parent=self)
         self.ai_watcher.ai_thinking_started.connect(self._on_ai_thinking_started)
         self.ai_watcher.ai_task_completed.connect(self._on_ai_task_completed)
+        self.ai_watcher.external_message_received.connect(lambda msg: self.say(msg, 3500))
 
         # Global Input Watcher (Comnyang-style cadence reaction to typing, overheat, and scrolling)
         self.input_watcher = GlobalInputWatcher(self)
@@ -184,6 +185,7 @@ class DesktopPet(QWidget):
         self.input_watcher.overheat_started.connect(self._on_global_overheat_start)
         self.input_watcher.overheat_ended.connect(self._on_global_overheat_end)
         self.input_watcher.mouse_scrolled.connect(self._on_global_scroll)
+        self.input_watcher.enter_pressed.connect(self.ai_watcher.on_user_pressed_enter)
 
         # Animation Loop Timer (110ms per frame for smooth 9-10 FPS sprite cycling)
         self.anim_timer = QTimer(self)
@@ -440,8 +442,10 @@ class DesktopPet(QWidget):
         self.state = new_state
         self.frame_index = 0
         self.state_ticks = 0
-        if duration_seconds:
+        if duration_seconds is not None:
             self.max_state_ticks = int(duration_seconds * 60)
+        else:
+            self.max_state_ticks = 99999999  # Infinite until explicit state change
         self.update()
 
     def _update_animation(self):
@@ -558,10 +562,18 @@ class DesktopPet(QWidget):
             return
 
         # ── 3. TEMPORARY STATES TIMEOUT ──
-        if self.state in ["celebrate", "thinking", "land", "stretch", "drink_water"]:
+        if self.state in ["celebrate", "land", "stretch", "drink_water"]:
             self.state_ticks += 1
             if self.state_ticks > self.max_state_ticks:
                 self.set_state("idle")
+            return
+        elif self.state == "thinking":
+            if self.max_state_ticks < 10000:
+                self.state_ticks += 1
+                if self.state_ticks > self.max_state_ticks:
+                    self.set_state("idle")
+            return
+        elif self.state in ["peek_left", "peek_right", "peek_bottom", "peek"]:
             return
 
         # ── REALTIME PET HEAD ZONE CHECK (Instant Stop When Cursor Leaves Head) ──
@@ -572,8 +584,11 @@ class DesktopPet(QWidget):
                 self.set_state("idle")
             return
 
-        # Do not wander if Pomodoro is active, typing/overheated, stretching, drinking water, or rolling paper
-        if not self.settings.get("wander_mode", True) or self.pomodoro.is_active or self.state in ["work", "overheat", "paper_unroll", "sleep", "stretch", "drink_water"]:
+        # Do not wander if Pomodoro is active, typing/overheated, stretching, drinking water, thinking, celebrating, or peeking
+        if not self.settings.get("wander_mode", True) or self.pomodoro.is_active or self.state in [
+            "work", "overheat", "paper_unroll", "sleep", "stretch", "drink_water",
+            "thinking", "celebrate", "peek_left", "peek_right", "peek_bottom", "peek"
+        ]:
             return
 
         # ── 4. AUTONOMOUS WANDER LOGIC ──
