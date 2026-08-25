@@ -124,6 +124,7 @@ class DesktopPet(QWidget):
         self.pre_interruption_state = "idle"
         self.pre_interruption_ticks = 0
         self.pre_interruption_max_ticks = 99999999
+        self._was_peeking_before_drag = False
 
         # Unified Center-Stage Reminder Manager (Prevents state collision & guarantees 100% accurate home restoration)
         self._active_reminder_type = None  # None, "stretch", "drink_water", etc.
@@ -886,6 +887,7 @@ class DesktopPet(QWidget):
             self.is_dragging = True
             self.has_dragged = False
             self.is_hunting = False
+            self._was_peeking_before_drag = self.is_peeking
             self.drag_start_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
             self.drag_start_global_pos = event.globalPosition().toPoint()
             self.last_drag_global_pt = self.drag_start_global_pos
@@ -905,16 +907,51 @@ class DesktopPet(QWidget):
             self.anim_timer.setInterval(110)
 
             if self.has_dragged:
-                self.settings["pos_x"] = int(self.pos_x_f)
-                self.settings["pos_y"] = int(self.pos_y_f)
-                save_settings(self.settings)
+                screen = self._get_current_screen_geometry()
+                mid_x = screen.left() + screen.width() / 2.0
+                dist_left = self.pos_x_f - screen.left()
+                dist_right = (screen.right() - self.sprite_size) - self.pos_x_f
+                dist_bottom = (screen.bottom() - self.sprite_size) - self.pos_y_f
+                dist_top = self.pos_y_f - screen.top()
 
-                # Landing squish bounce
-                self.set_state("land")
-                self._play_sound_blip(freq=950, dur=50)
-                # Restore pre-drag state or active session (keeps Thinking/Pomodoro/Peek alive after drag)
-                restore_state = self.pre_drag_state if self.pre_drag_state not in ["drag", "land"] else self.get_default_resume_state()
-                QTimer.singleShot(350, lambda: self.set_state(restore_state))
+                # If the cat was peeking before drag, snap to the edge closest to drop location
+                if getattr(self, "_was_peeking_before_drag", False):
+                    is_far_center = (
+                        dist_left > 220 and
+                        dist_right > 220 and
+                        dist_bottom > 180 and
+                        dist_top > 150
+                    )
+                    if is_far_center:
+                        # Dragged far into screen center -> naturally exit Peek Mode
+                        self.is_peeking = False
+                        self._auto_peeked = False
+                        self.settings["pos_x"] = int(self.pos_x_f)
+                        self.settings["pos_y"] = int(self.pos_y_f)
+                        save_settings(self.settings)
+                        self.set_state("land")
+                        self._play_sound_blip(freq=950, dur=50)
+                        QTimer.singleShot(350, self.resume_default_state)
+                    else:
+                        # Re-snap to nearest edge (left, right, or bottom)
+                        if dist_bottom < 90 and dist_bottom < min(dist_left, dist_right):
+                            target_side = "bottom"
+                        elif self.pos_x_f >= mid_x:
+                            target_side = "right"
+                        else:
+                            target_side = "left"
+                        self.enter_peek_mode(side=target_side, manual=False)
+                        self._play_sound_blip(freq=1350, dur=40)
+                else:
+                    self.settings["pos_x"] = int(self.pos_x_f)
+                    self.settings["pos_y"] = int(self.pos_y_f)
+                    save_settings(self.settings)
+
+                    # Landing squish bounce
+                    self.set_state("land")
+                    self._play_sound_blip(freq=950, dur=50)
+                    restore_state = self.pre_drag_state if self.pre_drag_state not in ["drag", "land"] else self.get_default_resume_state()
+                    QTimer.singleShot(350, lambda: self.set_state(restore_state))
 
                 if random.random() < 0.35:
                     landing_quotes = [
