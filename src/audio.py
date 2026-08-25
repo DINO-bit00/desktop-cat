@@ -164,30 +164,62 @@ def _generate_sound(sound_type: str, sample_rate: int = 22050) -> bytes:
     return _synthesize_wav(samples, sample_rate)
 
 
+import os
+import threading
+
+_SOUND_FILES: Dict[str, str] = {}
+
+
 def init_audio():
-    """Pre-caches all standard sound effects in memory for zero-latency playback."""
+    """Pre-caches all standard sound effects in memory and generates local WAV files for instant async playback."""
     global _INITIALIZED
     if _INITIALIZED:
         return
+    
+    sound_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets", "sounds")
+    try:
+        os.makedirs(sound_dir, exist_ok=True)
+    except Exception:
+        pass
+
     presets = [
         "meow_cute", "meow_happy", "meow_boss", "meow_chibi",
         "purr", "celebrate", "pop", "water", "stretch", "blip"
     ]
     for p in presets:
-        _AUDIO_CACHE[p] = _generate_sound(p)
+        wav_data = _generate_sound(p)
+        _AUDIO_CACHE[p] = wav_data
+        
+        file_path = os.path.join(sound_dir, f"{p}.wav")
+        try:
+            with open(file_path, "wb") as f:
+                f.write(wav_data)
+            _SOUND_FILES[p] = file_path
+        except Exception:
+            pass
+
     _INITIALIZED = True
 
 
-def play_sound(sound_type: str, settings: Optional[dict] = None):
+def play_sound(sound_type: str, settings: Optional[dict] = None, force: bool = False):
     """
     Plays an 8-bit sound effect asynchronously without blocking the UI thread.
-    Respects user's 'sound_enabled' preference.
+    Respects user's 'sound_enabled' preference unless force=True (e.g. previewing).
     """
-    if settings is not None and not settings.get("sound_enabled", True):
+    if not force and settings is not None and not settings.get("sound_enabled", True):
         return
 
     if not _INITIALIZED:
         init_audio()
+
+    file_path = _SOUND_FILES.get(sound_type)
+    if file_path and os.path.exists(file_path) and sys.platform == "win32":
+        try:
+            import winsound
+            winsound.PlaySound(file_path, winsound.SND_FILENAME | winsound.SND_ASYNC)
+            return
+        except Exception:
+            pass
 
     wav_data = _AUDIO_CACHE.get(sound_type)
     if not wav_data:
@@ -197,41 +229,44 @@ def play_sound(sound_type: str, settings: Optional[dict] = None):
     if sys.platform == "win32":
         try:
             import winsound
-            winsound.PlaySound(wav_data, winsound.SND_MEMORY | winsound.SND_ASYNC | winsound.SND_NODEFAULT)
+            threading.Thread(
+                target=lambda: winsound.PlaySound(wav_data, winsound.SND_MEMORY),
+                daemon=True
+            ).start()
         except Exception:
             pass
 
 
-def play_meow_for_skin(skin_name: str, settings: Optional[dict] = None):
+def play_meow_for_skin(skin_name: str, settings: Optional[dict] = None, force: bool = False):
     """Selects and plays the distinct 8-bit meow personality matching the active skin."""
     if skin_name == "boss_oyen":
-        play_sound("meow_boss", settings)
+        play_sound("meow_boss", settings, force=force)
     elif skin_name in ("mochi", "snowball"):
-        play_sound("meow_chibi", settings)
+        play_sound("meow_chibi", settings, force=force)
     elif skin_name in ("tuxedo", "calico"):
-        play_sound("meow_happy", settings)
+        play_sound("meow_happy", settings, force=force)
     else:
-        play_sound("meow_cute", settings)
+        play_sound("meow_cute", settings, force=force)
 
 
-def play_purr(settings: Optional[dict] = None):
-    play_sound("purr", settings)
+def play_purr(settings: Optional[dict] = None, force: bool = False):
+    play_sound("purr", settings, force=force)
 
 
-def play_celebrate(settings: Optional[dict] = None):
-    play_sound("celebrate", settings)
+def play_celebrate(settings: Optional[dict] = None, force: bool = False):
+    play_sound("celebrate", settings, force=force)
 
 
-def play_pop(settings: Optional[dict] = None):
-    play_sound("pop", settings)
+def play_pop(settings: Optional[dict] = None, force: bool = False):
+    play_sound("pop", settings, force=force)
 
 
-def play_water(settings: Optional[dict] = None):
-    play_sound("water", settings)
+def play_water(settings: Optional[dict] = None, force: bool = False):
+    play_sound("water", settings, force=force)
 
 
-def play_stretch(settings: Optional[dict] = None):
-    play_sound("stretch", settings)
+def play_stretch(settings: Optional[dict] = None, force: bool = False):
+    play_sound("stretch", settings, force=force)
 
 
 init_audio()

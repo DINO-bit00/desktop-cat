@@ -1566,15 +1566,15 @@ class DesktopPet(QWidget):
 
         # 8. 8-Bit Meow & Sound FX Test Submenu
         sound_menu = menu.addMenu("🔊 Uji Suara Meong (8-Bit)")
-        sound_menu.addAction("🐱 Meow Klasik (Cute)", lambda: audio.play_sound("meow_cute", self.settings))
-        sound_menu.addAction("😸 Meow Ceria (Happy)", lambda: audio.play_sound("meow_happy", self.settings))
-        sound_menu.addAction("😎 Meow Boss Oyen", lambda: audio.play_sound("meow_boss", self.settings))
-        sound_menu.addAction("🐾 Meow Kitten Chibi (Mochi)", lambda: audio.play_sound("meow_chibi", self.settings))
-        sound_menu.addAction("❤️ Dengkuran Purr (Petting)", lambda: audio.play_sound("purr", self.settings))
-        sound_menu.addAction("✨ Selebrasi Kemenangan (Sparkle)", lambda: audio.play_sound("celebrate", self.settings))
-        sound_menu.addAction("🫧 Gelembung Pop", lambda: audio.play_sound("pop", self.settings))
-        sound_menu.addAction("💧 Percikan Air (Water Splash)", lambda: audio.play_sound("water", self.settings))
-        sound_menu.addAction("🧘 Regangan Ngantuk (Yawn)", lambda: audio.play_sound("stretch", self.settings))
+        sound_menu.addAction("🐱 Meow Klasik (Cute)", lambda: self._test_sound("meow_cute"))
+        sound_menu.addAction("😸 Meow Ceria (Happy)", lambda: self._test_sound("meow_happy"))
+        sound_menu.addAction("😎 Meow Boss Oyen", lambda: self._test_sound("meow_boss"))
+        sound_menu.addAction("🐾 Meow Kitten Chibi (Mochi)", lambda: self._test_sound("meow_chibi"))
+        sound_menu.addAction("❤️ Dengkuran Purr (Petting)", lambda: self._test_sound("purr"))
+        sound_menu.addAction("✨ Selebrasi Kemenangan (Sparkle)", lambda: self._test_sound("celebrate"))
+        sound_menu.addAction("🫧 Gelembung Pop", lambda: self._test_sound("pop"))
+        sound_menu.addAction("💧 Percikan Air (Water Splash)", lambda: self._test_sound("water"))
+        sound_menu.addAction("🧘 Regangan Ngantuk (Yawn)", lambda: self._test_sound("stretch"))
 
         menu.addSeparator()
 
@@ -1687,9 +1687,21 @@ class DesktopPet(QWidget):
                 except Exception:
                     pass
 
+    def _test_sound(self, sound_type: str):
+        if not self.settings.get("sound_enabled", True):
+            self.settings["sound_enabled"] = True
+            save_settings(self.settings)
+            self.say("Suara 8-Bit diaktifkan nya! 🔊🐾", 2000)
+        audio.play_sound(sound_type, self.settings, force=True)
+
     def _toggle_sound(self, checked):
         self.settings["sound_enabled"] = checked
         save_settings(self.settings)
+        if checked:
+            audio.play_sound("meow_cute", self.settings, force=True)
+            self.say("Suara 8-Bit diaktifkan nya! 🔊🐾", 3000)
+        else:
+            self.say("Suara dimatikan nya! 🔇🐾", 3000)
 
     def _toggle_ai_watcher(self, checked):
         self.ai_watcher.set_enabled(checked)
