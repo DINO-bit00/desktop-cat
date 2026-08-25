@@ -32,6 +32,7 @@ from src.pomodoro_dialog import CustomPomodoroDialog
 from src.sticky_note import StickyNote
 from src.alarm_dialog import CustomAlarmDialog
 from src.ai_watcher import AIAgentWatcher
+import src.audio as audio
 
 
 def set_win32_topmost(widget):
@@ -876,7 +877,7 @@ class DesktopPet(QWidget):
             if head_rect.contains(local_pos):
                 if self.state != "pet" and self.state not in ["drag", "land", "work", "overheat"]:
                     self.set_state("pet")
-                    self._play_sound_blip(freq=1480, dur=35)
+                    audio.play_purr(self.settings)
             else:
                 if self.state == "pet":
                     self.resume_default_state()
@@ -972,7 +973,7 @@ class DesktopPet(QWidget):
             self.pomodoro_badge.hide()
         self.speech_bubble.show_message(message, duration_ms)
         self._update_bubble_position()
-        self._play_sound_blip()
+        self._play_sound_blip("pop")
 
 
     def _on_bubble_hidden(self):
@@ -1040,16 +1041,16 @@ class DesktopPet(QWidget):
                 "Purrr purrr... Kucing senang, kerjaan lancar! 🐾",
                 "Meow! Jangan lupa regangkan tanganmu ya~ 🧘"
             ]
+        audio.play_meow_for_skin(self.skin, self.settings)
         self.say(random.choice(purrs), 3500)
 
-    def _play_sound_blip(self, freq=1200, dur=60):
+    def _play_sound_blip(self, sound_type="blip", freq=None, dur=None):
         if not self.settings.get("sound_enabled", True):
             return
-        try:
-            import winsound
-            winsound.Beep(int(freq), int(dur))
-        except Exception:
-            pass
+        if isinstance(sound_type, str) and sound_type in audio._AUDIO_CACHE:
+            audio.play_sound(sound_type, self.settings)
+        else:
+            audio.play_sound("blip", self.settings)
 
     # -------------------------------------------------------------
     # Pomodoro & Reminder Handlers
@@ -1213,8 +1214,7 @@ class DesktopPet(QWidget):
     def trigger_thinking(self, duration=None, message=None):
         """AI Agent Thinking reaction: curious head tilt + animated floating thought cloud."""
         self.set_state("thinking", duration_seconds=duration)
-        self._play_sound_blip(freq=1250, dur=40)
-        QTimer.singleShot(80, lambda: self._play_sound_blip(freq=1450, dur=60))
+        audio.play_sound("pop", self.settings)
         if message:
             dur_ms = int(duration * 1000) if duration else 4000
             self.say(message, dur_ms)
@@ -1222,9 +1222,7 @@ class DesktopPet(QWidget):
     def trigger_celebrate(self, duration=4, message=None):
         """AI Agent Done / Celebrate Jump reaction: 4-frame victory jump with stars & celebratory chime."""
         self.set_state("celebrate", duration_seconds=duration)
-        self._play_sound_blip(freq=1200, dur=40)
-        QTimer.singleShot(70, lambda: self._play_sound_blip(freq=1450, dur=50))
-        QTimer.singleShot(140, lambda: self._play_sound_blip(freq=1800, dur=75))
+        audio.play_celebrate(self.settings)
         if message:
             self.say(message, duration * 1000)
 
@@ -1566,10 +1564,21 @@ class DesktopPet(QWidget):
         auto_peek_act.setChecked(self.settings.get("auto_peek_fullscreen", True))
         auto_peek_act.triggered.connect(self._toggle_auto_peek_fullscreen)
 
+        # 8. 8-Bit Meow & Sound FX Test Submenu
+        sound_menu = menu.addMenu("🔊 Uji Suara Meong (8-Bit)")
+        sound_menu.addAction("🐱 Meow Klasik (Cute)", lambda: audio.play_sound("meow_cute", self.settings))
+        sound_menu.addAction("😸 Meow Ceria (Happy)", lambda: audio.play_sound("meow_happy", self.settings))
+        sound_menu.addAction("😎 Meow Boss Oyen", lambda: audio.play_sound("meow_boss", self.settings))
+        sound_menu.addAction("🐾 Meow Kitten Chibi (Mochi)", lambda: audio.play_sound("meow_chibi", self.settings))
+        sound_menu.addAction("❤️ Dengkuran Purr (Petting)", lambda: audio.play_sound("purr", self.settings))
+        sound_menu.addAction("✨ Selebrasi Kemenangan (Sparkle)", lambda: audio.play_sound("celebrate", self.settings))
+        sound_menu.addAction("🫧 Gelembung Pop", lambda: audio.play_sound("pop", self.settings))
+        sound_menu.addAction("💧 Percikan Air (Water Splash)", lambda: audio.play_sound("water", self.settings))
+        sound_menu.addAction("🧘 Regangan Ngantuk (Yawn)", lambda: audio.play_sound("stretch", self.settings))
+
         menu.addSeparator()
 
-        # 7. Sticky Note / Pinned Focus
-        # 7. Personalization & Reminders
+        # 9. Personalization & Reminders
         name_action = menu.addAction("👤 Set Panggilan Nama")
         name_action.triggered.connect(self._prompt_user_name)
         note_action = menu.addAction("📌 Set Target Fokus / Note")
@@ -1577,7 +1586,7 @@ class DesktopPet(QWidget):
         alarm_action = menu.addAction("⏰ Setel Alarm (Custom)")
         alarm_action.triggered.connect(self._prompt_custom_alarm)
 
-        # 7. Options
+        # 10. Options
         hunt_act = menu.addAction("🎯 Kejar Kursor Cepat (Mouse Hunt)")
         hunt_act.setCheckable(True)
         hunt_act.setChecked(self.settings.get("mouse_hunt_enabled", True))
@@ -1593,7 +1602,7 @@ class DesktopPet(QWidget):
         ontop_act.setChecked(self.settings.get("stay_on_top", True))
         ontop_act.triggered.connect(self._toggle_stay_on_top)
 
-        sound_act = menu.addAction("🔔 Suara Blip Efek")
+        sound_act = menu.addAction("🔔 Suara Efek 8-Bit")
         sound_act.setCheckable(True)
         sound_act.setChecked(self.settings.get("sound_enabled", True))
         sound_act.triggered.connect(self._toggle_sound)
@@ -1821,8 +1830,7 @@ class DesktopPet(QWidget):
         has_queued = len(self._reminder_queue) > 0
 
         if reminder_type == "stretch":
-            self._play_sound_blip(freq=1250, dur=70)
-            QTimer.singleShot(140, lambda: self._play_sound_blip(freq=1650, dur=90))
+            audio.play_stretch(self.settings)
             if has_queued:
                 self.say("Sesi Istirahat Sehat Terpadu! 🧘✨\nYuk regangkan badan dulu, habis ini kita minum air putih ya!", int(duration * 1000 - 500))
             elif auto:
@@ -1836,9 +1844,7 @@ class DesktopPet(QWidget):
                 self.say("Ngulet dulu nyaaa~ segernya badan! 🧘✨\nYuk luruskan punggung bareng aku!", int(duration * 1000 - 500))
 
         elif reminder_type == "drink_water":
-            self._play_sound_blip(freq=1100, dur=60)
-            QTimer.singleShot(120, lambda: self._play_sound_blip(freq=1450, dur=70))
-            QTimer.singleShot(240, lambda: self._play_sound_blip(freq=1750, dur=90))
+            audio.play_water(self.settings)
             if has_queued or self._was_combo:
                 self.say("Lanjut minum segelas air putih! 🥛💧✨\nBiar tubuh segar & terhidrasi maksimal!", int(duration * 1000 - 500))
             elif auto:
@@ -1852,8 +1858,7 @@ class DesktopPet(QWidget):
                 self.say("Slurp slurp nyaaa~ Segernya minum air putih! 🥛💧✨\nJangan lupa minum juga ya!", int(duration * 1000 - 500))
 
         elif reminder_type == "pomodoro_work_done":
-            self._play_sound_blip(freq=1350, dur=70)
-            QTimer.singleShot(140, lambda: self._play_sound_blip(freq=1750, dur=90))
+            audio.play_celebrate(self.settings)
             cycle = self.pomodoro.current_cycle
             total = self.pomodoro.total_cycles
             is_auto = self.pomodoro.is_auto_cycle
