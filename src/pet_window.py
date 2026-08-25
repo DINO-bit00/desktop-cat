@@ -896,7 +896,8 @@ class DesktopPet(QWidget):
             self.is_dragging = True
             self.has_dragged = False
             self.is_hunting = False
-            self._was_peeking_before_drag = self.is_peeking
+            self._was_peeking_before_drag = self.is_peeking or self.state.startswith("peek")
+            self._auto_peeked = False
             self.drag_start_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
             self.drag_start_global_pos = event.globalPosition().toPoint()
             self.last_drag_global_pt = self.drag_start_global_pos
@@ -924,7 +925,8 @@ class DesktopPet(QWidget):
                 dist_top = self.pos_y_f - screen.top()
 
                 # If the cat was peeking before drag, snap cleanly to nearest screen edge (left, right, or bottom)
-                if getattr(self, "_was_peeking_before_drag", False):
+                if getattr(self, "_was_peeking_before_drag", False) or self.is_peeking or self.state.startswith("peek"):
+                    self._auto_peeked = False
                     if self.pos_y_f >= screen.bottom() - self.sprite_size - 130 and (dist_bottom < min(dist_left, dist_right)):
                         target_side = "bottom"
                     elif self.pos_x_f >= mid_x:
@@ -1347,7 +1349,7 @@ class DesktopPet(QWidget):
             if manual:
                 self.say("Mode Mengintip aktif! Aku di tepi layar ya nya~ 🫣🐾", 3000)
 
-        self._start_smooth_glide(target_x, target_y, self.sprite_size, duration=0.45, on_complete=on_arrived)
+        self._start_smooth_glide(target_x, target_y, self.sprite_size, duration=0.22, on_complete=on_arrived)
 
     def exit_peek_mode(self, manual: bool = True):
         """Exits Peek Mode: glides back to original position."""
