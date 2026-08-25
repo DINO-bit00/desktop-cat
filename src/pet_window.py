@@ -448,6 +448,20 @@ class DesktopPet(QWidget):
             self.max_state_ticks = 99999999  # Infinite until explicit state change
         self.update()
 
+    def get_default_resume_state(self) -> str:
+        """Returns the appropriate state to return to after temporary interruptions."""
+        if hasattr(self, "ai_watcher") and self.ai_watcher.is_active_ai_session:
+            return "thinking"
+        if hasattr(self, "is_peeking") and self.is_peeking:
+            return f"peek_{self.peek_side}"
+        return "idle"
+
+    def resume_default_state(self):
+        """Restores the active continuous state (thinking, peek, or idle)."""
+        target = self.get_default_resume_state()
+        if self.state != target:
+            self.set_state(target)
+
     def _update_animation(self):
         self.frame_index = (self.frame_index + 1) % 4
         self.update()
@@ -565,13 +579,13 @@ class DesktopPet(QWidget):
         if self.state in ["celebrate", "land", "stretch", "drink_water"]:
             self.state_ticks += 1
             if self.state_ticks > self.max_state_ticks:
-                self.set_state("idle")
+                self.resume_default_state()
             return
         elif self.state == "thinking":
-            if self.max_state_ticks < 10000:
+            if not self.ai_watcher.is_active_ai_session and self.max_state_ticks < 10000:
                 self.state_ticks += 1
                 if self.state_ticks > self.max_state_ticks:
-                    self.set_state("idle")
+                    self.resume_default_state()
             return
         elif self.state in ["peek_left", "peek_right", "peek_bottom", "peek"]:
             return
@@ -581,7 +595,7 @@ class DesktopPet(QWidget):
             local_p = self.mapFromGlobal(QCursor.pos())
             head_rect = self._get_head_rect()
             if not self.rect().contains(local_p) or not head_rect.contains(local_p):
-                self.set_state("idle")
+                self.resume_default_state()
             return
 
         # Do not wander if Pomodoro is active, typing/overheated, stretching, drinking water, thinking, celebrating, or peeking
@@ -625,25 +639,25 @@ class DesktopPet(QWidget):
     # Global Input Reactions (Comnyang Phase 2 Features)
     # -------------------------------------------------------------
     def _on_global_typing_start(self):
-        """User started typing -> cat begins keyboard kneading."""
-        if self.is_reminder_locked:
+        """User started typing -> cat begins keyboard kneading (if not in a protected or AI session)."""
+        if self.is_reminder_locked or self.is_peeking or self.ai_watcher.is_active_ai_session:
             return
-        if self.state not in ["drag", "land", "pet", "overheat"]:
+        if self.state not in ["drag", "land", "pet", "overheat", "stretch", "drink_water", "celebrate", "thinking"]:
             self.is_hunting = False
             self.set_state("work")
 
     def _on_global_typing_stop(self):
-        """User stopped typing -> return to idle."""
+        """User stopped typing -> resume active state."""
         if self.is_reminder_locked:
             return
         if self.state in ["work", "overheat"]:
-            self.set_state("idle")
+            self.resume_default_state()
 
     def _on_global_overheat_start(self):
         """Typing super fast -> Overheat mode with steam puffs!"""
-        if self.is_reminder_locked:
+        if self.is_reminder_locked or self.is_peeking or self.ai_watcher.is_active_ai_session:
             return
-        if self.state not in ["drag", "land", "pet"]:
+        if self.state not in ["drag", "land", "pet", "stretch", "drink_water", "celebrate", "thinking"]:
             self.set_state("overheat")
             self._play_sound_blip(freq=1650, dur=55)
             if random.random() < 0.35:
@@ -660,24 +674,22 @@ class DesktopPet(QWidget):
         """
         Comnyang Feature #10: Paper Unroll!
         Spinning the paper roll with paws as user scrolls documents / pages.
-        Wakes up the cat from sleep and responds to all scroll events.
+        Does not interrupt protected high-priority or active AI/Peek sessions.
         """
-        if self.is_reminder_locked or self.pomodoro.is_active:
+        if self.is_reminder_locked or self.pomodoro.is_active or self.is_peeking or self.ai_watcher.is_active_ai_session:
             return
-        if self.state not in ["drag", "pet"]:
+        if self.state not in ["drag", "pet", "stretch", "drink_water", "celebrate", "thinking"]:
             if self.state != "paper_unroll":
                 self.set_state("paper_unroll")
-            # Advance frame dynamically on each scroll event
             self.frame_index = (self.frame_index + 1) % 4
             self.update()
-            # Reset timer: return to idle immediately (400ms) after scrolling ceases
             self.scroll_reset_timer.start(400)
 
     def _on_scroll_timeout(self):
-        """Scroll stopped -> return to idle."""
+        """Scroll stopped -> return to active state."""
         self._scroll_delta_accum = 0.0
         if self.state == "paper_unroll":
-            self.set_state("idle")
+            self.resume_default_state()
 
     def _on_fast_mouse_move(self, mouse_x, mouse_y):
         """Mouse Hunt & Pounce: Fast moving cursor excites the cat!"""
@@ -828,13 +840,13 @@ class DesktopPet(QWidget):
                     self._play_sound_blip(freq=1480, dur=35)
             else:
                 if self.state == "pet":
-                    self.set_state("idle")
+                    self.resume_default_state()
 
     def leaveEvent(self, event):
         """Immediately stop petting as soon as cursor leaves the cat window."""
         super().leaveEvent(event)
         if self.state == "pet":
-            self.set_state("idle")
+            self.resume_default_state()
 
     def mousePressEvent(self, event):
         if self._glide_timer.isActive():
@@ -851,7 +863,7 @@ class DesktopPet(QWidget):
             self.last_drag_time = time.time()
             self.drag_velocity_x = 0.0
             self.mochi_tilt = 0.0
-            self.pre_drag_state = self.state if self.state not in ["drag", "land"] else "idle"
+            self.pre_drag_state = self.state if self.state not in ["drag", "land"] else self.get_default_resume_state()
             event.accept()
         elif event.button() == Qt.MouseButton.RightButton:
             self._show_context_menu(event.globalPosition().toPoint())
@@ -871,8 +883,8 @@ class DesktopPet(QWidget):
                 # Landing squish bounce
                 self.set_state("land")
                 self._play_sound_blip(freq=950, dur=50)
-                # Restore pre-drag state (keeps Pomodoro work/sleep alive after drag)
-                restore_state = self.pre_drag_state if self.pre_drag_state not in ["drag", "land"] else "idle"
+                # Restore pre-drag state or active session (keeps Thinking/Pomodoro/Peek alive after drag)
+                restore_state = self.pre_drag_state if self.pre_drag_state not in ["drag", "land"] else self.get_default_resume_state()
                 QTimer.singleShot(350, lambda: self.set_state(restore_state))
 
                 if random.random() < 0.35:
@@ -1218,6 +1230,7 @@ class DesktopPet(QWidget):
 
         self.is_peeking = True
         self.peek_side = side
+        self.set_state(f"peek_{side}")
         screen = self._get_current_screen_geometry()
 
         if side == "left":
@@ -1231,7 +1244,6 @@ class DesktopPet(QWidget):
             target_y = max(screen.top() + 40, min(int(self.pos_y_f), screen.bottom() - self.sprite_size - 40))
 
         def on_arrived():
-            self.set_state(f"peek_{side}")
             self._play_sound_blip(freq=1350, dur=40)
             if manual:
                 self.say("Mode Mengintip aktif! Aku di tepi layar ya nya~ 🫣🐾", 3000)
