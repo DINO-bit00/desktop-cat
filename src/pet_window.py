@@ -32,6 +32,7 @@ from src.pomodoro_dialog import CustomPomodoroDialog
 from src.sticky_note import StickyNote
 from src.alarm_dialog import CustomAlarmDialog
 from src.ai_watcher import AIAgentWatcher
+from src.toys import YarnBallWidget, LaserPointerOverlay
 import src.audio as audio
 
 
@@ -221,6 +222,10 @@ class DesktopPet(QWidget):
         self._fullscreen_timer.timeout.connect(self._check_fullscreen_activity)
         if self.settings.get("auto_peek_fullscreen", True):
             self._fullscreen_timer.start(350)
+
+        # Interactive Toys (Yarn Ball & Laser Pointer)
+        self.yarn_ball = None
+        self.laser_overlay = None
 
         # Position on screen
         self._snap_to_initial_position()
@@ -1562,7 +1567,22 @@ class DesktopPet(QWidget):
         stat_act = feed_menu.addAction(f"📊 Total Diberi Makan: {food_count}x")
         stat_act.setEnabled(False)
 
-        # 8. Peek Mode Submenu (Screen Edge Peeking)
+        # 8. Interactive Toys Submenu (Yarn Ball & Laser Pointer)
+        toys_menu = menu.addMenu("🧶 Mainan Interaktif (Toys)")
+        yarn_sub = toys_menu.addMenu("🧶 Lempar Bola Benang (Yarn Ball)")
+        yarn_sub.addAction("💖 Bola Benang Pink", lambda: self.spawn_yarn_ball("pink"))
+        yarn_sub.addAction("💙 Bola Benang Biru", lambda: self.spawn_yarn_ball("blue"))
+        yarn_sub.addAction("💚 Bola Benang Mint", lambda: self.spawn_yarn_ball("mint"))
+
+        laser_act = toys_menu.addAction("🔴 Mode Laser Pointer (Red Dot)")
+        laser_act.setCheckable(True)
+        laser_act.setChecked(hasattr(self, "laser_overlay") and self.laser_overlay is not None and self.laser_overlay.isVisible())
+        laser_act.triggered.connect(self.toggle_laser_pointer)
+
+        toys_menu.addSeparator()
+        toys_menu.addAction("🧹 Simpan & Rapikan Semua Mainan", self.dismiss_all_toys)
+
+        # 9. Peek Mode Submenu (Screen Edge Peeking)
         peek_menu = menu.addMenu("🫣 Mode Mengintip (Peek Mode)")
         peek_menu.addAction("➡️ Mengintip dari Kanan (Right Edge)", lambda: self.enter_peek_mode("right", manual=True))
         peek_menu.addAction("⬅️ Mengintip dari Kiri (Left Edge)", lambda: self.enter_peek_mode("left", manual=True))
@@ -2008,6 +2028,121 @@ class DesktopPet(QWidget):
             
         self.say(msg, 4500)
 
+    # -------------------------------------------------------------
+    # Interactive Toys & Play System (Comnyang Phase 5)
+    # -------------------------------------------------------------
+    def spawn_yarn_ball(self, color="pink"):
+        """Spawns an interactive floating yarn ball toy with 60 FPS physics."""
+        if hasattr(self, "yarn_ball") and self.yarn_ball:
+            self.yarn_ball.close()
+            self.yarn_ball = None
+
+        screen = self._get_current_screen_geometry()
+        spawn_x = max(screen.left() + 50, min(int(self.pos_x_f) + self.sprite_size + 40, screen.right() - 80))
+        spawn_y = max(screen.top() + 50, min(int(self.pos_y_f), screen.bottom() - 100))
+
+        self.yarn_ball = YarnBallWidget(color_name=color, initial_pos=(spawn_x, spawn_y), parent=None)
+        self.yarn_ball.ball_moved.connect(self._on_yarn_ball_moved)
+        self.yarn_ball.show()
+        if self.settings.get("stay_on_top", True):
+            set_win32_topmost(self.yarn_ball)
+
+        audio.play_pop()
+        self.say("Wah bola benang wol! Asik buat main nya~ 🧶✨", 3500)
+
+    def _on_yarn_ball_moved(self, bx, by, vx, vy):
+        """Cat reacts to the yarn ball: chases, pounces, and bats it away!"""
+        if self.is_reminder_locked or self.is_dragging or self.state in ["drag", "land", "sleep", "feed"]:
+            return
+
+        cat_cx = self.pos_x_f + self.sprite_size / 2.0
+        cat_cy = self.pos_y_f + self.sprite_size / 2.0
+        ball_cx = bx + 22.0
+        ball_cy = by + 22.0
+        dist = math.hypot(ball_cx - cat_cx, ball_cy - cat_cy)
+
+        # Touching cat paws -> Cat bats the ball away!
+        hit_dist = 55.0 * (self.sprite_size / 128.0)
+        if dist < hit_dist:
+            if hasattr(self, "yarn_ball") and self.yarn_ball:
+                self.yarn_ball.bat_away(cat_cx, cat_cy)
+            self.set_state("celebrate", duration_seconds=1.2)
+            audio.play_meow_for_skin(self.skin, self.settings)
+            if random.random() < 0.4:
+                quotes = ["Kena bolanya nya! 🧶🐾", "Hiaatt! Cakar kilat! ✨", "Seru banget mainnya nya! 💖", "Lompat cakar! 🐱💨"]
+                self.say(random.choice(quotes), 2000)
+        # Chase rolling ball
+        elif dist < (420.0 * (self.sprite_size / 128.0)) and math.hypot(vx, vy) > 1.2:
+            if not self.is_hunting and self.state in ["idle", "walk_left", "walk_right"]:
+                if ball_cx > cat_cx + 10:
+                    self.look_dir_x = 1
+                    self.pos_x_f += 1.6
+                    self.set_state("walk_right")
+                elif ball_cx < cat_cx - 10:
+                    self.look_dir_x = -1
+                    self.pos_x_f -= 1.6
+                    self.set_state("walk_left")
+                self.move(int(self.pos_x_f), int(self.pos_y_f))
+                self._update_bubble_position()
+
+    def toggle_laser_pointer(self):
+        """Toggles interactive red laser pointer mode."""
+        if not hasattr(self, "laser_overlay") or self.laser_overlay is None:
+            self.laser_overlay = LaserPointerOverlay(parent=None)
+            self.laser_overlay.laser_position_changed.connect(self._on_laser_moved)
+
+        if self.laser_overlay.isVisible():
+            self.laser_overlay.stop_laser()
+            self.say("Mode Laser Pointer dimatikan nya~ 🐾", 2500)
+        else:
+            self.laser_overlay.start_laser()
+            if self.settings.get("stay_on_top", True):
+                set_win32_topmost(self.laser_overlay)
+            self.say("Titik laser merah muncul! Mau kutangkap nya! 🔴👀🔥", 3500)
+            audio.play_pop()
+
+    def _on_laser_moved(self, lx, ly):
+        """Cat eyes and body excitedly follow the glowing laser dot!"""
+        if self.is_reminder_locked or self.is_dragging or self.state in ["drag", "land", "sleep", "feed"]:
+            return
+
+        cat_cx = self.pos_x_f + self.sprite_size / 2.0
+        cat_cy = self.pos_y_f + self.sprite_size / 2.0
+        dist = math.hypot(lx - cat_cx, ly - cat_cy)
+
+        # Eye follow laser
+        dx = 1 if lx > cat_cx + 15 else (-1 if lx < cat_cx - 15 else 0)
+        dy = 1 if ly > cat_cy + 15 else (-1 if ly < cat_cy - 15 else 0)
+        self.look_dir_x = dx
+        self.look_dir_y = dy
+
+        # Pounce on laser if close
+        if dist < 50.0 * (self.sprite_size / 128.0):
+            if self.state != "celebrate":
+                self.set_state("celebrate", duration_seconds=1.0)
+                audio.play_pop()
+                if random.random() < 0.35:
+                    self.say(random.choice(["Kena titik merahnya! 🔴🐾", "Hap! Cepat kan cakarku nya! ✨", "Dapet lasernya! 🔥"]), 1800)
+        elif dist < 500.0 * (self.sprite_size / 128.0) and self.state in ["idle", "walk_left", "walk_right"]:
+            step = 2.2
+            if lx > cat_cx + 20:
+                self.pos_x_f += step
+                self.set_state("walk_right")
+            elif lx < cat_cx - 20:
+                self.pos_x_f -= step
+                self.set_state("walk_left")
+            self.move(int(self.pos_x_f), int(self.pos_y_f))
+            self._update_bubble_position()
+
+    def dismiss_all_toys(self):
+        """Hides and dismisses all active toys."""
+        if hasattr(self, "yarn_ball") and self.yarn_ball:
+            self.yarn_ball.close()
+            self.yarn_ball = None
+        if hasattr(self, "laser_overlay") and self.laser_overlay:
+            self.laser_overlay.stop_laser()
+        self.say("Semua mainan sudah dirapikan nya! 🧹✨", 2500)
+
     def _toggle_stretch_reminder(self, checked):
         self.settings["stretch_reminder_enabled"] = checked
         save_settings(self.settings)
@@ -2137,6 +2272,7 @@ class DesktopPet(QWidget):
                 self.say("Catatan dilepas nya~", 3000)
             self._update_bubble_position()
     def close_app(self):
+        self.dismiss_all_toys()
         self.input_watcher.stop()
         self.speech_bubble.close()
         self.close()
