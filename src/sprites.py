@@ -1492,27 +1492,173 @@ def _draw_cat_feeding(p: dict, frame_idx: int) -> Image.Image:
     return img
 
 
+# ─── WARDROBE ACCESSORIES DEFINITIONS & LAYER ENGINE ───────────────────────
+ACCESSORIES = {
+    "none": {"name": "🚫 Tanpa Aksesoris (None)", "icon": "🚫"},
+    "wizard_hat": {"name": "🧙 Topi Penyihir (Wizard Hat)", "icon": "🧙"},
+    "royal_crown": {"name": "👑 Mahkota Emas (Royal Crown)", "icon": "👑"},
+    "cute_ribbon": {"name": "🎀 Pita Manis (Cute Ribbon)", "icon": "🎀"},
+    "winter_scarf": {"name": "🧣 Syal Musim Dingin (Winter Scarf)", "icon": "🧣"},
+    "sunglasses": {"name": "🕶️ Kacamata Hitam (Sunglasses)", "icon": "🕶️"},
+    "flower_pin": {"name": "🌸 Jepit Bunga Sakura (Flower Pin)", "icon": "🌸"},
+}
+
+
+def _draw_accessory_layer(img: Image.Image, accessory: str, state: str, frame_idx: int, flip_left: bool = False):
+    """Draws pixel-perfect accessory layer onto the native 32x32 cat canvas."""
+    if not accessory or accessory == "none":
+        return
+
+    d = ImageDraw.Draw(img)
+    K = (18, 18, 22, 255)
+    fi = frame_idx % 4
+
+    # Calculate head & neck anchor coordinates based on active state
+    if state in ("walk_left", "walk_right", "run_W", "run_E", "walk"):
+        bob_y = -1 if fi in (0, 2) else 0
+        head_cx = 9 if flip_left else 23
+        head_top_y = 8 + bob_y
+        neck_y = 19 + bob_y
+    elif state in ("work", "knead", "typing", "overheat", "heat", "hot"):
+        body_bob = -1 if fi in (0, 2) else 0
+        head_cx = 16
+        head_top_y = 8 + body_bob
+        neck_y = 18 + body_bob
+    elif state == "sleep":
+        head_cx = 20
+        head_top_y = 14
+        neck_y = 20
+    elif state in ("stretch", "yoga", "posture"):
+        head_cx = 24
+        head_top_y = 18
+        neck_y = 22
+    elif state in ("drink_water", "feed", "eat"):
+        head_y_offsets = [12, 13, 11, 10]
+        head_x_offsets = [13, 14, 12, 11]
+        head_cx = head_x_offsets[fi] + 5
+        head_top_y = head_y_offsets[fi]
+        neck_y = 19
+    elif state in ("celebrate", "jump", "done"):
+        if fi in (1, 2):
+            head_cx = 16
+            head_top_y = 4
+            neck_y = 12
+        else:
+            head_cx = 16
+            head_top_y = 8
+            neck_y = 16
+    elif state.startswith("peek"):
+        if state == "peek_left":
+            head_cx = 22
+            head_top_y = 10
+            neck_y = 20
+        elif state == "peek_bottom":
+            head_cx = 16
+            head_top_y = 14
+            neck_y = 22
+        else:
+            head_cx = 10
+            head_top_y = 10
+            neck_y = 20
+    else:  # idle_front / pet / drag / paper_unroll / thinking
+        bob_y = 1 if fi in (1, 3) else 0
+        head_cx = 16
+        head_top_y = 9 + bob_y
+        neck_y = 18 + bob_y
+
+    if accessory == "wizard_hat":
+        PURPLE = (110, 45, 185, 255)
+        PURPLE_DARK = (75, 25, 135, 255)
+        GOLD = (255, 215, 45, 255)
+        bx1, bx2, by = head_cx - 7, head_cx + 7, head_top_y + 1
+        d.rectangle([bx1, by, bx2, by + 1], fill=PURPLE_DARK, outline=K)
+        d.polygon([
+            (head_cx - 4, by),
+            (head_cx + 4, by),
+            (head_cx + 1, by - 6),
+            (head_cx - 3, by - 8),
+            (head_cx - 4, by - 8),
+            (head_cx - 2, by - 5)
+        ], fill=PURPLE, outline=K)
+        d.line([(head_cx - 4, by - 1), (head_cx + 4, by - 1)], fill=GOLD)
+        img.putpixel((head_cx, by - 1), (255, 255, 255, 255))
+
+    elif accessory == "royal_crown":
+        GOLD = (255, 210, 30, 255)
+        GOLD_DARK = (205, 160, 15, 255)
+        RUBY = (245, 45, 65, 255)
+        SAPPHIRE = (45, 140, 255, 255)
+        cx, cy = head_cx, head_top_y - 2
+        d.rectangle([cx - 5, cy + 2, cx + 5, cy + 3], fill=GOLD_DARK, outline=K)
+        d.polygon([(cx - 5, cy + 2), (cx - 5, cy - 2), (cx - 3, cy + 1)], fill=GOLD, outline=K)
+        d.polygon([(cx - 2, cy + 1), (cx, cy - 4), (cx + 2, cy + 1)], fill=GOLD, outline=K)
+        d.polygon([(cx + 3, cy + 1), (cx + 5, cy - 2), (cx + 5, cy + 2)], fill=GOLD, outline=K)
+        img.putpixel((cx - 4, cy + 2), SAPPHIRE)
+        img.putpixel((cx, cy + 2), RUBY)
+        img.putpixel((cx + 4, cy + 2), SAPPHIRE)
+
+    elif accessory == "cute_ribbon":
+        PINK = (255, 110, 160, 255)
+        PINK_DARK = (220, 60, 115, 255)
+        rx, ry = head_cx + 4, head_top_y - 1
+        d.polygon([(rx - 3, ry - 2), (rx - 1, ry), (rx - 3, ry + 2)], fill=PINK, outline=K)
+        d.polygon([(rx + 3, ry - 2), (rx + 1, ry), (rx + 3, ry + 2)], fill=PINK, outline=K)
+        d.rectangle([rx - 1, ry - 1, rx + 1, ry + 1], fill=PINK_DARK, outline=K)
+
+    elif accessory == "winter_scarf":
+        RED = (225, 45, 55, 255)
+        WHITE = (245, 245, 250, 255)
+        d.rectangle([head_cx - 6, neck_y, head_cx + 6, neck_y + 2], fill=RED, outline=K)
+        d.line([(head_cx - 3, neck_y), (head_cx - 3, neck_y + 2)], fill=WHITE)
+        d.line([(head_cx + 3, neck_y), (head_cx + 3, neck_y + 2)], fill=WHITE)
+        d.rectangle([head_cx + 4, neck_y + 3, head_cx + 6, neck_y + 6], fill=RED, outline=K)
+        d.line([(head_cx + 4, neck_y + 4), (head_cx + 6, neck_y + 4)], fill=WHITE)
+        img.putpixel((head_cx + 4, neck_y + 7), WHITE)
+        img.putpixel((head_cx + 6, neck_y + 7), WHITE)
+
+    elif accessory == "sunglasses":
+        SHADE = (20, 20, 25, 255)
+        ey = head_top_y + 4
+        d.rectangle([head_cx - 6, ey, head_cx + 6, ey + 3], fill=SHADE, outline=K)
+        img.putpixel((head_cx - 4, ey + 1), (255, 255, 255, 255))
+        img.putpixel((head_cx + 2, ey + 1), (255, 255, 255, 255))
+
+    elif accessory == "flower_pin":
+        PETAL = (255, 175, 200, 255)
+        CORE = (255, 225, 60, 255)
+        fx, fy = head_cx - 4, head_top_y - 1
+        d.rectangle([fx - 1, fy - 1, fx + 1, fy + 1], fill=PETAL)
+        img.putpixel((fx, fy - 2), PETAL)
+        img.putpixel((fx, fy + 2), PETAL)
+        img.putpixel((fx - 2, fy), PETAL)
+        img.putpixel((fx + 2, fy), PETAL)
+        img.putpixel((fx, fy), CORE)
+
+
 # ─── MAIN FRAME DISPATCHER (PUBLIC API) ────────────────────────────────────
 def render_cat_frame(skin_key: str = "boss_oyen",
                      state: str = "idle",
                      frame_idx: int = 0,
                      look_dx: int = 0,
-                     look_dy: int = 0) -> Image.Image:
+                     look_dy: int = 0,
+                     accessory: str = "none") -> Image.Image:
     """
-    Return a 128x128 RGBA PIL Image for the given skin / state / frame.
-    Supports nearest-neighbor 4x scaling (32x32 -> 128x128) with dynamic eye follow.
+    Return a 128x128 RGBA PIL Image for the given skin / state / frame / accessory.
+    Supports nearest-neighbor 4x scaling (32x32 -> 128x128) with dynamic eye follow and wardrobe layering.
     """
     global _CACHE
-    cache_key = (skin_key, state, frame_idx % 4, look_dx, look_dy)
+    cache_key = (skin_key, state, frame_idx % 4, look_dx, look_dy, accessory)
     if cache_key in _CACHE:
         return _CACHE[cache_key]
 
     p = PALETTES.get(skin_key, PALETTES["boss_oyen"])
     fi = frame_idx % 4
+    flip_left = False
 
     # Generate native 32x32 frame based on state
     if state in ("walk_left", "run_W"):
         native = _draw_walk_side(p, fi, flip_left=True)
+        flip_left = True
     elif state in ("walk_right", "run_E", "walk"):
         native = _draw_walk_side(p, fi, flip_left=False)
     elif state in ("work", "knead", "typing"):
@@ -1545,6 +1691,10 @@ def render_cat_frame(skin_key: str = "boss_oyen",
         native = _draw_peek(p, fi, side="bottom")
     else:
         native = _draw_idle_front(p, fi, look_dx=look_dx, look_dy=look_dy)
+
+    # Layer accessory onto native 32x32 frame
+    if accessory and accessory != "none":
+        _draw_accessory_layer(native, accessory, state, fi, flip_left=flip_left)
 
     # Scale 4x nearest-neighbor to crisp 128x128
     scaled = native.resize((128, 128), Image.Resampling.NEAREST)

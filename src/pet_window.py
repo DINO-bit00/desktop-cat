@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
     QWidget, QMenu, QInputDialog, QMessageBox, QApplication
 )
 
-from src.sprites import PALETTES, render_cat_frame
+from src.sprites import PALETTES, ACCESSORIES, render_cat_frame
 from src.speech_bubble import SpeechBubble
 from src.pomodoro import PomodoroManager
 from src.local_watcher import LocalWatcher
@@ -156,6 +156,7 @@ class DesktopPet(QWidget):
         self._last_cursor_pos = QPoint(0, 0)
         self._last_cursor_poll_time = time.time()
         self._sprites_ready = False
+        self.accessory = self.settings.get("accessory", "none")
 
         # Load ONLY the essential idle + walk sprites synchronously (instant startup)
         self._load_essential_sprites(self.skin)
@@ -274,8 +275,9 @@ class DesktopPet(QWidget):
     def _render_state_frames(self, skin_name, state):
         """Renders 4 frames for a given state and stores them in pixmap_cache."""
         self.pixmap_cache[state] = []
+        acc = getattr(self, "accessory", "none")
         for frame in range(4):
-            pil_img = render_cat_frame(skin_name, state, frame)
+            pil_img = render_cat_frame(skin_name, state, frame, accessory=acc)
             raw_bytes = pil_img.tobytes("raw", "RGBA")
             qimg = QImage(raw_bytes, pil_img.width, pil_img.height, QImage.Format.Format_RGBA8888)
             self.pixmap_cache[state].append(QPixmap.fromImage(qimg))
@@ -298,7 +300,7 @@ class DesktopPet(QWidget):
         """Loads remaining state sprites + idle eye cache in small batches via QTimer chain."""
         remaining = [
             "overheat", "paper_unroll", "pet",
-            "stretch", "drink_water", "thinking", "drag", "land"
+            "stretch", "drink_water", "feed", "thinking", "drag", "land"
         ]
         self._deferred_batch_queue = list(remaining)
         self._deferred_skin = skin_name
@@ -321,28 +323,30 @@ class DesktopPet(QWidget):
 
     def _deferred_load_idle_eyes(self):
         """Pre-caches all 36 idle eye-direction frames for O(1) runtime lookup."""
+        acc = getattr(self, "accessory", "none")
         for frame in range(4):
             for ldx in (-1, 0, 1):
                 for ldy in (-1, 0, 1):
-                    pil_img = render_cat_frame(self._deferred_skin, "idle", frame, ldx, ldy)
+                    pil_img = render_cat_frame(self._deferred_skin, "idle", frame, ldx, ldy, accessory=acc)
                     raw_bytes = pil_img.tobytes("raw", "RGBA")
                     qimg = QImage(raw_bytes, pil_img.width, pil_img.height, QImage.Format.Format_RGBA8888)
                     self.idle_eye_cache[(frame, ldx, ldy)] = QPixmap.fromImage(qimg)
         self._sprites_ready = True
 
     def _load_skin_sprites(self, skin_name):
-        """Full synchronous load (used by skin switcher in context menu)."""
+        """Full synchronous load (used by skin & accessory switcher)."""
         self._load_essential_sprites(skin_name)
         remaining = [
             "overheat", "paper_unroll", "pet",
-            "stretch", "drink_water", "thinking", "drag", "land"
+            "stretch", "drink_water", "feed", "thinking", "drag", "land"
         ]
         for st in remaining:
             self._render_state_frames(skin_name, st)
+        acc = getattr(self, "accessory", "none")
         for frame in range(4):
             for ldx in (-1, 0, 1):
                 for ldy in (-1, 0, 1):
-                    pil_img = render_cat_frame(skin_name, "idle", frame, ldx, ldy)
+                    pil_img = render_cat_frame(skin_name, "idle", frame, ldx, ldy, accessory=acc)
                     raw_bytes = pil_img.tobytes("raw", "RGBA")
                     qimg = QImage(raw_bytes, pil_img.width, pil_img.height, QImage.Format.Format_RGBA8888)
                     self.idle_eye_cache[(frame, ldx, ldy)] = QPixmap.fromImage(qimg)
@@ -1425,7 +1429,15 @@ class DesktopPet(QWidget):
             action.setChecked(self.skin == skin_key)
             action.triggered.connect(lambda checked, k=skin_key: self._change_skin(k))
 
-        # 2. Size / Scale Submenu
+        # 2. Wardrobe Accessories Submenu
+        wardrobe_menu = menu.addMenu("👑 Lemari Aksesoris (Wardrobe)")
+        for acc_key, data in ACCESSORIES.items():
+            act = wardrobe_menu.addAction(data["name"])
+            act.setCheckable(True)
+            act.setChecked(self.accessory == acc_key)
+            act.triggered.connect(lambda checked, k=acc_key: self.set_accessory(k))
+
+        # 3. Size / Scale Submenu
         size_menu = menu.addMenu("🔍 Ukuran Karakter (Size)")
         sizes = [
             ("🔎 Mini (64px)", 64),
@@ -1669,6 +1681,31 @@ class DesktopPet(QWidget):
         else:
             pet_name = PALETTES[skin_key]["name"]
             self.say(f"Ganti kostum ke {pet_name} nya! 🐾")
+
+    def set_accessory(self, acc_name: str):
+        """Equips a wardrobe accessory dynamically across all states."""
+        if acc_name == self.accessory:
+            return
+        self.accessory = acc_name
+        self.settings["accessory"] = acc_name
+        save_settings(self.settings)
+        self._load_skin_sprites(self.skin)
+        self.update()
+
+        # Celebratory sound & dialogue
+        audio.play_celebrate(self.settings)
+        self.set_state("celebrate", duration_seconds=1.5)
+
+        dialogues = {
+            "wizard_hat": "Abrakadabra nya! Aku penyihir kucing sakti! 🧙✨",
+            "royal_crown": "Sujudlah di hadapan Yang Mulia Kucing Kerajaan! 👑🐾",
+            "cute_ribbon": "Pita manisnya cocok banget kan nya? Cantik sekali! 🎀🌸",
+            "winter_scarf": "Syal merahnya hangat banget nya~ Nyaman! 🧣❤️",
+            "sunglasses": "Keren maksimal! Siap beraksi, boss! 🕶️🔥",
+            "flower_pin": "Bunga sakuranya harum dan indah nya~ 🌸✨",
+            "none": "Aksesoris dilepas, kembali tampil natural nya~ 🐾"
+        }
+        self.say(dialogues.get(acc_name, "Tampilan baru nya! ✨"), 3500)
 
     def _prompt_custom_size(self):
         val, ok = QInputDialog.getInt(
