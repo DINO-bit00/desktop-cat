@@ -192,6 +192,8 @@ python build.py
 
 ```
 desktop-cat/
+├── assets/
+│   └── icon.ico             # Ikon aplikasi NyangBuddy
 ├── dist/
 │   └── NyangBuddy.exe       # Standalone executable siap pakai (~42 MB)
 ├── src/
@@ -210,6 +212,8 @@ desktop-cat/
 │   ├── sprites.py           # Pixel art procedural renderer, 7 skin palettes & accessories
 │   ├── sticky_note.py       # Floating sticky note widget target fokus
 │   └── tray.py              # System tray icon & background menu
+├── tools/
+│   └── nyang-web-ai.user.js # Userscript sinkronisasi Web AI (ChatGPT, Claude, dll)
 ├── build.py                 # Script PyInstaller otomatis untuk build .exe
 ├── build_exe.bat            # One-click build script
 ├── main.py                  # Entry point aplikasi & Windows multimedia timer init
