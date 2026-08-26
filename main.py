@@ -24,8 +24,12 @@ def main():
 
     # Ensure CWD is the project root (critical for autostart from Windows Registry
     # which would otherwise launch from C:\Windows\System32)
-    project_root = os.path.dirname(os.path.abspath(__file__))
-    os.chdir(project_root)
+    if getattr(sys, "frozen", False):
+        exe_dir = os.path.dirname(sys.executable)
+        os.chdir(exe_dir)
+    else:
+        project_root = os.path.dirname(os.path.abspath(__file__))
+        os.chdir(project_root)
 
     # Enable Windows High-Precision Timer Period (1ms resolution) for rock-solid 60 FPS
     if sys.platform == "win32":

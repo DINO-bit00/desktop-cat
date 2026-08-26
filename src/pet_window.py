@@ -1705,6 +1705,10 @@ class DesktopPet(QWidget):
         startup_act.setChecked(is_startup_enabled())
         startup_act.triggered.connect(self._toggle_startup)
 
+        settings_menu.addSeparator()
+        folder_act = settings_menu.addAction("📁 Buka Lokasi File (.exe)")
+        folder_act.triggered.connect(self._open_app_folder)
+
         menu.addSeparator()
 
         # -------------------------------------------------------------
@@ -1714,6 +1718,18 @@ class DesktopPet(QWidget):
         quit_act.triggered.connect(self.close_app)
 
         menu.exec(global_pos)
+
+    def _open_app_folder(self):
+        """Opens Windows Explorer to the dist/ directory containing NyangBuddy.exe."""
+        try:
+            if getattr(sys, "frozen", False):
+                folder = os.path.dirname(sys.executable)
+            else:
+                dist_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dist")
+                folder = dist_dir if os.path.exists(dist_dir) else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            os.startfile(folder)
+        except Exception as e:
+            print(f"[App] Error opening folder: {e}")
 
     def _change_skin(self, skin_key):
         self._load_skin_sprites(skin_key)

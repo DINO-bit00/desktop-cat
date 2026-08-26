@@ -5,6 +5,7 @@ Saves and loads user preferences locally in JSON format with zero telemetry.
 
 import json
 import os
+import sys
 
 DEFAULT_SETTINGS = {
     "skin": "oyen",                 # oyen, calico, tuxedo, grey, shiro
@@ -26,7 +27,10 @@ DEFAULT_SETTINGS = {
     "auto_peek_fullscreen": True    # Auto-peek at screen edge during fullscreen/gaming
 }
 
-CONFIG_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "settings.json")
+if getattr(sys, "frozen", False):
+    CONFIG_FILE = os.path.join(os.path.dirname(sys.executable), "settings.json")
+else:
+    CONFIG_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "settings.json")
 
 
 def load_settings():

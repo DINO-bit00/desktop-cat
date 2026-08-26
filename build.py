@@ -15,13 +15,13 @@ def build():
         os.makedirs("assets", exist_ok=True)
         img.save(icon_path, format="ICO", sizes=[(16, 16), (32, 32), (64, 64), (128, 128), (256, 256)])
 
-    # Command for clean, robust zero-dependency build
+    # PyInstaller standalone onefile command
     cmd = [
         sys.executable,
         "-m",
         "PyInstaller",
         "--noconfirm",
-        "--onedir",
+        "--onefile",
         "--windowed",
         "--name", "NyangBuddy",
         "--icon", icon_path,
@@ -31,7 +31,7 @@ def build():
     ]
     print(f"[Build] Executing: {' '.join(cmd)}")
     subprocess.check_call(cmd)
-    print("\n[Build] SUCCESS! Standalone distribution created at: dist/NyangBuddy/NyangBuddy.exe 🎉")
+    print("\n[Build] SUCCESS! Standalone single executable created at: dist/NyangBuddy.exe")
 
 
 if __name__ == "__main__":

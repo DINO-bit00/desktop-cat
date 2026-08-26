@@ -216,7 +216,11 @@ def init_audio():
     if _INITIALIZED:
         return
     
-    sound_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets", "sounds")
+    if getattr(sys, "frozen", False):
+        base_dir = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
+    else:
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sound_dir = os.path.join(base_dir, "assets", "sounds")
     try:
         os.makedirs(sound_dir, exist_ok=True)
     except Exception:

@@ -97,9 +97,11 @@ class AmbientPlayer:
     """
     def __init__(self):
         self.active_track: Optional[str] = None
-        self._sound_dir = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets", "sounds"
-        )
+        if getattr(sys, "frozen", False):
+            base_dir = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
+        else:
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self._sound_dir = os.path.join(base_dir, "assets", "sounds")
         # Pre-ensure files exist
         for key, info in AMBIENT_TRACKS.items():
             p = os.path.join(self._sound_dir, info["file"])
