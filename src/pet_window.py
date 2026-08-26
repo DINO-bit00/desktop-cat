@@ -1448,24 +1448,26 @@ class DesktopPet(QWidget):
             }
         """)
 
-        # 1. Skin Menu
-        skin_menu = menu.addMenu("🐱 Ganti Karakter (Skin)")
+        # -------------------------------------------------------------
+        # 1. 🐱 Karakter & Kostum (Customization)
+        # -------------------------------------------------------------
+        cat_menu = menu.addMenu("🐱 Karakter & Kostum")
+
+        skin_sub = cat_menu.addMenu("🐱 Ganti Skin Karakter")
         for skin_key, data in PALETTES.items():
-            action = skin_menu.addAction(data["name"])
+            action = skin_sub.addAction(data["name"])
             action.setCheckable(True)
             action.setChecked(self.skin == skin_key)
             action.triggered.connect(lambda checked, k=skin_key: self._change_skin(k))
 
-        # 2. Wardrobe Accessories Submenu
-        wardrobe_menu = menu.addMenu("👑 Lemari Aksesoris (Wardrobe)")
+        wardrobe_sub = cat_menu.addMenu("👑 Lemari Aksesoris (Wardrobe)")
         for acc_key, data in ACCESSORIES.items():
-            act = wardrobe_menu.addAction(data["name"])
+            act = wardrobe_sub.addAction(data["name"])
             act.setCheckable(True)
             act.setChecked(self.accessory == acc_key)
             act.triggered.connect(lambda checked, k=acc_key: self.set_accessory(k))
 
-        # 3. Size / Scale Submenu
-        size_menu = menu.addMenu("🔍 Ukuran Karakter (Size)")
+        size_sub = cat_menu.addMenu("🔍 Ukuran Karakter (Size)")
         sizes = [
             ("🔎 Mini (64px)", 64),
             ("🐱 Sedang (96px)", 96),
@@ -1474,47 +1476,62 @@ class DesktopPet(QWidget):
             ("👑 Jumbo (192px)", 192)
         ]
         for label, sz in sizes:
-            act = size_menu.addAction(label)
+            act = size_sub.addAction(label)
             act.setCheckable(True)
             act.setChecked(self.sprite_size == sz)
             act.triggered.connect(lambda checked, s=sz: self.set_sprite_size(s))
-
-        size_menu.addSeparator()
-        custom_size_act = size_menu.addAction("📐 Atur Ukuran Bebas (Custom)...")
+        size_sub.addSeparator()
+        custom_size_act = size_sub.addAction("📐 Atur Ukuran Bebas (Custom)...")
         custom_size_act.triggered.connect(self._prompt_custom_size)
 
-        menu.addSeparator()
+        cat_menu.addSeparator()
+        act_sub = cat_menu.addMenu("🎭 Ganti Gaya / Aksi Langsung")
+        act_sub.addAction("😺 Duduk Santai (Idle)", lambda: self.set_state("idle"))
+        act_sub.addAction("💻 Mode Ngoding / Work", lambda: self.set_state("work"))
+        act_sub.addAction("🔥 Mode Overheat (Steam)", lambda: self.set_state("overheat", 5))
+        act_sub.addAction("📜 Gelar Kertas (Paper Unroll)", lambda: self.set_state("paper_unroll", 4))
+        act_sub.addAction("😴 Tidur (Sleep)", lambda: self.set_state("sleep"))
+        act_sub.addAction("🎉 Melompat Senang (Celebration)", lambda: self.trigger_celebrate(duration=4, message="Tugas selesai dengan sukses nya! 🎉✨"))
+        act_sub.addAction("🧠 Mode Berpikir (AI Thinking)", lambda: self.trigger_thinking(duration=5, message="Hmm... Sedang menganalisis nya~ 🧠💭"))
+        act_sub.addAction("❤️ Dielus / Purring (Pet)", lambda: self.set_state("pet", 4))
 
-        # 3. Pomodoro Submenu
-        pom_menu = menu.addMenu("⏱️ Pomodoro Timer")
+        cat_menu.addSeparator()
+        name_action = cat_menu.addAction("👤 Set Panggilan Nama Kamu...")
+        name_action.triggered.connect(self._prompt_user_name)
+
+        # -------------------------------------------------------------
+        # 2. ⏱️ Produktivitas & Kesehatan (Focus & Wellness)
+        # -------------------------------------------------------------
+        prod_menu = menu.addMenu("⏱️ Produktivitas & Kesehatan")
+
+        pom_sub = prod_menu.addMenu("⏱️ Pomodoro Timer")
         if not self.pomodoro.is_active:
-            auto_std = pom_menu.addAction("▶️ Mulai Standar (25m Fokus / 5m Break • 4 Siklus)")
+            auto_std = pom_sub.addAction("▶️ Mulai Standar (25m Fokus / 5m Break • 4 Siklus)")
             auto_std.triggered.connect(lambda: self.pomodoro.start_auto_cycle(25, 5, 4))
-
-            auto_sprint = pom_menu.addAction("⚡ Mulai Sprint (50m Fokus / 10m Break • 2 Siklus)")
+            auto_sprint = pom_sub.addAction("⚡ Mulai Sprint (50m Fokus / 10m Break • 2 Siklus)")
             auto_sprint.triggered.connect(lambda: self.pomodoro.start_auto_cycle(50, 10, 2))
-
-            pom_menu.addSeparator()
-            custom_sess = pom_menu.addAction("⚙️ Atur Sesi Kustom (Fokus + Break + Siklus)...")
+            pom_sub.addSeparator()
+            custom_sess = pom_sub.addAction("⚙️ Atur Sesi Kustom (Fokus + Break + Siklus)...")
             custom_sess.triggered.connect(self._prompt_custom_pomodoro_session)
-
-            pom_menu.addSeparator()
-            single_focus = pom_menu.addAction("🎯 Fokus Tunggal Saja (25 Menit)")
+            pom_sub.addSeparator()
+            single_focus = pom_sub.addAction("🎯 Fokus Tunggal Saja (25 Menit)")
             single_focus.triggered.connect(lambda: self.pomodoro.start_focus(25))
-
-            single_break = pom_menu.addAction("☕ Break Tunggal Saja (5 Menit)")
+            single_break = pom_sub.addAction("☕ Break Tunggal Saja (5 Menit)")
             single_break.triggered.connect(lambda: self.pomodoro.start_break(5))
         else:
             cycle_str = f" {self.pomodoro.cycle_label()}" if self.pomodoro.cycle_label() else ""
-            stop_action = pom_menu.addAction(f"⏹️ Hentikan Pomodoro ({self.pomodoro.format_time()}{cycle_str})")
+            stop_action = pom_sub.addAction(f"⏹️ Hentikan Pomodoro ({self.pomodoro.format_time()}{cycle_str})")
             stop_action.triggered.connect(self._on_pomodoro_badge_clicked)
 
-        # 4. Stretch & Posture Submenu
-        stretch_menu = menu.addMenu("🧘 Pengingat Regang & Postur")
-        now_act = stretch_menu.addAction("▶️ Regangkan Badan Sekarang (Layar Tengah)")
-        now_act.triggered.connect(lambda: self.trigger_stretch(auto=False))
-        stretch_menu.addSeparator()
+        alarm_action = prod_menu.addAction("⏰ Setel Alarm Pengingat (Jam HH:mm)...")
+        alarm_action.triggered.connect(self._prompt_custom_alarm)
 
+        prod_menu.addSeparator()
+
+        stretch_sub = prod_menu.addMenu("🧘 Pengingat Regang & Postur")
+        now_stretch = stretch_sub.addAction("▶️ Regangkan Badan Sekarang (Layar Tengah)")
+        now_stretch.triggered.connect(lambda: self.trigger_stretch(auto=False))
+        stretch_sub.addSeparator()
         intervals = [
             ("⚡ 15 Menit (Tes Cepat)", 15),
             ("⏱️ 30 Menit", 30),
@@ -1525,32 +1542,24 @@ class DesktopPet(QWidget):
         ]
         cur_int = self.settings.get("stretch_reminder_min", 60)
         is_enabled = self.settings.get("stretch_reminder_enabled", True)
-
         for label, mins in intervals:
-            act = stretch_menu.addAction(label)
+            act = stretch_sub.addAction(label)
             act.setCheckable(True)
             act.setChecked(is_enabled and cur_int == mins)
             act.triggered.connect(lambda checked, m=mins: self.set_stretch_interval(m))
-
-        stretch_menu.addSeparator()
-        custom_act = stretch_menu.addAction("⏱️ Atur Waktu Kustom (Menit)...")
+        stretch_sub.addSeparator()
+        custom_act = stretch_sub.addAction("⏱️ Atur Waktu Kustom (Menit)...")
         custom_act.triggered.connect(self._prompt_stretch_interval)
-
-        stretch_menu.addSeparator()
-        combo_act1 = stretch_menu.addAction("🌟 Rutinitas Lengkap (Regang + Minum)")
-        combo_act1.triggered.connect(self.trigger_combo_routine)
-        stretch_menu.addSeparator()
-        toggle_act = stretch_menu.addAction("✅ Aktifkan Pengingat Otomatis")
+        stretch_sub.addSeparator()
+        toggle_act = stretch_sub.addAction("✅ Aktifkan Pengingat Otomatis")
         toggle_act.setCheckable(True)
         toggle_act.setChecked(is_enabled)
         toggle_act.triggered.connect(self._toggle_stretch_reminder)
 
-        # 5. Hydration / Drink Water Submenu
-        hyd_menu = menu.addMenu("💧 Pengingat Minum Air (Hydration)")
-        hyd_now_act = hyd_menu.addAction("▶️ Minum Air Sekarang (Layar Tengah)")
-        hyd_now_act.triggered.connect(lambda: self.trigger_drink_water(auto=False))
-        hyd_menu.addSeparator()
-
+        hyd_sub = prod_menu.addMenu("💧 Pengingat Minum Air (Hydration)")
+        now_hyd = hyd_sub.addAction("▶️ Minum Air Sekarang (Layar Tengah)")
+        now_hyd.triggered.connect(lambda: self.trigger_drink_water(auto=False))
+        hyd_sub.addSeparator()
         hyd_intervals = [
             ("⚡ 15 Menit (Tes Cepat)", 15),
             ("⏱️ 30 Menit", 30),
@@ -1561,153 +1570,146 @@ class DesktopPet(QWidget):
         ]
         cur_hyd = self.settings.get("hydration_reminder_min", 45)
         hyd_enabled = self.settings.get("hydration_reminder_enabled", True)
-
         for label, mins in hyd_intervals:
-            act = hyd_menu.addAction(label)
+            act = hyd_sub.addAction(label)
             act.setCheckable(True)
             act.setChecked(hyd_enabled and cur_hyd == mins)
             act.triggered.connect(lambda checked, m=mins: self.set_hydration_interval(m))
-
-        hyd_menu.addSeparator()
-        custom_hyd_act = hyd_menu.addAction("⏱️ Atur Waktu Kustom (Menit)...")
+        hyd_sub.addSeparator()
+        custom_hyd_act = hyd_sub.addAction("⏱️ Atur Waktu Kustom (Menit)...")
         custom_hyd_act.triggered.connect(self._prompt_hydration_interval)
-
-        hyd_menu.addSeparator()
-        combo_act2 = hyd_menu.addAction("🌟 Rutinitas Lengkap (Regang + Minum)")
-        combo_act2.triggered.connect(self.trigger_combo_routine)
-        hyd_menu.addSeparator()
-        toggle_hyd_act = hyd_menu.addAction("✅ Aktifkan Pengingat Otomatis")
+        hyd_sub.addSeparator()
+        toggle_hyd_act = hyd_sub.addAction("✅ Aktifkan Pengingat Otomatis")
         toggle_hyd_act.setCheckable(True)
         toggle_hyd_act.setChecked(hyd_enabled)
         toggle_hyd_act.triggered.connect(self._toggle_hydration_reminder)
 
-        # 6. Actions / State Switch
-        act_menu = menu.addMenu("🐾 Ganti Gaya / Aksi")
-        act_menu.addAction("😺 Duduk Santai (Idle)", lambda: self.set_state("idle"))
-        act_menu.addAction("💻 Mode Ngoding/Work", lambda: self.set_state("work"))
-        act_menu.addAction("🔥 Mode Overheat (Steam)", lambda: self.set_state("overheat", 5))
-        act_menu.addAction("📜 Gelar Kertas (Paper Unroll)", lambda: self.set_state("paper_unroll", 4))
-        act_menu.addAction("😴 Tidur (Sleep)", lambda: self.set_state("sleep"))
-        act_menu.addAction("🎉 Melompat Senang (AI Done Jump)", lambda: self.trigger_celebrate(duration=4, message="Tugas selesai dengan sukses nya! 🎉✨"))
-        act_menu.addAction("🧘 Regangkan Badan (Stretch)", lambda: self.trigger_stretch(auto=False))
-        act_menu.addAction("💧 Minum Air (Drink Water)", lambda: self.trigger_drink_water(auto=False))
-        act_menu.addAction("🌟 Paket Sehat (Regang + Minum)", self.trigger_combo_routine)
-        act_menu.addAction("🐟 Makan Ikan (Feed)", lambda: self.trigger_feed("fish"))
-        act_menu.addAction("🧠 Mode Berpikir (AI Thinking)", lambda: self.trigger_thinking(duration=5, message="Hmm... Sedang menganalisis nya~ 🧠💭"))
-        act_menu.addAction("❤️ Dielus / Purring (Pet)", lambda: self.set_state("pet", 4))
+        combo_act = prod_menu.addAction("🌟 Paket Sehat (Regang + Minum Air)")
+        combo_act.triggered.connect(self.trigger_combo_routine)
 
-        # 7. Feeding / Pet Care Submenu
-        feed_menu = menu.addMenu("🐟 Beri Makan Kucing (Snack)")
-        feed_menu.addAction("🐟 Ikan Tuna Segar (Fresh Fish)", lambda: self.trigger_feed("fish"))
-        feed_menu.addAction("🍗 Snack Ayam Renyah (Chicken Bite)", lambda: self.trigger_feed("chicken"))
-        feed_menu.addAction("🥛 Semangkuk Susu Hangat (Warm Milk)", lambda: self.trigger_feed("milk"))
-        feed_menu.addSeparator()
+        prod_menu.addSeparator()
+        note_action = prod_menu.addAction("📌 Catatan Tempel (Sticky Note)...")
+        note_action.triggered.connect(self._prompt_sticky_note)
+        summary_action = prod_menu.addAction("📊 Rekap Produktivitas Harian...")
+        summary_action.triggered.connect(self._show_daily_summary)
+
+        # -------------------------------------------------------------
+        # 3. 🎮 Gamifikasi & Mainan (Play & Care)
+        # -------------------------------------------------------------
+        game_menu = menu.addMenu("🎮 Gamifikasi & Mainan")
+
+        feed_sub = game_menu.addMenu("🐟 Beri Makan Kucing (Snack)")
+        feed_sub.addAction("🐟 Ikan Tuna Segar (Fresh Fish)", lambda: self.trigger_feed("fish"))
+        feed_sub.addAction("🍗 Snack Ayam Renyah (Chicken Bite)", lambda: self.trigger_feed("chicken"))
+        feed_sub.addAction("🥛 Semangkuk Susu Hangat (Warm Milk)", lambda: self.trigger_feed("milk"))
+        feed_sub.addSeparator()
         food_count = self.settings.get("food_count", 0)
-        stat_act = feed_menu.addAction(f"📊 Total Diberi Makan: {food_count}x")
+        stat_act = feed_sub.addAction(f"📊 Total Diberi Makan: {food_count}x")
         stat_act.setEnabled(False)
 
-        # 8. Interactive Toys Submenu (Yarn Ball & Laser Pointer)
-        toys_menu = menu.addMenu("🧶 Mainan Interaktif (Toys)")
-        yarn_sub = toys_menu.addMenu("🧶 Lempar Bola Benang (Yarn Ball)")
+        toys_sub = game_menu.addMenu("🧶 Mainan Interaktif (Toys)")
+        yarn_sub = toys_sub.addMenu("🧶 Lempar Bola Benang (Yarn Ball)")
         yarn_sub.addAction("💖 Bola Benang Pink", lambda: self.spawn_yarn_ball("pink"))
         yarn_sub.addAction("💙 Bola Benang Biru", lambda: self.spawn_yarn_ball("blue"))
         yarn_sub.addAction("💚 Bola Benang Mint", lambda: self.spawn_yarn_ball("mint"))
 
-        laser_act = toys_menu.addAction("🔴 Mode Laser Pointer (Red Dot)")
+        laser_act = toys_sub.addAction("🔴 Mode Laser Pointer (Red Dot)")
         laser_act.setCheckable(True)
         laser_act.setChecked(hasattr(self, "laser_overlay") and self.laser_overlay is not None and self.laser_overlay.isVisible())
         laser_act.triggered.connect(self.toggle_laser_pointer)
 
-        toys_menu.addSeparator()
-        toys_menu.addAction("🧹 Simpan & Rapikan Semua Mainan", self.dismiss_all_toys)
+        toys_sub.addSeparator()
+        toys_sub.addAction("🧹 Simpan & Rapikan Semua Mainan", self.dismiss_all_toys)
 
-        # 9. Peek Mode Submenu (Screen Edge Peeking)
-        peek_menu = menu.addMenu("🫣 Mode Mengintip (Peek Mode)")
-        peek_menu.addAction("➡️ Mengintip dari Kanan (Right Edge)", lambda: self.enter_peek_mode("right", manual=True))
-        peek_menu.addAction("⬅️ Mengintip dari Kiri (Left Edge)", lambda: self.enter_peek_mode("left", manual=True))
-        peek_menu.addAction("⬇️ Mengintip dari Bawah (Bottom Edge)", lambda: self.enter_peek_mode("bottom", manual=True))
-        if self.is_peeking:
-            peek_menu.addAction("↩️ Keluar dari Mode Mengintip", lambda: self.exit_peek_mode(manual=True))
-        peek_menu.addSeparator()
-        auto_peek_act = peek_menu.addAction("✅ Otomatis Mengintip saat Fullscreen / Nonton")
-        auto_peek_act.setCheckable(True)
-        auto_peek_act.setChecked(self.settings.get("auto_peek_fullscreen", True))
-        auto_peek_act.triggered.connect(self._toggle_auto_peek_fullscreen)
+        game_action = game_menu.addAction("🎮 Main Game Istirahat (Catch The Fish)...")
+        game_action.triggered.connect(self.launch_break_game)
 
-        # 9. Real Cat Meow & Sound FX Test Submenu
-        sound_menu = menu.addMenu("🔊 Uji Suara Meong (Kucing Asli)")
-        sound_menu.addAction("🐱 Meow Lembut Manis (Cute)", lambda: self._test_sound("meow_cute"))
-        sound_menu.addAction("😸 Meow Ceria Nyaring (Happy)", lambda: self._test_sound("meow_happy"))
-        sound_menu.addAction("😎 Meow Boss Oyen (Deep Meow)", lambda: self._test_sound("meow_boss"))
-        sound_menu.addAction("🐾 Meow Kitten Chibi (Mochi)", lambda: self._test_sound("meow_chibi"))
-        sound_menu.addAction("❤️ Dengkuran Purr (Petting)", lambda: self._test_sound("purr"))
-        sound_menu.addAction("🍖 Suara Mengunyah (Munch)", lambda: self._test_sound("munch"))
-        sound_menu.addAction("✨ Selebrasi Kemenangan (Sparkle)", lambda: self._test_sound("celebrate"))
-        sound_menu.addAction("🫧 Gelembung Pop", lambda: self._test_sound("pop"))
-        sound_menu.addAction("💧 Percikan Air (Water Splash)", lambda: self._test_sound("water"))
-        sound_menu.addAction("🧘 Regangan Ngantuk (Yawn)", lambda: self._test_sound("stretch"))
+        game_menu.addSeparator()
+        aff_action = game_menu.addAction("💖 Status Kasih Sayang & Mood...")
+        aff_action.triggered.connect(self._show_affection_dialog)
 
-        # 10. Cozy Lo-Fi Ambient Hub
-        ambient_menu = menu.addMenu("🌧️ Suara Latar Ambient (Cozy Lo-Fi)")
+        # -------------------------------------------------------------
+        # 4. 🔊 Audio & Suasana (Sounds & Lo-Fi)
+        # -------------------------------------------------------------
+        audio_menu = menu.addMenu("🔊 Audio & Suasana")
+
+        ambient_sub = audio_menu.addMenu("🌧️ Suara Latar Ambient (Cozy Lo-Fi)")
         for tr_key, tr_info in AMBIENT_TRACKS.items():
-            act = ambient_menu.addAction(tr_info["name"])
+            act = ambient_sub.addAction(tr_info["name"])
             act.setCheckable(True)
             act.setChecked(self.ambient_player.active_track == tr_key)
             act.triggered.connect(lambda checked, k=tr_key: self.toggle_ambient(k))
         if self.ambient_player.is_playing():
-            ambient_menu.addSeparator()
-            ambient_menu.addAction("🔇 Matikan Suara Ambient", lambda: self.toggle_ambient(self.ambient_player.active_track))
+            ambient_sub.addSeparator()
+            ambient_sub.addAction("🔇 Matikan Suara Ambient", lambda: self.toggle_ambient(self.ambient_player.active_track))
 
-        menu.addSeparator()
+        sound_sub = audio_menu.addMenu("🔊 Uji Suara Meong (Kucing Asli)")
+        sound_sub.addAction("🐱 Meow Lembut Manis (Cute)", lambda: self._test_sound("meow_cute"))
+        sound_sub.addAction("😸 Meow Ceria Nyaring (Happy)", lambda: self._test_sound("meow_happy"))
+        sound_sub.addAction("😎 Meow Boss Oyen (Deep Meow)", lambda: self._test_sound("meow_boss"))
+        sound_sub.addAction("🐾 Meow Kitten Chibi (Mochi)", lambda: self._test_sound("meow_chibi"))
+        sound_sub.addAction("❤️ Dengkuran Purr (Petting)", lambda: self._test_sound("purr"))
+        sound_sub.addAction("🍖 Suara Mengunyah (Munch)", lambda: self._test_sound("munch"))
+        sound_sub.addAction("✨ Selebrasi Kemenangan (Sparkle)", lambda: self._test_sound("celebrate"))
+        sound_sub.addAction("🫧 Gelembung Pop", lambda: self._test_sound("pop"))
+        sound_sub.addAction("💧 Percikan Air (Water Splash)", lambda: self._test_sound("water"))
+        sound_sub.addAction("🧘 Regangan Ngantuk (Yawn)", lambda: self._test_sound("stretch"))
 
-        # 11. Productivity Summary, Affection & Mini Game
-        game_action = menu.addAction("🎮 Main Game Istirahat (1-Min Mini Game)...")
-        game_action.triggered.connect(self.launch_break_game)
-        summary_action = menu.addAction("📊 Rekap Produktivitas Harian...")
-        summary_action.triggered.connect(self._show_daily_summary)
-        aff_action = menu.addAction("💖 Tingkat Kasih Sayang & Mood...")
-        aff_action.triggered.connect(self._show_affection_dialog)
-        name_action = menu.addAction("👤 Set Panggilan Nama")
-        name_action.triggered.connect(self._prompt_user_name)
-        note_action = menu.addAction("📌 Set Target Fokus / Note")
-        note_action.triggered.connect(self._prompt_sticky_note)
-        alarm_action = menu.addAction("⏰ Setel Alarm (Custom)")
-        alarm_action.triggered.connect(self._prompt_custom_alarm)
-
-        # 10. Options
-        hunt_act = menu.addAction("🎯 Kejar Kursor Cepat (Mouse Hunt)")
-        hunt_act.setCheckable(True)
-        hunt_act.setChecked(self.settings.get("mouse_hunt_enabled", True))
-        hunt_act.triggered.connect(self._toggle_mouse_hunt)
-
-        wander_act = menu.addAction("🚶 Jalan Santai Sendiri (Auto Wander)")
-        wander_act.setCheckable(True)
-        wander_act.setChecked(self.settings.get("wander_mode", True))
-        wander_act.triggered.connect(self._toggle_wander)
-
-        ontop_act = menu.addAction("🔝 Selalu di Atas (Always on Top)")
-        ontop_act.setCheckable(True)
-        ontop_act.setChecked(self.settings.get("stay_on_top", True))
-        ontop_act.triggered.connect(self._toggle_stay_on_top)
-
-        sound_act = menu.addAction("🔔 Suara Efek & Meong Kucing")
+        audio_menu.addSeparator()
+        sound_act = audio_menu.addAction("🔔 Efek Suara & Meong Kucing")
         sound_act.setCheckable(True)
         sound_act.setChecked(self.settings.get("sound_enabled", True))
         sound_act.triggered.connect(self._toggle_sound)
 
-        ai_act = menu.addAction("🤖 Deteksi AI Agent Otomatis (Auto AI Watcher)")
+        # -------------------------------------------------------------
+        # 5. ⚙️ Pengaturan & Perilaku (Settings & Behavior)
+        # -------------------------------------------------------------
+        settings_menu = menu.addMenu("⚙️ Pengaturan & Perilaku")
+
+        peek_sub = settings_menu.addMenu("🫣 Mode Mengintip Layar (Peek Mode)")
+        peek_sub.addAction("➡️ Mengintip dari Kanan (Right Edge)", lambda: self.enter_peek_mode("right", manual=True))
+        peek_sub.addAction("⬅️ Mengintip dari Kiri (Left Edge)", lambda: self.enter_peek_mode("left", manual=True))
+        peek_sub.addAction("⬇️ Mengintip dari Bawah (Bottom Edge)", lambda: self.enter_peek_mode("bottom", manual=True))
+        if self.is_peeking:
+            peek_sub.addAction("↩️ Keluar dari Mode Mengintip", lambda: self.exit_peek_mode(manual=True))
+        peek_sub.addSeparator()
+        auto_peek_act = peek_sub.addAction("✅ Otomatis Mengintip saat Fullscreen / Nonton")
+        auto_peek_act.setCheckable(True)
+        auto_peek_act.setChecked(self.settings.get("auto_peek_fullscreen", True))
+        auto_peek_act.triggered.connect(self._toggle_auto_peek_fullscreen)
+
+        settings_menu.addSeparator()
+
+        hunt_act = settings_menu.addAction("🎯 Kejar Kursor Cepat (Mouse Hunt)")
+        hunt_act.setCheckable(True)
+        hunt_act.setChecked(self.settings.get("mouse_hunt_enabled", True))
+        hunt_act.triggered.connect(self._toggle_mouse_hunt)
+
+        wander_act = settings_menu.addAction("🚶 Jalan Santai Sendiri (Auto Wander)")
+        wander_act.setCheckable(True)
+        wander_act.setChecked(self.settings.get("wander_mode", True))
+        wander_act.triggered.connect(self._toggle_wander)
+
+        ai_act = settings_menu.addAction("🤖 Deteksi AI Agent Otomatis (Auto AI Watcher)")
         ai_act.setCheckable(True)
         ai_act.setChecked(self.settings.get("ai_watcher_enabled", True))
         ai_act.triggered.connect(self._toggle_ai_watcher)
 
-        startup_act = menu.addAction("🚀 Jalankan saat Startup (Auto-Start)")
+        ontop_act = settings_menu.addAction("🔝 Selalu di Atas Layar (Always on Top)")
+        ontop_act.setCheckable(True)
+        ontop_act.setChecked(self.settings.get("stay_on_top", True))
+        ontop_act.triggered.connect(self._toggle_stay_on_top)
+
+        startup_act = settings_menu.addAction("🚀 Jalankan Otomatis saat Startup")
         startup_act.setCheckable(True)
         startup_act.setChecked(is_startup_enabled())
         startup_act.triggered.connect(self._toggle_startup)
 
         menu.addSeparator()
 
-        # 7. Quit
+        # -------------------------------------------------------------
+        # 6. ❌ Keluar (Close)
+        # -------------------------------------------------------------
         quit_act = menu.addAction("❌ Keluar (Close)")
         quit_act.triggered.connect(self.close_app)
 
