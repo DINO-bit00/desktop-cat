@@ -33,6 +33,7 @@ from src.sticky_note import StickyNote
 from src.alarm_dialog import CustomAlarmDialog
 from src.ai_watcher import AIAgentWatcher
 from src.toys import YarnBallWidget, LaserPointerOverlay
+from src.affection_dialog import AffectionDialog
 import src.audio as audio
 
 
@@ -157,6 +158,8 @@ class DesktopPet(QWidget):
         self._last_cursor_poll_time = time.time()
         self._sprites_ready = False
         self.accessory = self.settings.get("accessory", "none")
+        self.affection_points = self.settings.get("affection_points", 50)
+        self.settings.setdefault("stats", {"food_count": 0, "pet_count": 0, "pomodoro_completed": 0})
 
         # Load ONLY the essential idle + walk sprites synchronously (instant startup)
         self._load_essential_sprites(self.skin)
@@ -887,6 +890,10 @@ class DesktopPet(QWidget):
                 if self.state != "pet" and self.state not in ["drag", "land", "work", "overheat"]:
                     self.set_state("pet")
                     audio.play_purr(self.settings)
+                    self.add_affection(1, "petting")
+                    stats = self.settings.setdefault("stats", {})
+                    stats["pet_count"] = stats.get("pet_count", 0) + 1
+                    save_settings(self.settings)
             else:
                 if self.state == "pet":
                     self.resume_default_state()
@@ -1092,6 +1099,11 @@ class DesktopPet(QWidget):
 
         if finished_mode == "work":
             # Work session ended -> Glide to center of screen for celebratory reminder
+            self.add_affection(10, "pomodoro")
+            stats = self.settings.setdefault("stats", {})
+            stats["pomodoro_completed"] = stats.get("pomodoro_completed", 0) + 1
+            save_settings(self.settings)
+
             is_auto = self.pomodoro.is_auto_cycle
             break_min = self.pomodoro.break_minutes
 
@@ -1622,7 +1634,9 @@ class DesktopPet(QWidget):
 
         menu.addSeparator()
 
-        # 9. Personalization & Reminders
+        # 10. Affection & Personalization
+        aff_action = menu.addAction("💖 Tingkat Kasih Sayang & Mood...")
+        aff_action.triggered.connect(self._show_affection_dialog)
         name_action = menu.addAction("👤 Set Panggilan Nama")
         name_action.triggered.connect(self._prompt_user_name)
         note_action = menu.addAction("📌 Set Target Fokus / Note")
@@ -2034,8 +2048,11 @@ class DesktopPet(QWidget):
         if self.is_reminder_locked or self.is_dragging:
             return
         
-        # Increase food count stat
+        # Increase food count stat & affection
         self.settings["food_count"] = self.settings.get("food_count", 0) + 1
+        stats = self.settings.setdefault("stats", {})
+        stats["food_count"] = self.settings["food_count"]
+        self.add_affection(5, "feeding")
         save_settings(self.settings)
         
         # Set state to feed (eating animation)
@@ -2179,6 +2196,36 @@ class DesktopPet(QWidget):
         if hasattr(self, "laser_overlay") and self.laser_overlay:
             self.laser_overlay.stop_laser()
         self.say("Semua mainan sudah dirapikan nya! 🧹✨", 2500)
+
+    # -------------------------------------------------------------
+    # Affection & Mood System (Comnyang Phase 5)
+    # -------------------------------------------------------------
+    def add_affection(self, points: int, reason: str = ""):
+        """Increases affection/friendship level and checks for milestone rewards."""
+        old_pts = self.affection_points
+        self.affection_points = max(0, min(100, self.affection_points + points))
+        self.settings["affection_points"] = self.affection_points
+        save_settings(self.settings)
+
+        # Milestone: Reaching 100 points (Soulmate)
+        if old_pts < 100 and self.affection_points >= 100:
+            self.say("🌟 Selamat! Tingkat kasih sayang kita sudah mencapai Sahabat Sejati (Soulmate) nya! ❤️👑", 5000)
+            audio.play_celebrate(self.settings)
+            self.set_state("celebrate", duration_seconds=2.0)
+
+    def _show_affection_dialog(self):
+        """Displays cute retro affection & mood status dialog."""
+        pet_name = PALETTES.get(self.skin, {}).get("name", "NyangBuddy")
+        stats = self.settings.get("stats", {})
+        stats["food_count"] = self.settings.get("food_count", stats.get("food_count", 0))
+        dialog = AffectionDialog(self.affection_points, stats, pet_name, parent=None)
+
+        geo = self._get_current_screen_geometry()
+        dialog.move(
+            geo.center().x() - dialog.width() // 2,
+            geo.center().y() - dialog.height() // 2
+        )
+        dialog.exec()
 
     def _toggle_stretch_reminder(self, checked):
         self.settings["stretch_reminder_enabled"] = checked
