@@ -170,6 +170,27 @@ def _generate_sound(sound_type: str, sample_rate: int = 44100) -> bytes:
             s = 0.70 * math.sin(2.0 * math.pi * f0 * t) + 0.25 * math.sin(2.0 * math.pi * (f0 * 2.0) * t)
             samples.append(s * vol * 0.38 * 32767)
 
+    elif sound_type in ("munch", "feed", "eat"):
+        # Double crunchy munch sound for feeding
+        dur = 0.36
+        total = int(sample_rate * dur)
+        for i in range(total):
+            t = i / sample_rate
+            if t < 0.14:
+                prog = t / 0.14
+                f0 = 550.0 * (1.0 - 0.4 * prog)
+                vol = math.exp(-12.0 * prog)
+                s = math.sin(2.0 * math.pi * f0 * t) + 0.35 * math.sin(2.0 * math.pi * (f0 * 2.5) * t)
+                samples.append(s * vol * 0.45 * 32767)
+            elif t < 0.18:
+                samples.append(0)
+            else:
+                prog = (t - 0.18) / 0.16
+                f0 = 680.0 * (1.0 - 0.35 * prog)
+                vol = math.exp(-10.0 * prog)
+                s = math.sin(2.0 * math.pi * f0 * t) + 0.35 * math.sin(2.0 * math.pi * (f0 * 2.3) * t)
+                samples.append(s * vol * 0.45 * 32767)
+
     else:
         # Default simple soft blip
         dur = 0.04
@@ -203,7 +224,7 @@ def init_audio():
 
     presets = [
         "meow_cute", "meow_happy", "meow_boss", "meow_chibi",
-        "purr", "celebrate", "pop", "water", "stretch", "blip"
+        "purr", "celebrate", "pop", "water", "stretch", "munch", "blip"
     ]
     for p in presets:
         file_path = os.path.join(sound_dir, f"{p}.wav")
@@ -296,6 +317,10 @@ def play_water(settings: Optional[dict] = None, force: bool = False):
 
 def play_stretch(settings: Optional[dict] = None, force: bool = False):
     play_sound("stretch", settings, force=force)
+
+
+def play_munch(settings: Optional[dict] = None, force: bool = False):
+    play_sound("munch", settings, force=force)
 
 
 init_audio()

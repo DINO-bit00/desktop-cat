@@ -1361,6 +1361,137 @@ def _draw_drink_water(p: dict, frame_idx: int) -> Image.Image:
     return img
 
 
+def _draw_cat_feeding(p: dict, frame_idx: int) -> Image.Image:
+    """
+    Comnyang Official Feeding Animation:
+    Cat happily munching delicious fresh fish / snack from a ceramic dish,
+    with crunch crumbs, tail wagging, cute chewing, licking chops, and floating love heart particles!
+    """
+    img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+
+    O = p.get("fur_main", (245, 145, 35, 255))
+    S = p.get("fur_shade", (210, 105, 20, 255))
+    W = p.get("fur_belly", (255, 245, 235, 255))
+    K = (18, 18, 22, 255)
+    E = p.get("inner_ear", (255, 175, 185, 255))
+
+    fi = frame_idx % 4
+
+    # 1. Cute Ceramic Cat Food Dish (Bowl)
+    DISH_RIM = (235, 240, 250, 255)
+    DISH_BODY = (195, 205, 225, 255)
+    FISH_GOLD = (255, 170, 40, 255)
+    FISH_SHADE = (215, 120, 20, 255)
+    HEART_RED = (255, 70, 105, 255)
+
+    d.ellipse([19, 23, 30, 27], fill=DISH_BODY, outline=K)
+    d.ellipse([20, 22, 29, 25], fill=DISH_RIM)
+
+    # Food in bowl
+    if fi == 0:
+        d.ellipse([21, 21, 27, 24], fill=FISH_GOLD, outline=K)
+        d.polygon([(26, 21), (30, 19), (29, 23)], fill=FISH_GOLD, outline=K)
+        img.putpixel((22, 22), K)
+    elif fi == 1:
+        d.ellipse([22, 22, 27, 24], fill=FISH_GOLD, outline=K)
+        d.polygon([(26, 22), (29, 20), (28, 24)], fill=FISH_SHADE)
+        img.putpixel((20, 18), (255, 180, 50, 255))
+        img.putpixel((22, 16), (230, 140, 30, 255))
+    elif fi == 2:
+        d.line([(22, 23), (26, 23)], fill=(240, 240, 245, 255))
+        img.putpixel((24, 22), (240, 240, 245, 255))
+        img.putpixel((24, 24), (240, 240, 245, 255))
+    else:
+        img.putpixel((25, 23), (255, 255, 255, 255))
+
+    # 2. Tail (Swishing happily)
+    tail_offsets = [
+        [(5, 22), (3, 18), (2, 14), (4, 11)],
+        [(5, 22), (2, 19), (1, 15), (2, 11)],
+        [(5, 22), (3, 18), (4, 13), (6, 10)],
+        [(5, 22), (4, 17), (5, 12), (7, 9)],
+    ]
+    t_pts = tail_offsets[fi]
+    for i in range(len(t_pts) - 1):
+        d.line([t_pts[i], t_pts[i + 1]], fill=K, width=3)
+    for i in range(len(t_pts) - 1):
+        d.line([t_pts[i], t_pts[i + 1]], fill=O, width=1)
+    d.point(t_pts[-1], fill=W)
+
+    # 3. Sitting Cat Body (Hunched happily over dish)
+    d.ellipse([5, 14, 18, 27], fill=O, outline=K)
+    d.ellipse([4, 19, 11, 27], fill=O, outline=K)
+    d.rectangle([5, 25, 10, 27], fill=W, outline=K)
+    d.ellipse([10, 16, 17, 26], fill=W)
+
+    # 4. Front Paws
+    d.rectangle([13, 24, 17, 27], fill=O, outline=K)
+    d.rectangle([14, 25, 17, 27], fill=W, outline=K)
+    d.rectangle([17, 24, 20, 27], fill=O, outline=K)
+    d.rectangle([18, 25, 20, 27], fill=W, outline=K)
+
+    # 5. Collar / Gold Chain
+    if p.get("has_chain", False):
+        d.line([(11, 16), (17, 16)], fill=(255, 215, 0, 255), width=2)
+    else:
+        collar_col = p.get("collar", (235, 55, 75, 255))
+        d.line([(11, 16), (17, 16)], fill=collar_col, width=2)
+        accent_col = p.get("accent", (255, 215, 35, 255))
+        d.rectangle([14, 16, 16, 18], fill=accent_col, outline=K)
+
+    # 6. Head & Kawaii Munching Face
+    head_y_offsets = [12, 13, 11, 10]
+    head_x_offsets = [13, 14, 12, 11]
+    hx = head_x_offsets[fi]
+    hy = head_y_offsets[fi]
+
+    # Ears
+    d.polygon([(hx, hy), (hx - 2, hy - 4), (hx + 3, hy - 1)], fill=O, outline=K)
+    d.polygon([(hx + 1, hy - 1), (hx - 1, hy - 3), (hx + 2, hy - 1)], fill=E)
+    d.polygon([(hx + 6, hy), (hx + 8, hy - 4), (hx + 10, hy)], fill=O, outline=K)
+    d.polygon([(hx + 7, hy), (hx + 8, hy - 3), (hx + 9, hy)], fill=E)
+
+    # Head circle
+    d.ellipse([hx, hy, hx + 10, hy + 9], fill=O, outline=K)
+    d.ellipse([hx + 3, hy + 3, hx + 10, hy + 8], fill=W)
+
+    # Eyes & Mouth
+    if p.get("has_shades", False):
+        d.rectangle([hx + 2, hy + 2, hx + 10, hy + 5], fill=(18, 18, 22, 255), outline=K)
+        img.putpixel((hx + 4, hy + 3), (255, 255, 255, 255))
+        img.putpixel((hx + 8, hy + 3), (255, 255, 255, 255))
+    else:
+        d.line([(hx + 3, hy + 4), (hx + 5, hy + 3)], fill=K)
+        d.line([(hx + 5, hy + 3), (hx + 7, hy + 4)], fill=K)
+        img.putpixel((hx + 2, hy + 6), (255, 140, 160, 255))
+        img.putpixel((hx + 8, hy + 6), (255, 140, 160, 255))
+
+    # Mouth & Munching Action
+    if fi == 0:
+        d.rectangle([hx + 6, hy + 6, hx + 8, hy + 8], fill=(225, 75, 95, 255), outline=K)
+    elif fi == 1:
+        d.line([(hx + 5, hy + 7), (hx + 8, hy + 7)], fill=K)
+        img.putpixel((hx + 9, hy + 8), (255, 170, 40, 255))
+    elif fi == 2:
+        d.line([(hx + 5, hy + 6), (hx + 7, hy + 7)], fill=K)
+        d.line([(hx + 7, hy + 7), (hx + 9, hy + 6)], fill=K)
+    elif fi == 3:
+        d.rectangle([hx + 6, hy + 7, hx + 8, hy + 9], fill=(255, 130, 160, 255), outline=K)
+
+    # 7. Floating Heart Particles ❤️
+    if fi in (2, 3):
+        heart_x = 22 if fi == 2 else 24
+        heart_y = 4 if fi == 2 else 2
+        d.rectangle([heart_x, heart_y, heart_x + 1, heart_y + 1], fill=HEART_RED)
+        d.rectangle([heart_x + 3, heart_y, heart_x + 4, heart_y + 1], fill=HEART_RED)
+        d.rectangle([heart_x, heart_y + 1, heart_x + 4, heart_y + 2], fill=HEART_RED)
+        d.rectangle([heart_x + 1, heart_y + 3, heart_x + 3, heart_y + 3], fill=HEART_RED)
+        img.putpixel((heart_x + 2, heart_y + 4), HEART_RED)
+
+    return img
+
+
 # ─── MAIN FRAME DISPATCHER (PUBLIC API) ────────────────────────────────────
 def render_cat_frame(skin_key: str = "boss_oyen",
                      state: str = "idle",
@@ -1398,6 +1529,8 @@ def render_cat_frame(skin_key: str = "boss_oyen",
         native = _draw_cat_stretch(p, fi)
     elif state in ("drink_water", "drink", "water", "hydrate"):
         native = _draw_drink_water(p, fi)
+    elif state in ("feed", "eat", "eating", "snack", "fish"):
+        native = _draw_cat_feeding(p, fi)
     elif state in ("drag", "dangle", "mochi"):
         native = _draw_mochi_drag(p, fi)
     elif state in ("celebrate", "jump", "done"):

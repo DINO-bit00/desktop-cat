@@ -470,9 +470,9 @@ class DesktopPet(QWidget):
         # 3. Active Screen Edge Peek mode
         if hasattr(self, "is_peeking") and self.is_peeking:
             return f"peek_{self.peek_side}"
-        # 4. Long-running persistent activities (stretch, drink_water, sleep)
+        # 4. Long-running persistent activities (stretch, drink_water, feed, sleep)
         if hasattr(self, "pre_interruption_state") and self.pre_interruption_state in [
-            "stretch", "drink_water", "sleep"
+            "stretch", "drink_water", "feed", "sleep"
         ]:
             return self.pre_interruption_state
         return "idle"
@@ -663,7 +663,7 @@ class DesktopPet(QWidget):
         if self.is_reminder_locked:
             return
         if self.state not in ["drag", "land", "pet", "overheat", "work"]:
-            if self.state in ["stretch", "drink_water", "sleep"]:
+            if self.state in ["stretch", "drink_water", "feed", "sleep"]:
                 self.pre_interruption_state = self.state
                 self.pre_interruption_ticks = self.state_ticks
                 self.pre_interruption_max_ticks = self.max_state_ticks
@@ -685,7 +685,7 @@ class DesktopPet(QWidget):
             return
         if self.state not in ["drag", "land", "pet", "overheat"]:
             if self.state != "work":
-                if self.state in ["stretch", "drink_water", "sleep"]:
+                if self.state in ["stretch", "drink_water", "feed", "sleep"]:
                     self.pre_interruption_state = self.state
                     self.pre_interruption_ticks = self.state_ticks
                     self.pre_interruption_max_ticks = self.max_state_ticks
@@ -714,7 +714,7 @@ class DesktopPet(QWidget):
         if self.state not in ["drag", "pet"]:
             if self.state != "paper_unroll":
                 if self.state not in ["work", "overheat"]:
-                    if self.state in ["stretch", "drink_water", "sleep"]:
+                    if self.state in ["stretch", "drink_water", "feed", "sleep"]:
                         self.pre_interruption_state = self.state
                         self.pre_interruption_ticks = self.state_ticks
                         self.pre_interruption_max_ticks = self.max_state_ticks
@@ -1548,10 +1548,21 @@ class DesktopPet(QWidget):
         act_menu.addAction("🧘 Regangkan Badan (Stretch)", lambda: self.trigger_stretch(auto=False))
         act_menu.addAction("💧 Minum Air (Drink Water)", lambda: self.trigger_drink_water(auto=False))
         act_menu.addAction("🌟 Paket Sehat (Regang + Minum)", self.trigger_combo_routine)
+        act_menu.addAction("🐟 Makan Ikan (Feed)", lambda: self.trigger_feed("fish"))
         act_menu.addAction("🧠 Mode Berpikir (AI Thinking)", lambda: self.trigger_thinking(duration=5, message="Hmm... Sedang menganalisis nya~ 🧠💭"))
         act_menu.addAction("❤️ Dielus / Purring (Pet)", lambda: self.set_state("pet", 4))
 
-        # 7. Peek Mode Submenu (Screen Edge Peeking)
+        # 7. Feeding / Pet Care Submenu
+        feed_menu = menu.addMenu("🐟 Beri Makan Kucing (Snack)")
+        feed_menu.addAction("🐟 Ikan Tuna Segar (Fresh Fish)", lambda: self.trigger_feed("fish"))
+        feed_menu.addAction("🍗 Snack Ayam Renyah (Chicken Bite)", lambda: self.trigger_feed("chicken"))
+        feed_menu.addAction("🥛 Semangkuk Susu Hangat (Warm Milk)", lambda: self.trigger_feed("milk"))
+        feed_menu.addSeparator()
+        food_count = self.settings.get("food_count", 0)
+        stat_act = feed_menu.addAction(f"📊 Total Diberi Makan: {food_count}x")
+        stat_act.setEnabled(False)
+
+        # 8. Peek Mode Submenu (Screen Edge Peeking)
         peek_menu = menu.addMenu("🫣 Mode Mengintip (Peek Mode)")
         peek_menu.addAction("➡️ Mengintip dari Kanan (Right Edge)", lambda: self.enter_peek_mode("right", manual=True))
         peek_menu.addAction("⬅️ Mengintip dari Kiri (Left Edge)", lambda: self.enter_peek_mode("left", manual=True))
@@ -1564,13 +1575,14 @@ class DesktopPet(QWidget):
         auto_peek_act.setChecked(self.settings.get("auto_peek_fullscreen", True))
         auto_peek_act.triggered.connect(self._toggle_auto_peek_fullscreen)
 
-        # 8. Real Cat Meow & Sound FX Test Submenu
+        # 9. Real Cat Meow & Sound FX Test Submenu
         sound_menu = menu.addMenu("🔊 Uji Suara Meong (Kucing Asli)")
         sound_menu.addAction("🐱 Meow Lembut Manis (Cute)", lambda: self._test_sound("meow_cute"))
         sound_menu.addAction("😸 Meow Ceria Nyaring (Happy)", lambda: self._test_sound("meow_happy"))
         sound_menu.addAction("😎 Meow Boss Oyen (Deep Meow)", lambda: self._test_sound("meow_boss"))
         sound_menu.addAction("🐾 Meow Kitten Chibi (Mochi)", lambda: self._test_sound("meow_chibi"))
         sound_menu.addAction("❤️ Dengkuran Purr (Petting)", lambda: self._test_sound("purr"))
+        sound_menu.addAction("🍖 Suara Mengunyah (Munch)", lambda: self._test_sound("munch"))
         sound_menu.addAction("✨ Selebrasi Kemenangan (Sparkle)", lambda: self._test_sound("celebrate"))
         sound_menu.addAction("🫧 Gelembung Pop", lambda: self._test_sound("pop"))
         sound_menu.addAction("💧 Percikan Air (Water Splash)", lambda: self._test_sound("water"))
@@ -1959,6 +1971,42 @@ class DesktopPet(QWidget):
     def trigger_combo_routine(self):
         """Manually launches the full Sequential Combo Health Routine (Stretch + Drink Water)."""
         self._start_centered_reminder("stretch", auto=False, duration=5.0, queue_next=[("drink_water", False, 5.0)])
+
+    def trigger_feed(self, treat_type: str = "fish"):
+        """Feeding system: Cat eats treat/fish from a bowl with munch sounds, hearts, and purrs."""
+        if self.is_reminder_locked or self.is_dragging:
+            return
+        
+        # Increase food count stat
+        self.settings["food_count"] = self.settings.get("food_count", 0) + 1
+        save_settings(self.settings)
+        
+        # Set state to feed (eating animation)
+        self.set_state("feed", duration_seconds=4.5)
+        
+        # Audio sequence: initial crunch munch -> follow up crunch -> happy purr
+        audio.play_munch(self.settings)
+        QTimer.singleShot(1400, lambda: audio.play_munch(self.settings))
+        QTimer.singleShot(2800, lambda: audio.play_purr(self.settings))
+        
+        # Dialogues per skin and treat type
+        if treat_type == "fish":
+            if self.skin == "boss_oyen":
+                msg = "Tuna sashimi kualitas bintang lima! Mantap, boss! 🐟😎✨"
+            elif self.skin == "mochi":
+                msg = "Nyam nyam! Ikan segarnya lezat banget nya! ❤️🐟"
+            elif self.skin in ("tuxedo", "calico"):
+                msg = "Meooow~! Ikan favoritku nih! Makasih banyak yaa~ 🐟✨"
+            else:
+                msg = "Nyam nyam nyam~ Seger dan kenyang nya! 🐟❤️"
+        elif treat_type == "chicken":
+            msg = "Snack ayam krispi! Nyam nyam crunch crunch nya~ 🍗✨"
+        elif treat_type == "milk":
+            msg = "Slurp slurp~ Semangkuk susu hangat yang manis & menyehatkan nya! 🥛🌸"
+        else:
+            msg = "Nyam nyam nyam! Enak banget makanannya nya~ 🐾❤️"
+            
+        self.say(msg, 4500)
 
     def _toggle_stretch_reminder(self, checked):
         self.settings["stretch_reminder_enabled"] = checked
