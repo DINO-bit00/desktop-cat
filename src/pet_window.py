@@ -36,6 +36,7 @@ from src.toys import YarnBallWidget, LaserPointerOverlay
 from src.affection_dialog import AffectionDialog
 from src.ambient import AmbientPlayer, AMBIENT_TRACKS
 from src.summary_dialog import DailySummaryDialog
+from src.break_game import MiniBreakGameDialog
 import src.audio as audio
 
 
@@ -1650,7 +1651,9 @@ class DesktopPet(QWidget):
 
         menu.addSeparator()
 
-        # 11. Productivity Summary & Affection
+        # 11. Productivity Summary, Affection & Mini Game
+        game_action = menu.addAction("🎮 Main Game Istirahat (1-Min Mini Game)...")
+        game_action.triggered.connect(self.launch_break_game)
         summary_action = menu.addAction("📊 Rekap Produktivitas Harian...")
         summary_action.triggered.connect(self._show_daily_summary)
         aff_action = menu.addAction("💖 Tingkat Kasih Sayang & Mood...")
@@ -2278,6 +2281,22 @@ class DesktopPet(QWidget):
         stats["food_count"] = self.settings.get("food_count", stats.get("food_count", 0))
         dialog = DailySummaryDialog(stats, pet_name, self.affection_points, parent=None)
 
+        geo = self._get_current_screen_geometry()
+        dialog.move(
+            geo.center().x() - dialog.width() // 2,
+            geo.center().y() - dialog.height() // 2
+        )
+        dialog.exec()
+
+    def launch_break_game(self):
+        """Launches 60-second Catch The Fish mini break game."""
+        dialog = MiniBreakGameDialog(parent=None)
+
+        def on_game_finished(score):
+            self.add_affection(10, "mini_game")
+            self.say(f"Game selesai! Skor hebat: {score} poin! Kucingmu senang sekali nya~ 🎮🐾💖", 4500)
+
+        dialog.game_finished.connect(on_game_finished)
         geo = self._get_current_screen_geometry()
         dialog.move(
             geo.center().x() - dialog.width() // 2,
