@@ -52,6 +52,7 @@ class GlobalInputWatcher(QObject):
     overheat_ended = pyqtSignal()
     mouse_scrolled = pyqtSignal(float, float)   # dx, dy as floats
     mouse_moved_fast = pyqtSignal(int, int)     # dx, dy
+    enter_pressed = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -175,6 +176,8 @@ class GlobalInputWatcher(QObject):
                 dy = 1.0 if key in (keyboard.Key.page_up, keyboard.Key.up) else -1.0
                 self.mouse_scrolled.emit(0.0, dy)
                 return
+            if key == keyboard.Key.enter:
+                self.enter_pressed.emit()
 
         self._last_key_time = now
         self._key_count_window.append(now)

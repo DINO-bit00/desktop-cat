@@ -31,6 +31,8 @@ from src.pomodoro_badge import PomodoroBadge
 from src.pomodoro_dialog import CustomPomodoroDialog
 from src.sticky_note import StickyNote
 from src.alarm_dialog import CustomAlarmDialog
+from src.ai_watcher import AIAgentWatcher
+import src.audio as audio
 
 
 def set_win32_topmost(widget):
@@ -119,6 +121,12 @@ class DesktopPet(QWidget):
         self.scroll_reset_timer.timeout.connect(self._on_scroll_timeout)
         self._scroll_delta_accum = 0.0
 
+        # State Continuity & Interruption Memory (Preserves active feature during typing/scroll)
+        self.pre_interruption_state = "idle"
+        self.pre_interruption_ticks = 0
+        self.pre_interruption_max_ticks = 99999999
+        self._was_peeking_before_drag = False
+
         # Unified Center-Stage Reminder Manager (Prevents state collision & guarantees 100% accurate home restoration)
         self._active_reminder_type = None  # None, "stretch", "drink_water", etc.
         self._reminder_queue = []          # Sequential combo queue: [(type, auto, duration), ...]
@@ -171,13 +179,22 @@ class DesktopPet(QWidget):
         self.watcher = LocalWatcher(self)
         self.watcher.event_received.connect(self._on_external_event)
 
+        # AI Agent Auto-Watcher (Comnyang AI auto-thinking & celebration)
+        self.ai_watcher = AIAgentWatcher(self.settings, parent=self)
+        self.ai_watcher.ai_thinking_started.connect(self._on_ai_thinking_started)
+        self.ai_watcher.ai_task_completed.connect(self._on_ai_task_completed)
+        self.ai_watcher.external_message_received.connect(lambda msg: self.say(msg, 3500))
+
         # Global Input Watcher (Comnyang-style cadence reaction to typing, overheat, and scrolling)
         self.input_watcher = GlobalInputWatcher(self)
         self.input_watcher.typing_started.connect(self._on_global_typing_start)
+        self.input_watcher.typing_started.connect(self.ai_watcher.on_user_activity)
         self.input_watcher.typing_stopped.connect(self._on_global_typing_stop)
         self.input_watcher.overheat_started.connect(self._on_global_overheat_start)
         self.input_watcher.overheat_ended.connect(self._on_global_overheat_end)
         self.input_watcher.mouse_scrolled.connect(self._on_global_scroll)
+        self.input_watcher.mouse_scrolled.connect(lambda dx, dy: self.ai_watcher.on_user_activity())
+        self.input_watcher.enter_pressed.connect(self.ai_watcher.on_user_pressed_enter)
 
         # Animation Loop Timer (110ms per frame for smooth 9-10 FPS sprite cycling)
         self.anim_timer = QTimer(self)
@@ -194,6 +211,16 @@ class DesktopPet(QWidget):
         self._topmost_timer.timeout.connect(self._enforce_topmost)
         if self.settings.get("stay_on_top", True):
             self._topmost_timer.start(1000)
+
+        # Peek Mode State & Auto Fullscreen Scanner
+        self.is_peeking = False
+        self.peek_side = "right"
+        self._peek_return_pos = None
+        self._auto_peeked = False
+        self._fullscreen_timer = QTimer(self)
+        self._fullscreen_timer.timeout.connect(self._check_fullscreen_activity)
+        if self.settings.get("auto_peek_fullscreen", True):
+            self._fullscreen_timer.start(350)
 
         # Position on screen
         self._snap_to_initial_position()
@@ -417,14 +444,48 @@ class DesktopPet(QWidget):
     def set_state(self, new_state, duration_seconds=None):
         if new_state == "walk":
             new_state = "walk_right"
+        elif new_state == "jump":
+            new_state = "celebrate"
         if new_state not in ("hunt", "alert"):
             self._ensure_state_frames(new_state)
         self.state = new_state
         self.frame_index = 0
         self.state_ticks = 0
-        if duration_seconds:
+        if duration_seconds is not None:
             self.max_state_ticks = int(duration_seconds * 60)
+        else:
+            self.max_state_ticks = 99999999  # Infinite until explicit state change
         self.update()
+
+    def get_default_resume_state(self) -> str:
+        """Returns the appropriate resting state to return to after temporary interruptions."""
+        # 1. Active AI Thinking session takes top priority
+        if hasattr(self, "ai_watcher") and self.ai_watcher.is_active_ai_session:
+            return "thinking"
+        # 2. Active Pomodoro session
+        if hasattr(self, "pomodoro") and self.pomodoro.is_active:
+            if self.pomodoro.mode == "break":
+                return "sleep"
+            return "idle"
+        # 3. Active Screen Edge Peek mode
+        if hasattr(self, "is_peeking") and self.is_peeking:
+            return f"peek_{self.peek_side}"
+        # 4. Long-running persistent activities (stretch, drink_water, sleep)
+        if hasattr(self, "pre_interruption_state") and self.pre_interruption_state in [
+            "stretch", "drink_water", "sleep"
+        ]:
+            return self.pre_interruption_state
+        return "idle"
+
+    def resume_default_state(self):
+        """Restores the active continuous state (thinking, pomodoro, peek, or previous state)."""
+        target = self.get_default_resume_state()
+        if self.state != target:
+            if hasattr(self, "pre_interruption_state") and target == self.pre_interruption_state and self.pre_interruption_max_ticks < 10000:
+                rem_ticks = max(60, self.pre_interruption_max_ticks - self.pre_interruption_ticks)
+                self.set_state(target, duration_seconds=(rem_ticks / 60.0))
+            else:
+                self.set_state(target)
 
     def _update_animation(self):
         self.frame_index = (self.frame_index + 1) % 4
@@ -442,14 +503,9 @@ class DesktopPet(QWidget):
     def is_reminder_locked(self) -> bool:
         """
         Returns True if the cat is executing a centered ergonomic reminder sequence
-        (Stretch, Posture, Hydration, Break) or gliding across the screen.
-        Completely blocks typing, scrolling, hunting, and auto-wandering to avoid animation clashes.
+        to ensure critical health dialogs are shown clearly.
         """
-        return (
-            self._active_reminder_type is not None
-            or self._glide_timer.isActive()
-            or self.state in ["stretch", "drink_water"]
-        )
+        return self._active_reminder_type is not None
 
     def _update_physics_loop(self):
         if self.is_reminder_locked:
@@ -540,10 +596,18 @@ class DesktopPet(QWidget):
             return
 
         # ── 3. TEMPORARY STATES TIMEOUT ──
-        if self.state in ["celebrate", "thinking", "land", "stretch", "drink_water"]:
+        if self.state in ["celebrate", "land", "stretch", "drink_water"]:
             self.state_ticks += 1
             if self.state_ticks > self.max_state_ticks:
-                self.set_state("idle")
+                self.resume_default_state()
+            return
+        elif self.state == "thinking":
+            if not self.ai_watcher.is_active_ai_session and self.max_state_ticks < 10000:
+                self.state_ticks += 1
+                if self.state_ticks > self.max_state_ticks:
+                    self.resume_default_state()
+            return
+        elif self.state in ["peek_left", "peek_right", "peek_bottom", "peek"]:
             return
 
         # ── REALTIME PET HEAD ZONE CHECK (Instant Stop When Cursor Leaves Head) ──
@@ -551,11 +615,14 @@ class DesktopPet(QWidget):
             local_p = self.mapFromGlobal(QCursor.pos())
             head_rect = self._get_head_rect()
             if not self.rect().contains(local_p) or not head_rect.contains(local_p):
-                self.set_state("idle")
+                self.resume_default_state()
             return
 
-        # Do not wander if Pomodoro is active, typing/overheated, stretching, drinking water, or rolling paper
-        if not self.settings.get("wander_mode", True) or self.pomodoro.is_active or self.state in ["work", "overheat", "paper_unroll", "sleep", "stretch", "drink_water"]:
+        # Do not wander if Pomodoro is active, typing/overheated, stretching, drinking water, thinking, celebrating, or peeking
+        if not self.settings.get("wander_mode", True) or self.pomodoro.is_active or self.state in [
+            "work", "overheat", "paper_unroll", "sleep", "stretch", "drink_water",
+            "thinking", "celebrate", "peek_left", "peek_right", "peek_bottom", "peek"
+        ]:
             return
 
         # ── 4. AUTONOMOUS WANDER LOGIC ──
@@ -592,25 +659,38 @@ class DesktopPet(QWidget):
     # Global Input Reactions (Comnyang Phase 2 Features)
     # -------------------------------------------------------------
     def _on_global_typing_start(self):
-        """User started typing -> cat begins keyboard kneading."""
+        """User started typing -> cat begins keyboard kneading, preserving active session/previous state."""
         if self.is_reminder_locked:
             return
-        if self.state not in ["drag", "land", "pet", "overheat"]:
+        if self.state not in ["drag", "land", "pet", "overheat", "work"]:
+            if self.state in ["stretch", "drink_water", "sleep"]:
+                self.pre_interruption_state = self.state
+                self.pre_interruption_ticks = self.state_ticks
+                self.pre_interruption_max_ticks = self.max_state_ticks
+            else:
+                self.pre_interruption_state = "idle"
             self.is_hunting = False
             self.set_state("work")
 
     def _on_global_typing_stop(self):
-        """User stopped typing -> return to idle."""
+        """User stopped typing -> resume active/previous state."""
         if self.is_reminder_locked:
             return
         if self.state in ["work", "overheat"]:
-            self.set_state("idle")
+            self.resume_default_state()
 
     def _on_global_overheat_start(self):
         """Typing super fast -> Overheat mode with steam puffs!"""
         if self.is_reminder_locked:
             return
-        if self.state not in ["drag", "land", "pet"]:
+        if self.state not in ["drag", "land", "pet", "overheat"]:
+            if self.state != "work":
+                if self.state in ["stretch", "drink_water", "sleep"]:
+                    self.pre_interruption_state = self.state
+                    self.pre_interruption_ticks = self.state_ticks
+                    self.pre_interruption_max_ticks = self.max_state_ticks
+                else:
+                    self.pre_interruption_state = "idle"
             self.set_state("overheat")
             self._play_sound_blip(freq=1650, dur=55)
             if random.random() < 0.35:
@@ -627,24 +707,29 @@ class DesktopPet(QWidget):
         """
         Comnyang Feature #10: Paper Unroll!
         Spinning the paper roll with paws as user scrolls documents / pages.
-        Wakes up the cat from sleep and responds to all scroll events.
+        Resumes previous active state (AI Thinking, Pomodoro, Peek, Stretch, etc.) once scrolling ends.
         """
-        if self.is_reminder_locked or self.pomodoro.is_active:
+        if self.is_reminder_locked:
             return
         if self.state not in ["drag", "pet"]:
             if self.state != "paper_unroll":
+                if self.state not in ["work", "overheat"]:
+                    if self.state in ["stretch", "drink_water", "sleep"]:
+                        self.pre_interruption_state = self.state
+                        self.pre_interruption_ticks = self.state_ticks
+                        self.pre_interruption_max_ticks = self.max_state_ticks
+                    else:
+                        self.pre_interruption_state = "idle"
                 self.set_state("paper_unroll")
-            # Advance frame dynamically on each scroll event
             self.frame_index = (self.frame_index + 1) % 4
             self.update()
-            # Reset timer: return to idle immediately (400ms) after scrolling ceases
             self.scroll_reset_timer.start(400)
 
     def _on_scroll_timeout(self):
-        """Scroll stopped -> return to idle."""
+        """Scroll stopped -> return to active/previous state."""
         self._scroll_delta_accum = 0.0
         if self.state == "paper_unroll":
-            self.set_state("idle")
+            self.resume_default_state()
 
     def _on_fast_mouse_move(self, mouse_x, mouse_y):
         """Mouse Hunt & Pounce: Fast moving cursor excites the cat!"""
@@ -697,6 +782,33 @@ class DesktopPet(QWidget):
             ox = (self.sprite_size - w) // 2
             oy = self.sprite_size - h
             painter.drawPixmap(ox, oy, w, h, pixmap)
+
+        elif self.state in ["celebrate", "jump"]:
+            fi = self.frame_index % 4
+            if fi == 0:
+                # Squash prep
+                w = int(self.sprite_size * 1.06)
+                h = int(self.sprite_size * 0.92)
+                ox = (self.sprite_size - w) // 2
+                oy = self.sprite_size - h
+                painter.drawPixmap(ox, oy, w, h, pixmap)
+            elif fi == 1:
+                # Upward launch stretch
+                w = int(self.sprite_size * 0.94)
+                h = int(self.sprite_size * 1.06)
+                ox = (self.sprite_size - w) // 2
+                oy = int(-self.sprite_size * 0.08)
+                painter.drawPixmap(ox, oy, w, h, pixmap)
+            elif fi == 2:
+                # High apex jump in air
+                ox = 0
+                oy = int(-self.sprite_size * 0.14)
+                painter.drawPixmap(ox, oy, self.sprite_size, self.sprite_size, pixmap)
+            else:
+                # Soft descent
+                ox = 0
+                oy = int(-self.sprite_size * 0.04)
+                painter.drawPixmap(ox, oy, self.sprite_size, self.sprite_size, pixmap)
 
         else:
             painter.drawPixmap(0, 0, self.sprite_size, self.sprite_size, pixmap)
@@ -765,16 +877,16 @@ class DesktopPet(QWidget):
             if head_rect.contains(local_pos):
                 if self.state != "pet" and self.state not in ["drag", "land", "work", "overheat"]:
                     self.set_state("pet")
-                    self._play_sound_blip(freq=1480, dur=35)
+                    audio.play_purr(self.settings)
             else:
                 if self.state == "pet":
-                    self.set_state("idle")
+                    self.resume_default_state()
 
     def leaveEvent(self, event):
         """Immediately stop petting as soon as cursor leaves the cat window."""
         super().leaveEvent(event)
         if self.state == "pet":
-            self.set_state("idle")
+            self.resume_default_state()
 
     def mousePressEvent(self, event):
         if self._glide_timer.isActive():
@@ -785,13 +897,15 @@ class DesktopPet(QWidget):
             self.is_dragging = True
             self.has_dragged = False
             self.is_hunting = False
+            self._was_peeking_before_drag = self.is_peeking or self.state.startswith("peek")
+            self._auto_peeked = False
             self.drag_start_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
             self.drag_start_global_pos = event.globalPosition().toPoint()
             self.last_drag_global_pt = self.drag_start_global_pos
             self.last_drag_time = time.time()
             self.drag_velocity_x = 0.0
             self.mochi_tilt = 0.0
-            self.pre_drag_state = self.state if self.state not in ["drag", "land"] else "idle"
+            self.pre_drag_state = self.state if self.state not in ["drag", "land"] else self.get_default_resume_state()
             event.accept()
         elif event.button() == Qt.MouseButton.RightButton:
             self._show_context_menu(event.globalPosition().toPoint())
@@ -804,16 +918,35 @@ class DesktopPet(QWidget):
             self.anim_timer.setInterval(110)
 
             if self.has_dragged:
-                self.settings["pos_x"] = int(self.pos_x_f)
-                self.settings["pos_y"] = int(self.pos_y_f)
-                save_settings(self.settings)
+                screen = self._get_current_screen_geometry()
+                mid_x = screen.left() + screen.width() / 2.0
+                dist_left = self.pos_x_f - screen.left()
+                dist_right = (screen.right() - self.sprite_size) - self.pos_x_f
+                dist_bottom = (screen.bottom() - self.sprite_size) - self.pos_y_f
+                dist_top = self.pos_y_f - screen.top()
 
-                # Landing squish bounce
-                self.set_state("land")
-                self._play_sound_blip(freq=950, dur=50)
-                # Restore pre-drag state (keeps Pomodoro work/sleep alive after drag)
-                restore_state = self.pre_drag_state if self.pre_drag_state not in ["drag", "land"] else "idle"
-                QTimer.singleShot(350, lambda: self.set_state(restore_state))
+                # If the cat was peeking before drag, snap cleanly to nearest screen edge (left, right, or bottom)
+                if getattr(self, "_was_peeking_before_drag", False) or self.is_peeking or self.state.startswith("peek"):
+                    self._auto_peeked = False
+                    if self.pos_y_f >= screen.bottom() - self.sprite_size - 130 and (dist_bottom < min(dist_left, dist_right)):
+                        target_side = "bottom"
+                    elif self.pos_x_f >= mid_x:
+                        target_side = "right"
+                    else:
+                        target_side = "left"
+
+                    self.enter_peek_mode(side=target_side, manual=False)
+                    self._play_sound_blip(freq=1350, dur=40)
+                else:
+                    self.settings["pos_x"] = int(self.pos_x_f)
+                    self.settings["pos_y"] = int(self.pos_y_f)
+                    save_settings(self.settings)
+
+                    # Landing squish bounce
+                    self.set_state("land")
+                    self._play_sound_blip(freq=950, dur=50)
+                    restore_state = self.pre_drag_state if self.pre_drag_state not in ["drag", "land"] else self.get_default_resume_state()
+                    QTimer.singleShot(350, lambda: self.set_state(restore_state))
 
                 if random.random() < 0.35:
                     landing_quotes = [
@@ -840,7 +973,7 @@ class DesktopPet(QWidget):
             self.pomodoro_badge.hide()
         self.speech_bubble.show_message(message, duration_ms)
         self._update_bubble_position()
-        self._play_sound_blip()
+        self._play_sound_blip("pop")
 
 
     def _on_bubble_hidden(self):
@@ -908,16 +1041,16 @@ class DesktopPet(QWidget):
                 "Purrr purrr... Kucing senang, kerjaan lancar! 🐾",
                 "Meow! Jangan lupa regangkan tanganmu ya~ 🧘"
             ]
+        audio.play_meow_for_skin(self.skin, self.settings)
         self.say(random.choice(purrs), 3500)
 
-    def _play_sound_blip(self, freq=1200, dur=60):
+    def _play_sound_blip(self, sound_type="blip", freq=None, dur=None):
         if not self.settings.get("sound_enabled", True):
             return
-        try:
-            import winsound
-            winsound.Beep(int(freq), int(dur))
-        except Exception:
-            pass
+        if isinstance(sound_type, str) and sound_type in audio._AUDIO_CACHE:
+            audio.play_sound(sound_type, self.settings)
+        else:
+            audio.play_sound("blip", self.settings)
 
     # -------------------------------------------------------------
     # Pomodoro & Reminder Handlers
@@ -1052,10 +1185,202 @@ class DesktopPet(QWidget):
         message = data.get("message")
         duration = data.get("duration", 4)
 
-        if state:
-            self.set_state(state, duration_seconds=duration)
+        if state == "thinking":
+            self.trigger_thinking(duration=duration, message=message)
+        elif state in ["celebrate", "jump"]:
+            self.trigger_celebrate(duration=duration, message=message)
+        elif state in ["peek", "peek_right"]:
+            self.enter_peek_mode(side="right", manual=True)
+            if message:
+                self.say(message, duration * 1000)
+        elif state == "peek_left":
+            self.enter_peek_mode(side="left", manual=True)
+            if message:
+                self.say(message, duration * 1000)
+        elif state in ["peek_bottom", "peek_down"]:
+            self.enter_peek_mode(side="bottom", manual=True)
+            if message:
+                self.say(message, duration * 1000)
+        elif state in ["unpeek", "exit_peek"]:
+            self.exit_peek_mode(manual=True)
+            if message:
+                self.say(message, duration * 1000)
+        else:
+            if state:
+                self.set_state(state, duration_seconds=duration)
+            if message:
+                self.say(message, duration * 1000)
+
+    def trigger_thinking(self, duration=None, message=None):
+        """AI Agent Thinking reaction: curious head tilt + animated floating thought cloud."""
+        self.set_state("thinking", duration_seconds=duration)
+        audio.play_sound("pop", self.settings)
+        if message:
+            dur_ms = int(duration * 1000) if duration else 4000
+            self.say(message, dur_ms)
+
+    def trigger_celebrate(self, duration=4, message=None):
+        """AI Agent Done / Celebrate Jump reaction: 4-frame victory jump with stars & celebratory chime."""
+        self.set_state("celebrate", duration_seconds=duration)
+        audio.play_celebrate(self.settings)
         if message:
             self.say(message, duration * 1000)
+
+    def _on_ai_thinking_started(self, tool_name):
+        """Auto-triggered when an active AI coding tool starts generating / thinking."""
+        if self.is_reminder_locked or self.is_dragging:
+            return
+        if self.state not in ["drag", "land", "stretch", "drink_water"]:
+            # Persistent thinking state until AI task completed signal arrives
+            self.trigger_thinking(duration=None, message=f"AI ({tool_name}) sedang berpikir nya~ 🧠💭")
+
+    def _on_ai_task_completed(self, tool_name):
+        """Auto-triggered when an active AI coding tool finishes generating / task complete."""
+        if self.is_reminder_locked or self.is_dragging:
+            return
+        if self.state not in ["drag", "land", "stretch", "drink_water"]:
+            self.trigger_celebrate(duration=4, message=f"YAY! {tool_name} selesai bekerja nya! 🎉✨")
+
+    def _check_fullscreen_activity(self):
+        """Auto-detect fullscreen gaming/video and enter/exit peek mode."""
+        if not self.settings.get("auto_peek_fullscreen", True):
+            return
+        if self.is_reminder_locked or self.is_dragging or self.pomodoro.is_active:
+            return
+
+        is_fs = self._is_active_window_fullscreen()
+        if is_fs:
+            if not self.is_peeking:
+                self._auto_peeked = True
+                self.enter_peek_mode(side="right", manual=False)
+        else:
+            if self.is_peeking and self._auto_peeked:
+                self._auto_peeked = False
+                self.exit_peek_mode(manual=False)
+
+    def _is_active_window_fullscreen(self) -> bool:
+        if sys.platform != "win32":
+            return False
+        try:
+            user32 = ctypes.windll.user32
+            hwnd = user32.GetForegroundWindow()
+            if not hwnd or hwnd == int(self.winId()):
+                return False
+
+            class_buf = ctypes.create_unicode_buffer(256)
+            user32.GetClassNameW(hwnd, class_buf, 256)
+            cls = class_buf.value
+            if cls in ("Progman", "WorkerW", "Shell_TrayWnd", "Windows.UI.Core.CoreWindow", "Qt6QWindowIcon"):
+                return False
+
+            rect = ctypes.wintypes.RECT()
+            user32.GetWindowRect(hwnd, ctypes.byref(rect))
+
+            MONITOR_DEFAULTTONEAREST = 2
+            hmon = user32.MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST)
+            if not hmon:
+                return False
+
+            class MONITORINFO(ctypes.Structure):
+                _fields_ = [
+                    ("cbSize", ctypes.wintypes.DWORD),
+                    ("rcMonitor", ctypes.wintypes.RECT),
+                    ("rcWork", ctypes.wintypes.RECT),
+                    ("dwFlags", ctypes.wintypes.DWORD)
+                ]
+
+            mi = MONITORINFO()
+            mi.cbSize = ctypes.sizeof(MONITORINFO)
+            if not user32.GetMonitorInfoW(hmon, ctypes.byref(mi)):
+                return False
+
+            mon = mi.rcMonitor
+            work = mi.rcWork
+
+            # Covers the physical display resolution (covering taskbar)
+            covers_monitor = (
+                rect.left <= mon.left and
+                rect.top <= mon.top and
+                rect.right >= mon.right and
+                rect.bottom >= mon.bottom
+            )
+            if not covers_monitor:
+                return False
+
+            # If taskbar exists on monitor and window covers past work area -> true fullscreen
+            if (work.bottom - work.top < mon.bottom - mon.top) or (work.right - work.left < mon.right - mon.left):
+                return True
+
+            # If taskbar is hidden, verify window lacks standard title bar caption
+            GWL_STYLE = -16
+            style = user32.GetWindowLongW(hwnd, GWL_STYLE)
+            WS_CAPTION = 0x00C00000
+            return not bool(style & WS_CAPTION)
+        except Exception:
+            return False
+
+    def enter_peek_mode(self, side: str = "right", manual: bool = True):
+        """Enters Peek Mode: glides to screen edge and peeks with head & paws."""
+        if self.is_reminder_locked:
+            return
+
+        if not self.is_peeking:
+            self._peek_return_pos = (self.pos_x_f, self.pos_y_f)
+
+        self.is_peeking = True
+        self.peek_side = side
+        self.set_state(f"peek_{side}")
+        screen = self._get_current_screen_geometry()
+
+        if side == "left":
+            target_x = screen.left() - int(self.sprite_size * 0.45)
+            target_y = max(screen.top() + 40, min(int(self.pos_y_f), screen.bottom() - self.sprite_size - 40))
+        elif side == "bottom":
+            target_x = max(screen.left() + 40, min(int(self.pos_x_f), screen.right() - self.sprite_size - 40))
+            target_y = screen.bottom() - int(self.sprite_size * 0.48)
+        else:  # "right"
+            target_x = screen.right() - int(self.sprite_size * 0.55)
+            target_y = max(screen.top() + 40, min(int(self.pos_y_f), screen.bottom() - self.sprite_size - 40))
+
+        def on_arrived():
+            self._play_sound_blip(freq=1350, dur=40)
+            if manual:
+                self.say("Mode Mengintip aktif! Aku di tepi layar ya nya~ 🫣🐾", 3000)
+
+        self._start_smooth_glide(target_x, target_y, self.sprite_size, duration=0.22, on_complete=on_arrived)
+
+    def exit_peek_mode(self, manual: bool = True):
+        """Exits Peek Mode: glides back to original position."""
+        if not self.is_peeking:
+            return
+
+        self.is_peeking = False
+        self._auto_peeked = False
+        screen = self._get_current_screen_geometry()
+
+        if self._peek_return_pos:
+            ret_x, ret_y = self._peek_return_pos
+        else:
+            ret_x = screen.right() - self.sprite_size - 60
+            ret_y = screen.bottom() - self.sprite_size - 60
+
+        def on_returned():
+            self.set_state("idle")
+            self._play_sound_blip(freq=1450, dur=45)
+            if manual:
+                self.say("Kembali ke layar utama nya! 🐾✨", 2500)
+
+        self._start_smooth_glide(ret_x, ret_y, self.sprite_size, duration=0.45, on_complete=on_returned)
+
+    def _toggle_auto_peek_fullscreen(self, checked):
+        self.settings["auto_peek_fullscreen"] = checked
+        save_settings(self.settings)
+        if checked:
+            self._fullscreen_timer.start(350)
+            self.say("Auto-Peek Fullscreen aktif nya! 🎬🫣", 3000)
+        else:
+            self._fullscreen_timer.stop()
+            self.say("Auto-Peek dinonaktifkan nya! 🐾", 3000)
 
     # -------------------------------------------------------------
     # Context Menu
@@ -1219,17 +1544,41 @@ class DesktopPet(QWidget):
         act_menu.addAction("🔥 Mode Overheat (Steam)", lambda: self.set_state("overheat", 5))
         act_menu.addAction("📜 Gelar Kertas (Paper Unroll)", lambda: self.set_state("paper_unroll", 4))
         act_menu.addAction("😴 Tidur (Sleep)", lambda: self.set_state("sleep"))
-        act_menu.addAction("🎉 Melompat Senang (Jump)", lambda: self.set_state("celebrate", 4))
+        act_menu.addAction("🎉 Melompat Senang (AI Done Jump)", lambda: self.trigger_celebrate(duration=4, message="Tugas selesai dengan sukses nya! 🎉✨"))
         act_menu.addAction("🧘 Regangkan Badan (Stretch)", lambda: self.trigger_stretch(auto=False))
         act_menu.addAction("💧 Minum Air (Drink Water)", lambda: self.trigger_drink_water(auto=False))
         act_menu.addAction("🌟 Paket Sehat (Regang + Minum)", self.trigger_combo_routine)
-        act_menu.addAction("🤔 Berpikir (Thinking)", lambda: self.set_state("thinking", 4))
+        act_menu.addAction("🧠 Mode Berpikir (AI Thinking)", lambda: self.trigger_thinking(duration=5, message="Hmm... Sedang menganalisis nya~ 🧠💭"))
         act_menu.addAction("❤️ Dielus / Purring (Pet)", lambda: self.set_state("pet", 4))
+
+        # 7. Peek Mode Submenu (Screen Edge Peeking)
+        peek_menu = menu.addMenu("🫣 Mode Mengintip (Peek Mode)")
+        peek_menu.addAction("➡️ Mengintip dari Kanan (Right Edge)", lambda: self.enter_peek_mode("right", manual=True))
+        peek_menu.addAction("⬅️ Mengintip dari Kiri (Left Edge)", lambda: self.enter_peek_mode("left", manual=True))
+        peek_menu.addAction("⬇️ Mengintip dari Bawah (Bottom Edge)", lambda: self.enter_peek_mode("bottom", manual=True))
+        if self.is_peeking:
+            peek_menu.addAction("↩️ Keluar dari Mode Mengintip", lambda: self.exit_peek_mode(manual=True))
+        peek_menu.addSeparator()
+        auto_peek_act = peek_menu.addAction("✅ Otomatis Mengintip saat Fullscreen / Nonton")
+        auto_peek_act.setCheckable(True)
+        auto_peek_act.setChecked(self.settings.get("auto_peek_fullscreen", True))
+        auto_peek_act.triggered.connect(self._toggle_auto_peek_fullscreen)
+
+        # 8. Real Cat Meow & Sound FX Test Submenu
+        sound_menu = menu.addMenu("🔊 Uji Suara Meong (Kucing Asli)")
+        sound_menu.addAction("🐱 Meow Lembut Manis (Cute)", lambda: self._test_sound("meow_cute"))
+        sound_menu.addAction("😸 Meow Ceria Nyaring (Happy)", lambda: self._test_sound("meow_happy"))
+        sound_menu.addAction("😎 Meow Boss Oyen (Deep Meow)", lambda: self._test_sound("meow_boss"))
+        sound_menu.addAction("🐾 Meow Kitten Chibi (Mochi)", lambda: self._test_sound("meow_chibi"))
+        sound_menu.addAction("❤️ Dengkuran Purr (Petting)", lambda: self._test_sound("purr"))
+        sound_menu.addAction("✨ Selebrasi Kemenangan (Sparkle)", lambda: self._test_sound("celebrate"))
+        sound_menu.addAction("🫧 Gelembung Pop", lambda: self._test_sound("pop"))
+        sound_menu.addAction("💧 Percikan Air (Water Splash)", lambda: self._test_sound("water"))
+        sound_menu.addAction("🧘 Regangan Ngantuk (Yawn)", lambda: self._test_sound("stretch"))
 
         menu.addSeparator()
 
-        # 7. Sticky Note / Pinned Focus
-        # 7. Personalization & Reminders
+        # 9. Personalization & Reminders
         name_action = menu.addAction("👤 Set Panggilan Nama")
         name_action.triggered.connect(self._prompt_user_name)
         note_action = menu.addAction("📌 Set Target Fokus / Note")
@@ -1237,7 +1586,7 @@ class DesktopPet(QWidget):
         alarm_action = menu.addAction("⏰ Setel Alarm (Custom)")
         alarm_action.triggered.connect(self._prompt_custom_alarm)
 
-        # 7. Options
+        # 10. Options
         hunt_act = menu.addAction("🎯 Kejar Kursor Cepat (Mouse Hunt)")
         hunt_act.setCheckable(True)
         hunt_act.setChecked(self.settings.get("mouse_hunt_enabled", True))
@@ -1253,10 +1602,15 @@ class DesktopPet(QWidget):
         ontop_act.setChecked(self.settings.get("stay_on_top", True))
         ontop_act.triggered.connect(self._toggle_stay_on_top)
 
-        sound_act = menu.addAction("🔔 Suara Blip Efek")
+        sound_act = menu.addAction("🔔 Suara Efek & Meong Kucing")
         sound_act.setCheckable(True)
         sound_act.setChecked(self.settings.get("sound_enabled", True))
         sound_act.triggered.connect(self._toggle_sound)
+
+        ai_act = menu.addAction("🤖 Deteksi AI Agent Otomatis (Auto AI Watcher)")
+        ai_act.setCheckable(True)
+        ai_act.setChecked(self.settings.get("ai_watcher_enabled", True))
+        ai_act.triggered.connect(self._toggle_ai_watcher)
 
         startup_act = menu.addAction("🚀 Jalankan saat Startup (Auto-Start)")
         startup_act.setCheckable(True)
@@ -1316,7 +1670,7 @@ class DesktopPet(QWidget):
         self.show()
         if checked:
             set_win32_topmost(self)
-            self._topmost_timer.start(3000)
+            self._topmost_timer.start(1000)
         else:
             self._topmost_timer.stop()
             # Actively remove topmost using HWND_NOTOPMOST
@@ -1333,9 +1687,29 @@ class DesktopPet(QWidget):
                 except Exception:
                     pass
 
+    def _test_sound(self, sound_type: str):
+        if not self.settings.get("sound_enabled", True):
+            self.settings["sound_enabled"] = True
+            save_settings(self.settings)
+            self.say("Suara Kucing diaktifkan nya! 🔊🐾", 2000)
+        audio.play_sound(sound_type, self.settings, force=True)
+
     def _toggle_sound(self, checked):
         self.settings["sound_enabled"] = checked
         save_settings(self.settings)
+        if checked:
+            audio.play_sound("meow_cute", self.settings, force=True)
+            self.say("Suara Kucing diaktifkan nya! 🔊🐾", 3000)
+        else:
+            self.say("Suara dimatikan nya! 🔇🐾", 3000)
+
+    def _toggle_ai_watcher(self, checked):
+        self.ai_watcher.set_enabled(checked)
+        save_settings(self.settings)
+        if checked:
+            self.say("Deteksi AI Agent diaktifkan nya! 🤖✨", 3500)
+        else:
+            self.say("Deteksi AI Agent dinonaktifkan nya! 🐾", 3000)
 
     def _toggle_startup(self, checked):
         success = set_startup_enabled(checked)
@@ -1434,6 +1808,12 @@ class DesktopPet(QWidget):
         if self.state in ["drag", "pet"]:
             return
 
+        # Check if currently peeking: save peek state so we can return to peek after reminder!
+        self._was_peeking_before_reminder = getattr(self, "is_peeking", False)
+        self._peek_side_before_reminder = getattr(self, "peek_side", "right")
+        if self.is_peeking:
+            self.is_peeking = False
+
         # Capture true desktop home location ONLY when departing from desktop
         self._active_custom_msg = custom_message
         self._active_reminder_type = reminder_type
@@ -1460,7 +1840,7 @@ class DesktopPet(QWidget):
         """Executes one step in the health routine or Pomodoro transition."""
         self._active_reminder_type = reminder_type
 
-        if reminder_type in ["pomodoro_work_done", "pomodoro_break_done"]:
+        if reminder_type in ["pomodoro_work_done", "pomodoro_break_done", "alarm_done"]:
             self.set_state("celebrate", duration_seconds=duration)
         else:
             self.set_state(reminder_type, duration_seconds=duration)
@@ -1468,8 +1848,7 @@ class DesktopPet(QWidget):
         has_queued = len(self._reminder_queue) > 0
 
         if reminder_type == "stretch":
-            self._play_sound_blip(freq=1250, dur=70)
-            QTimer.singleShot(140, lambda: self._play_sound_blip(freq=1650, dur=90))
+            audio.play_stretch(self.settings)
             if has_queued:
                 self.say("Sesi Istirahat Sehat Terpadu! 🧘✨\nYuk regangkan badan dulu, habis ini kita minum air putih ya!", int(duration * 1000 - 500))
             elif auto:
@@ -1483,9 +1862,7 @@ class DesktopPet(QWidget):
                 self.say("Ngulet dulu nyaaa~ segernya badan! 🧘✨\nYuk luruskan punggung bareng aku!", int(duration * 1000 - 500))
 
         elif reminder_type == "drink_water":
-            self._play_sound_blip(freq=1100, dur=60)
-            QTimer.singleShot(120, lambda: self._play_sound_blip(freq=1450, dur=70))
-            QTimer.singleShot(240, lambda: self._play_sound_blip(freq=1750, dur=90))
+            audio.play_water(self.settings)
             if has_queued or self._was_combo:
                 self.say("Lanjut minum segelas air putih! 🥛💧✨\nBiar tubuh segar & terhidrasi maksimal!", int(duration * 1000 - 500))
             elif auto:
@@ -1499,8 +1876,7 @@ class DesktopPet(QWidget):
                 self.say("Slurp slurp nyaaa~ Segernya minum air putih! 🥛💧✨\nJangan lupa minum juga ya!", int(duration * 1000 - 500))
 
         elif reminder_type == "pomodoro_work_done":
-            self._play_sound_blip(freq=1350, dur=70)
-            QTimer.singleShot(140, lambda: self._play_sound_blip(freq=1750, dur=90))
+            audio.play_celebrate(self.settings)
             cycle = self.pomodoro.current_cycle
             total = self.pomodoro.total_cycles
             is_auto = self.pomodoro.is_auto_cycle
@@ -1513,9 +1889,9 @@ class DesktopPet(QWidget):
             self.say(msg, int(duration * 1000 - 500))
 
         elif reminder_type == "alarm_done":
-            self._play_sound_blip(freq=1500, dur=100)
-            msg = self._active_custom_msg if self._active_custom_msg else "Waktunya habis!"
-            self.say(f"⏰ Pengingat: {msg}", int(duration * 1000 - 500))
+            audio.play_celebrate(self.settings)
+            msg = self._active_custom_msg if self._active_custom_msg else "Waktunya agenda alarm kamu!"
+            self.say(f"{msg}", int(duration * 1000 - 500))
 
         elif reminder_type == "pomodoro_break_done":
             self._play_sound_blip(freq=1200, dur=70)
@@ -1546,17 +1922,23 @@ class DesktopPet(QWidget):
 
         # All routine steps finished -> glide home!
         self._was_combo = False
-        if self._active_reminder_type is not None and not self._glide_timer.isActive():
+        if self._active_reminder_type is not None:
+            self._glide_timer.stop()
             orig_x, orig_y = self._home_pos
             orig_size = self._home_size
             completed_type = self._active_reminder_type
             cb = self._reminder_finish_callback
             self._reminder_finish_callback = None
+            was_peeking = getattr(self, "_was_peeking_before_reminder", False)
+            peek_side = getattr(self, "_peek_side_before_reminder", "right")
+            self._was_peeking_before_reminder = False
 
             def on_returned_home():
                 self._active_reminder_type = None
                 if cb:
                     cb()
+                if was_peeking:
+                    self.enter_peek_mode(side=peek_side, manual=False)
                 elif completed_type in ["stretch", "drink_water"]:
                     self.set_state("idle")
                     self.say("Rutinitas istirahat selesai! Badan bugar & pikiran fokus lagi nya~ 🐾💪", 4000)
@@ -1673,21 +2055,22 @@ class DesktopPet(QWidget):
             set_win32_topmost(self)
             
         if accepted:
-            minutes, msg = dialog.get_values()
+            delay_sec, time_str, msg, count_str = dialog.get_values()
+            delay_ms = int(delay_sec * 1000)
             
             def alarm_callback():
                 self.set_state("idle")
 
             # QTimer singleShot expects milliseconds
-            QTimer.singleShot(minutes * 60 * 1000, lambda: self._start_centered_reminder(
+            QTimer.singleShot(delay_ms, lambda: self._start_centered_reminder(
                 "alarm_done",
                 auto=True,
-                duration=6.0,
+                duration=7.5,
                 on_finish_callback=alarm_callback,
-                custom_message=msg
+                custom_message=f"⏰ Waktunya: {msg}!\n(Pukul {time_str}) nya! 📢✨"
             ))
             
-            self.say(f"Siap! Aku ingetin {minutes} menit lagi ya nya! ?", 5000)
+            self.say(f"Siap! Alarm disetel untuk pukul {time_str} ({count_str} lagi) nya! ⏰🐾", 5000)
 
     def _prompt_sticky_note(self):
         current_note = self.settings.get("sticky_note", "")

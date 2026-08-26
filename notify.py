@@ -20,7 +20,9 @@ from src.local_watcher import trigger_event
 def main():
     parser = argparse.ArgumentParser(description="Send notifications and state changes to your desktop cat.")
     parser.add_argument("text", nargs="?", default=None, help="Message text to display in speech bubble.")
-    parser.add_argument("-s", "--state", default=None, choices=["idle", "walk", "sleep", "work", "pet", "celebrate", "thinking", "jump"],
+    parser.add_argument("-s", "--state", default=None,
+                        choices=["idle", "walk", "sleep", "work", "pet", "celebrate", "thinking", "jump",
+                                 "peek", "peek_left", "peek_right", "peek_bottom", "unpeek"],
                         help="Animation state to switch to.")
     parser.add_argument("-m", "--msg", default=None, help="Explicit message text (alternative to positional argument).")
     parser.add_argument("-d", "--duration", type=int, default=5, help="Duration in seconds (default: 5s).")
