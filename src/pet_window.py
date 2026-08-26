@@ -1808,6 +1808,12 @@ class DesktopPet(QWidget):
         if self.state in ["drag", "pet"]:
             return
 
+        # Check if currently peeking: save peek state so we can return to peek after reminder!
+        self._was_peeking_before_reminder = getattr(self, "is_peeking", False)
+        self._peek_side_before_reminder = getattr(self, "peek_side", "right")
+        if self.is_peeking:
+            self.is_peeking = False
+
         # Capture true desktop home location ONLY when departing from desktop
         self._active_custom_msg = custom_message
         self._active_reminder_type = reminder_type
@@ -1834,7 +1840,7 @@ class DesktopPet(QWidget):
         """Executes one step in the health routine or Pomodoro transition."""
         self._active_reminder_type = reminder_type
 
-        if reminder_type in ["pomodoro_work_done", "pomodoro_break_done"]:
+        if reminder_type in ["pomodoro_work_done", "pomodoro_break_done", "alarm_done"]:
             self.set_state("celebrate", duration_seconds=duration)
         else:
             self.set_state(reminder_type, duration_seconds=duration)
@@ -1883,9 +1889,9 @@ class DesktopPet(QWidget):
             self.say(msg, int(duration * 1000 - 500))
 
         elif reminder_type == "alarm_done":
-            self._play_sound_blip(freq=1500, dur=100)
-            msg = self._active_custom_msg if self._active_custom_msg else "Waktunya habis!"
-            self.say(f"⏰ Pengingat: {msg}", int(duration * 1000 - 500))
+            audio.play_celebrate(self.settings)
+            msg = self._active_custom_msg if self._active_custom_msg else "Waktunya agenda alarm kamu!"
+            self.say(f"{msg}", int(duration * 1000 - 500))
 
         elif reminder_type == "pomodoro_break_done":
             self._play_sound_blip(freq=1200, dur=70)
@@ -1916,17 +1922,23 @@ class DesktopPet(QWidget):
 
         # All routine steps finished -> glide home!
         self._was_combo = False
-        if self._active_reminder_type is not None and not self._glide_timer.isActive():
+        if self._active_reminder_type is not None:
+            self._glide_timer.stop()
             orig_x, orig_y = self._home_pos
             orig_size = self._home_size
             completed_type = self._active_reminder_type
             cb = self._reminder_finish_callback
             self._reminder_finish_callback = None
+            was_peeking = getattr(self, "_was_peeking_before_reminder", False)
+            peek_side = getattr(self, "_peek_side_before_reminder", "right")
+            self._was_peeking_before_reminder = False
 
             def on_returned_home():
                 self._active_reminder_type = None
                 if cb:
                     cb()
+                if was_peeking:
+                    self.enter_peek_mode(side=peek_side, manual=False)
                 elif completed_type in ["stretch", "drink_water"]:
                     self.set_state("idle")
                     self.say("Rutinitas istirahat selesai! Badan bugar & pikiran fokus lagi nya~ 🐾💪", 4000)
@@ -2043,21 +2055,22 @@ class DesktopPet(QWidget):
             set_win32_topmost(self)
             
         if accepted:
-            minutes, msg = dialog.get_values()
+            delay_sec, time_str, msg, count_str = dialog.get_values()
+            delay_ms = int(delay_sec * 1000)
             
             def alarm_callback():
                 self.set_state("idle")
 
             # QTimer singleShot expects milliseconds
-            QTimer.singleShot(minutes * 60 * 1000, lambda: self._start_centered_reminder(
+            QTimer.singleShot(delay_ms, lambda: self._start_centered_reminder(
                 "alarm_done",
                 auto=True,
-                duration=6.0,
+                duration=7.5,
                 on_finish_callback=alarm_callback,
-                custom_message=msg
+                custom_message=f"⏰ Waktunya: {msg}!\n(Pukul {time_str}) nya! 📢✨"
             ))
             
-            self.say(f"Siap! Aku ingetin {minutes} menit lagi ya nya! ?", 5000)
+            self.say(f"Siap! Alarm disetel untuk pukul {time_str} ({count_str} lagi) nya! ⏰🐾", 5000)
 
     def _prompt_sticky_note(self):
         current_note = self.settings.get("sticky_note", "")
