@@ -1513,97 +1513,125 @@ def _draw_accessory_layer(img: Image.Image, accessory: str, state: str, frame_id
     K = (18, 18, 22, 255)
     fi = frame_idx % 4
 
-    # Calculate head & neck anchor coordinates based on active state
+    # Determine exact head & skull top anchor per state
     if state in ("walk_left", "walk_right", "run_W", "run_E", "walk"):
         bob_y = -1 if fi in (0, 2) else 0
         head_cx = 9 if flip_left else 23
-        head_top_y = 8 + bob_y
-        neck_y = 19 + bob_y
+        skull_top_y = 5 + bob_y
+        eye_y = 8 + bob_y
+        neck_y = 15 + bob_y
     elif state in ("work", "knead", "typing", "overheat", "heat", "hot"):
-        body_bob = -1 if fi in (0, 2) else 0
+        bob_y = -1 if fi in (0, 2) else 0
         head_cx = 16
-        head_top_y = 8 + body_bob
-        neck_y = 18 + body_bob
+        skull_top_y = 4 + bob_y
+        eye_y = 7 + bob_y
+        neck_y = 15 + bob_y
     elif state == "sleep":
         head_cx = 20
-        head_top_y = 14
-        neck_y = 20
+        skull_top_y = 11
+        eye_y = 14
+        neck_y = 18
     elif state in ("stretch", "yoga", "posture"):
         head_cx = 24
-        head_top_y = 18
-        neck_y = 22
-    elif state in ("drink_water", "feed", "eat"):
-        head_y_offsets = [12, 13, 11, 10]
-        head_x_offsets = [13, 14, 12, 11]
-        head_cx = head_x_offsets[fi] + 5
-        head_top_y = head_y_offsets[fi]
-        neck_y = 19
+        skull_top_y = 14
+        eye_y = 17
+        neck_y = 20
     elif state in ("celebrate", "jump", "done"):
         if fi in (1, 2):
             head_cx = 16
-            head_top_y = 4
-            neck_y = 12
+            skull_top_y = 1
+            eye_y = 4
+            neck_y = 10
         else:
             head_cx = 16
-            head_top_y = 8
-            neck_y = 16
+            skull_top_y = 5
+            eye_y = 8
+            neck_y = 14
     elif state.startswith("peek"):
         if state == "peek_left":
             head_cx = 22
-            head_top_y = 10
-            neck_y = 20
+            skull_top_y = 6
+            eye_y = 9
+            neck_y = 16
         elif state == "peek_bottom":
             head_cx = 16
-            head_top_y = 14
-            neck_y = 22
+            skull_top_y = 10
+            eye_y = 13
+            neck_y = 19
         else:
             head_cx = 10
-            head_top_y = 10
-            neck_y = 20
-    else:  # idle_front / pet / drag / paper_unroll / thinking
-        bob_y = 1 if fi in (1, 3) else 0
+            skull_top_y = 6
+            eye_y = 9
+            neck_y = 16
+    else:  # idle_front, pet, thinking, feed, drag
+        breath_y = -1 if fi == 1 else 0
         head_cx = 16
-        head_top_y = 9 + bob_y
-        neck_y = 18 + bob_y
+        skull_top_y = 5 + breath_y
+        eye_y = 9 + breath_y
+        neck_y = 16 + breath_y
 
-    if accessory == "wizard_hat":
-        PURPLE = (110, 45, 185, 255)
-        PURPLE_DARK = (75, 25, 135, 255)
-        GOLD = (255, 215, 45, 255)
-        bx1, bx2, by = head_cx - 7, head_cx + 7, head_top_y + 1
-        d.rectangle([bx1, by, bx2, by + 1], fill=PURPLE_DARK, outline=K)
-        d.polygon([
-            (head_cx - 4, by),
-            (head_cx + 4, by),
-            (head_cx + 1, by - 6),
-            (head_cx - 3, by - 8),
-            (head_cx - 4, by - 8),
-            (head_cx - 2, by - 5)
-        ], fill=PURPLE, outline=K)
-        d.line([(head_cx - 4, by - 1), (head_cx + 4, by - 1)], fill=GOLD)
-        img.putpixel((head_cx, by - 1), (255, 255, 255, 255))
-
-    elif accessory == "royal_crown":
+    if accessory == "royal_crown":
         GOLD = (255, 210, 30, 255)
         GOLD_DARK = (205, 160, 15, 255)
         RUBY = (245, 45, 65, 255)
         SAPPHIRE = (45, 140, 255, 255)
-        cx, cy = head_cx, head_top_y - 2
-        d.rectangle([cx - 5, cy + 2, cx + 5, cy + 3], fill=GOLD_DARK, outline=K)
-        d.polygon([(cx - 5, cy + 2), (cx - 5, cy - 2), (cx - 3, cy + 1)], fill=GOLD, outline=K)
-        d.polygon([(cx - 2, cy + 1), (cx, cy - 4), (cx + 2, cy + 1)], fill=GOLD, outline=K)
-        d.polygon([(cx + 3, cy + 1), (cx + 5, cy - 2), (cx + 5, cy + 2)], fill=GOLD, outline=K)
-        img.putpixel((cx - 4, cy + 2), SAPPHIRE)
-        img.putpixel((cx, cy + 2), RUBY)
-        img.putpixel((cx + 4, cy + 2), SAPPHIRE)
+        cx, cy = head_cx, skull_top_y
+
+        # Base headband sitting on top of head (between ears)
+        d.rectangle([cx - 4, cy - 1, cx + 4, cy], fill=GOLD_DARK, outline=K)
+        # 3 Crown Spikes
+        d.polygon([(cx - 4, cy - 1), (cx - 4, cy - 5), (cx - 2, cy - 2)], fill=GOLD, outline=K)
+        d.polygon([(cx - 2, cy - 2), (cx, cy - 6), (cx + 2, cy - 2)], fill=GOLD, outline=K)
+        d.polygon([(cx + 2, cy - 2), (cx + 4, cy - 5), (cx + 4, cy - 1)], fill=GOLD, outline=K)
+        # Jewels
+        img.putpixel((cx - 3, cy - 1), SAPPHIRE)
+        img.putpixel((cx, cy - 1), RUBY)
+        img.putpixel((cx + 3, cy - 1), SAPPHIRE)
+
+    elif accessory == "wizard_hat":
+        PURPLE = (110, 45, 185, 255)
+        PURPLE_DARK = (75, 25, 135, 255)
+        GOLD = (255, 215, 45, 255)
+        bx1, bx2, by = head_cx - 6, head_cx + 6, skull_top_y
+        # Wide brim
+        d.rectangle([bx1, by - 1, bx2, by], fill=PURPLE_DARK, outline=K)
+        # Pointed Hat Cone bending slightly
+        d.polygon([
+            (head_cx - 4, by - 1),
+            (head_cx + 4, by - 1),
+            (head_cx + 2, by - 5),
+            (head_cx - 1, by - 7),
+            (head_cx - 3, by - 7),
+            (head_cx - 1, by - 4)
+        ], fill=PURPLE, outline=K)
+        # Gold Star Buckle
+        d.line([(head_cx - 3, by - 2), (head_cx + 3, by - 2)], fill=GOLD)
+        img.putpixel((head_cx, by - 2), (255, 255, 255, 255))
 
     elif accessory == "cute_ribbon":
         PINK = (255, 110, 160, 255)
         PINK_DARK = (220, 60, 115, 255)
-        rx, ry = head_cx + 4, head_top_y - 1
+        rx, ry = head_cx + 5, skull_top_y
         d.polygon([(rx - 3, ry - 2), (rx - 1, ry), (rx - 3, ry + 2)], fill=PINK, outline=K)
         d.polygon([(rx + 3, ry - 2), (rx + 1, ry), (rx + 3, ry + 2)], fill=PINK, outline=K)
         d.rectangle([rx - 1, ry - 1, rx + 1, ry + 1], fill=PINK_DARK, outline=K)
+
+    elif accessory == "flower_pin":
+        PETAL = (255, 175, 200, 255)
+        CORE = (255, 225, 60, 255)
+        fx, fy = head_cx - 5, skull_top_y
+        d.rectangle([fx - 1, fy - 1, fx + 1, fy + 1], fill=PETAL)
+        img.putpixel((fx, fy - 2), PETAL)
+        img.putpixel((fx, fy + 2), PETAL)
+        img.putpixel((fx - 2, fy), PETAL)
+        img.putpixel((fx + 2, fy), PETAL)
+        img.putpixel((fx, fy), CORE)
+
+    elif accessory == "sunglasses":
+        SHADE = (18, 18, 22, 255)
+        d.rectangle([head_cx - 7, eye_y - 1, head_cx + 7, eye_y + 3], fill=SHADE, outline=K)
+        img.putpixel((head_cx - 4, eye_y), (255, 255, 255, 255))
+        img.putpixel((head_cx + 3, eye_y), (255, 255, 255, 255))
 
     elif accessory == "winter_scarf":
         RED = (225, 45, 55, 255)
@@ -1611,28 +1639,10 @@ def _draw_accessory_layer(img: Image.Image, accessory: str, state: str, frame_id
         d.rectangle([head_cx - 6, neck_y, head_cx + 6, neck_y + 2], fill=RED, outline=K)
         d.line([(head_cx - 3, neck_y), (head_cx - 3, neck_y + 2)], fill=WHITE)
         d.line([(head_cx + 3, neck_y), (head_cx + 3, neck_y + 2)], fill=WHITE)
-        d.rectangle([head_cx + 4, neck_y + 3, head_cx + 6, neck_y + 6], fill=RED, outline=K)
-        d.line([(head_cx + 4, neck_y + 4), (head_cx + 6, neck_y + 4)], fill=WHITE)
-        img.putpixel((head_cx + 4, neck_y + 7), WHITE)
-        img.putpixel((head_cx + 6, neck_y + 7), WHITE)
-
-    elif accessory == "sunglasses":
-        SHADE = (20, 20, 25, 255)
-        ey = head_top_y + 4
-        d.rectangle([head_cx - 6, ey, head_cx + 6, ey + 3], fill=SHADE, outline=K)
-        img.putpixel((head_cx - 4, ey + 1), (255, 255, 255, 255))
-        img.putpixel((head_cx + 2, ey + 1), (255, 255, 255, 255))
-
-    elif accessory == "flower_pin":
-        PETAL = (255, 175, 200, 255)
-        CORE = (255, 225, 60, 255)
-        fx, fy = head_cx - 4, head_top_y - 1
-        d.rectangle([fx - 1, fy - 1, fx + 1, fy + 1], fill=PETAL)
-        img.putpixel((fx, fy - 2), PETAL)
-        img.putpixel((fx, fy + 2), PETAL)
-        img.putpixel((fx - 2, fy), PETAL)
-        img.putpixel((fx + 2, fy), PETAL)
-        img.putpixel((fx, fy), CORE)
+        d.rectangle([head_cx + 3, neck_y + 3, head_cx + 5, neck_y + 6], fill=RED, outline=K)
+        d.line([(head_cx + 3, neck_y + 4), (head_cx + 5, neck_y + 4)], fill=WHITE)
+        img.putpixel((head_cx + 3, neck_y + 7), WHITE)
+        img.putpixel((head_cx + 5, neck_y + 7), WHITE)
 
 
 # ─── MAIN FRAME DISPATCHER (PUBLIC API) ────────────────────────────────────
