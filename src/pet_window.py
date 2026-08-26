@@ -35,25 +35,46 @@ from src.ai_watcher import AIAgentWatcher
 import src.audio as audio
 
 
+import ctypes
+from ctypes import wintypes
+
+class _MONITORINFO(ctypes.Structure):
+    _fields_ = [
+        ("cbSize", ctypes.wintypes.DWORD),
+        ("rcMonitor", ctypes.wintypes.RECT),
+        ("rcWork", ctypes.wintypes.RECT),
+        ("dwFlags", ctypes.wintypes.DWORD)
+    ]
+
+if sys.platform == "win32":
+    try:
+        user32 = ctypes.windll.user32
+        user32.GetForegroundWindow.restype = wintypes.HWND
+        user32.GetForegroundWindow.argtypes = []
+        user32.GetWindowRect.restype = wintypes.BOOL
+        user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+        user32.MonitorFromWindow.restype = wintypes.HANDLE
+        user32.MonitorFromWindow.argtypes = [wintypes.HWND, wintypes.DWORD]
+        user32.GetMonitorInfoW.restype = wintypes.BOOL
+        user32.GetMonitorInfoW.argtypes = [wintypes.HANDLE, ctypes.POINTER(_MONITORINFO)]
+        user32.SetWindowPos.restype = wintypes.BOOL
+        user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, wintypes.UINT]
+    except Exception:
+        pass
+
+
 def set_win32_topmost(widget):
-    """Enforce topmost z-order on Windows OS using native Win32 API + extended styles."""
+    """Enforce topmost z-order on Windows OS using native Win32 API."""
     if sys.platform == "win32" and widget:
         try:
             hwnd = int(widget.winId())
-            HWND_TOPMOST = -1
-            SWP_NOSIZE = 0x0001
-            SWP_NOMOVE = 0x0002
-            SWP_NOACTIVATE = 0x0010
-            flags = SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
-
-            # Set WS_EX_TOPMOST extended style for bulletproof topmost
-            GWL_EXSTYLE = -20
-            WS_EX_TOPMOST = 0x00000008
-            cur_ex = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-            if not (cur_ex & WS_EX_TOPMOST):
-                ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, cur_ex | WS_EX_TOPMOST)
-
-            ctypes.windll.user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, flags)
+            if hwnd:
+                HWND_TOPMOST = -1
+                SWP_NOSIZE = 0x0001
+                SWP_NOMOVE = 0x0002
+                SWP_NOACTIVATE = 0x0010
+                flags = SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
+                ctypes.windll.user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, flags)
         except Exception:
             pass
 
@@ -207,12 +228,6 @@ class DesktopPet(QWidget):
         self.physics_timer.timeout.connect(self._update_physics_loop)
         self.physics_timer.start(16)
 
-        # Aggressive Always-On-Top Enforcement Timer (every 1 second for reliable z-order)
-        self._topmost_timer = QTimer(self)
-        self._topmost_timer.timeout.connect(self._enforce_topmost)
-        if self.settings.get("stay_on_top", True):
-            self._topmost_timer.start(1000)
-
         # Peek Mode State & Auto Fullscreen Scanner
         self.is_peeking = False
         self.peek_side = "right"
@@ -239,30 +254,6 @@ class DesktopPet(QWidget):
 
         # Say hello
         QTimer.singleShot(400, self._say_welcome)
-
-    def _enforce_topmost(self):
-        """Aggressively re-enforces topmost z-order using Win32 extended window styles."""
-        if self.settings.get("stay_on_top", True):
-            set_win32_topmost(self)
-            if hasattr(self, 'speech_bubble') and self.speech_bubble.isVisible():
-                set_win32_topmost(self.speech_bubble)
-            if hasattr(self, 'pomodoro_badge') and self.pomodoro_badge.isVisible():
-                set_win32_topmost(self.pomodoro_badge)
-            if hasattr(self, 'sticky_note') and self.sticky_note.isVisible():
-                set_win32_topmost(self.sticky_note)
-
-    def changeEvent(self, event):
-        from PyQt6.QtCore import QEvent
-        if event.type() == QEvent.Type.ActivationChange:
-            if not self.isActiveWindow() and self.settings.get("stay_on_top", True):
-                set_win32_topmost(self)
-                if hasattr(self, 'speech_bubble') and self.speech_bubble.isVisible():
-                    set_win32_topmost(self.speech_bubble)
-                if hasattr(self, 'pomodoro_badge') and self.pomodoro_badge.isVisible():
-                    set_win32_topmost(self.pomodoro_badge)
-                if hasattr(self, 'sticky_note') and self.sticky_note.isVisible():
-                    set_win32_topmost(self.sticky_note)
-        super().changeEvent(event)
 
     # -------------------------------------------------------------
     # Sprite & Cache Management (Pre-cached for instant 60 FPS O(1) rendering)
@@ -1058,12 +1049,9 @@ class DesktopPet(QWidget):
         self.say(random.choice(purrs), 3500)
 
     def _play_sound_blip(self, sound_type="blip", freq=None, dur=None):
-        if not self.settings.get("sound_enabled", True):
+        if not self.settings.get("sound_enabled", False):
             return
-        if isinstance(sound_type, str) and sound_type in audio._AUDIO_CACHE:
-            audio.play_sound(sound_type, self.settings)
-        else:
-            audio.play_sound("blip", self.settings)
+        audio.play_sound(sound_type if isinstance(sound_type, str) else "blip", self.settings)
 
     # -------------------------------------------------------------
     # Pomodoro & Reminder Handlers
@@ -1294,16 +1282,8 @@ class DesktopPet(QWidget):
             if not hmon:
                 return False
 
-            class MONITORINFO(ctypes.Structure):
-                _fields_ = [
-                    ("cbSize", ctypes.wintypes.DWORD),
-                    ("rcMonitor", ctypes.wintypes.RECT),
-                    ("rcWork", ctypes.wintypes.RECT),
-                    ("dwFlags", ctypes.wintypes.DWORD)
-                ]
-
-            mi = MONITORINFO()
-            mi.cbSize = ctypes.sizeof(MONITORINFO)
+            mi = _MONITORINFO()
+            mi.cbSize = ctypes.sizeof(_MONITORINFO)
             if not user32.GetMonitorInfoW(hmon, ctypes.byref(mi)):
                 return False
 
@@ -1324,11 +1304,7 @@ class DesktopPet(QWidget):
             if (work.bottom - work.top < mon.bottom - mon.top) or (work.right - work.left < mon.right - mon.left):
                 return True
 
-            # If taskbar is hidden, verify window lacks standard title bar caption
-            GWL_STYLE = -16
-            style = user32.GetWindowLongW(hwnd, GWL_STYLE)
-            WS_CAPTION = 0x00C00000
-            return not bool(style & WS_CAPTION)
+            return False
         except Exception:
             return False
 

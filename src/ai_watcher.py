@@ -23,6 +23,20 @@ AI_WINDOW_KEYWORDS = [
 ]
 
 
+if sys.platform == "win32":
+    from ctypes import wintypes
+    try:
+        user32 = ctypes.windll.user32
+        user32.GetForegroundWindow.restype = wintypes.HWND
+        user32.GetForegroundWindow.argtypes = []
+        user32.GetWindowTextLengthW.restype = ctypes.c_int
+        user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
+        user32.GetWindowTextW.restype = ctypes.c_int
+        user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+    except Exception:
+        pass
+
+
 def _get_active_window_title() -> str:
     """Fast, zero-overhead Win32 active window title fetcher."""
     if sys.platform != "win32":
@@ -33,7 +47,7 @@ def _get_active_window_title() -> str:
         if not hwnd:
             return ""
         length = user32.GetWindowTextLengthW(hwnd)
-        if length <= 0:
+        if length <= 0 or length > 1024:
             return ""
         buff = ctypes.create_unicode_buffer(length + 1)
         user32.GetWindowTextW(hwnd, buff, length + 1)

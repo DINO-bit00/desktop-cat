@@ -11,24 +11,17 @@ from PyQt6.QtWidgets import QWidget, QLabel, QVBoxLayout
 
 
 def set_win32_topmost(widget):
-    """Enforce topmost z-order on Windows OS using native Win32 API + extended styles."""
+    """Enforce topmost z-order on Windows OS using native Win32 API."""
     if sys.platform == "win32" and widget:
         try:
             hwnd = int(widget.winId())
-            HWND_TOPMOST = -1
-            SWP_NOSIZE = 0x0001
-            SWP_NOMOVE = 0x0002
-            SWP_NOACTIVATE = 0x0010
-            SWP_SHOWWINDOW = 0x0040
-            flags = SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE | SWP_SHOWWINDOW
-
-            GWL_EXSTYLE = -20
-            WS_EX_TOPMOST = 0x00000008
-            cur_ex = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-            if not (cur_ex & WS_EX_TOPMOST):
-                ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, cur_ex | WS_EX_TOPMOST)
-
-            ctypes.windll.user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, flags)
+            if hwnd:
+                HWND_TOPMOST = -1
+                SWP_NOSIZE = 0x0001
+                SWP_NOMOVE = 0x0002
+                SWP_NOACTIVATE = 0x0010
+                flags = SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
+                ctypes.windll.user32.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, flags)
         except Exception:
             pass
 
