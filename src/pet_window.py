@@ -34,6 +34,8 @@ from src.alarm_dialog import CustomAlarmDialog
 from src.ai_watcher import AIAgentWatcher
 from src.toys import YarnBallWidget, LaserPointerOverlay
 from src.affection_dialog import AffectionDialog
+from src.ambient import AmbientPlayer, AMBIENT_TRACKS
+from src.summary_dialog import DailySummaryDialog
 import src.audio as audio
 
 
@@ -230,6 +232,9 @@ class DesktopPet(QWidget):
         # Interactive Toys (Yarn Ball & Laser Pointer)
         self.yarn_ball = None
         self.laser_overlay = None
+
+        # Cozy Ambient Sound Player (Comnyang Phase 5)
+        self.ambient_player = AmbientPlayer()
 
         # Position on screen
         self._snap_to_initial_position()
@@ -1632,9 +1637,22 @@ class DesktopPet(QWidget):
         sound_menu.addAction("💧 Percikan Air (Water Splash)", lambda: self._test_sound("water"))
         sound_menu.addAction("🧘 Regangan Ngantuk (Yawn)", lambda: self._test_sound("stretch"))
 
+        # 10. Cozy Lo-Fi Ambient Hub
+        ambient_menu = menu.addMenu("🌧️ Suara Latar Ambient (Cozy Lo-Fi)")
+        for tr_key, tr_info in AMBIENT_TRACKS.items():
+            act = ambient_menu.addAction(tr_info["name"])
+            act.setCheckable(True)
+            act.setChecked(self.ambient_player.active_track == tr_key)
+            act.triggered.connect(lambda checked, k=tr_key: self.toggle_ambient(k))
+        if self.ambient_player.is_playing():
+            ambient_menu.addSeparator()
+            ambient_menu.addAction("🔇 Matikan Suara Ambient", lambda: self.toggle_ambient(self.ambient_player.active_track))
+
         menu.addSeparator()
 
-        # 10. Affection & Personalization
+        # 11. Productivity Summary & Affection
+        summary_action = menu.addAction("📊 Rekap Produktivitas Harian...")
+        summary_action.triggered.connect(self._show_daily_summary)
         aff_action = menu.addAction("💖 Tingkat Kasih Sayang & Mood...")
         aff_action.triggered.connect(self._show_affection_dialog)
         name_action = menu.addAction("👤 Set Panggilan Nama")
@@ -2033,10 +2051,18 @@ class DesktopPet(QWidget):
 
     def trigger_stretch(self, auto=False):
         """Executes the kawaii cat stretch yoga posture via Unified Center Stage."""
+        stats = self.settings.setdefault("stats", {})
+        stats["stretch_count"] = stats.get("stretch_count", 0) + 1
+        self.add_affection(2, "stretch")
+        save_settings(self.settings)
         self._start_centered_reminder("stretch", auto=auto, duration=6.0)
 
     def trigger_drink_water(self, auto=False):
         """Executes the kawaii cat drinking water animation via Unified Center Stage."""
+        stats = self.settings.setdefault("stats", {})
+        stats["hydration_count"] = stats.get("hydration_count", 0) + 1
+        self.add_affection(2, "hydration")
+        save_settings(self.settings)
         self._start_centered_reminder("drink_water", auto=auto, duration=6.0)
 
     def trigger_combo_routine(self):
@@ -2227,6 +2253,38 @@ class DesktopPet(QWidget):
         )
         dialog.exec()
 
+    # -------------------------------------------------------------
+    # Cozy Ambient Sound Player & Daily Summary (Comnyang Phase 5)
+    # -------------------------------------------------------------
+    def toggle_ambient(self, track_name: str):
+        """Toggles looping ambient sound track."""
+        if self.ambient_player.active_track == track_name:
+            self.ambient_player.stop()
+            self.say("Suara ambient dinonaktifkan nya~ 🔇🐾", 2500)
+        else:
+            self.ambient_player.play(track_name)
+            names = {
+                "rain": "Suara Hujan Lembut 🌧️",
+                "fire": "Gemeretak Api Unggun 🪵",
+                "waves": "Deburan Ombak Santai 🌊"
+            }
+            track_label = names.get(track_name, "Ambient Sound")
+            self.say(f"Memutar {track_label} untuk menemanimu fokus nya~ 🎧✨", 4000)
+
+    def _show_daily_summary(self):
+        """Displays retro pixel art daily productivity summary."""
+        pet_name = PALETTES.get(self.skin, {}).get("name", "NyangBuddy")
+        stats = self.settings.get("stats", {})
+        stats["food_count"] = self.settings.get("food_count", stats.get("food_count", 0))
+        dialog = DailySummaryDialog(stats, pet_name, self.affection_points, parent=None)
+
+        geo = self._get_current_screen_geometry()
+        dialog.move(
+            geo.center().x() - dialog.width() // 2,
+            geo.center().y() - dialog.height() // 2
+        )
+        dialog.exec()
+
     def _toggle_stretch_reminder(self, checked):
         self.settings["stretch_reminder_enabled"] = checked
         save_settings(self.settings)
@@ -2357,6 +2415,8 @@ class DesktopPet(QWidget):
             self._update_bubble_position()
     def close_app(self):
         self.dismiss_all_toys()
+        if hasattr(self, "ambient_player") and self.ambient_player:
+            self.ambient_player.stop()
         self.input_watcher.stop()
         self.speech_bubble.close()
         self.close()
