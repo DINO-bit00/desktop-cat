@@ -12,6 +12,7 @@ __pycache__/
 # Local Runtime & Trigger States
 .cat_trigger.json
 settings.json
+crash.log
 *.log
 
 # PyInstaller build artifacts
@@ -19,17 +20,17 @@ build/
 dist/
 *.spec
 
-# Generated / Temporary Assets & Previews
-assets/
-*.png
-
 # IDE & OS files
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# Local Guidelines & Blueprints (Private)
+# Local Guidelines, Scratch & Blueprints (Private)
 RULES.md
 comnyang_blueprint.md
 *comnyang*.md
+scratch/
+test_*.py
+temp_*.py
