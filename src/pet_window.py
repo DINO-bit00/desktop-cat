@@ -32,10 +32,6 @@ from src.pomodoro_dialog import CustomPomodoroDialog
 from src.sticky_note import StickyNote
 from src.alarm_dialog import CustomAlarmDialog
 from src.ai_watcher import AIAgentWatcher
-from src.toys import YarnBallWidget, LaserPointerOverlay
-from src.affection_dialog import AffectionDialog
-from src.summary_dialog import DailySummaryDialog
-from src.break_game import MiniBreakGameDialog
 import src.audio as audio
 
 
@@ -160,8 +156,6 @@ class DesktopPet(QWidget):
         self._last_cursor_poll_time = time.time()
         self._sprites_ready = False
         self.accessory = self.settings.get("accessory", "none")
-        self.affection_points = self.settings.get("affection_points", 50)
-        self.settings.setdefault("stats", {"food_count": 0, "pet_count": 0, "pomodoro_completed": 0})
 
         # Load ONLY the essential idle + walk sprites synchronously (instant startup)
         self._load_essential_sprites(self.skin)
@@ -228,10 +222,6 @@ class DesktopPet(QWidget):
         self._fullscreen_timer.timeout.connect(self._check_fullscreen_activity)
         if self.settings.get("auto_peek_fullscreen", True):
             self._fullscreen_timer.start(350)
-
-        # Interactive Toys (Yarn Ball & Laser Pointer)
-        self.yarn_ball = None
-        self.laser_overlay = None
 
         # Position on screen
         self._snap_to_initial_position()
@@ -892,10 +882,6 @@ class DesktopPet(QWidget):
                 if self.state != "pet" and self.state not in ["drag", "land", "work", "overheat"]:
                     self.set_state("pet")
                     audio.play_purr(self.settings)
-                    self.add_affection(1, "petting")
-                    stats = self.settings.setdefault("stats", {})
-                    stats["pet_count"] = stats.get("pet_count", 0) + 1
-                    save_settings(self.settings)
             else:
                 if self.state == "pet":
                     self.resume_default_state()
@@ -1110,11 +1096,6 @@ class DesktopPet(QWidget):
 
         if finished_mode == "work":
             # Work session ended -> Glide to center of screen for celebratory reminder
-            self.add_affection(10, "pomodoro")
-            stats = self.settings.setdefault("stats", {})
-            stats["pomodoro_completed"] = stats.get("pomodoro_completed", 0) + 1
-            save_settings(self.settings)
-
             is_auto = self.pomodoro.is_auto_cycle
             break_min = self.pomodoro.break_minutes
 
@@ -1481,17 +1462,6 @@ class DesktopPet(QWidget):
         custom_size_act.triggered.connect(self._prompt_custom_size)
 
         cat_menu.addSeparator()
-        act_sub = cat_menu.addMenu("🎭 Ganti Gaya / Aksi Langsung")
-        act_sub.addAction("😺 Duduk Santai (Idle)", lambda: self.set_state("idle"))
-        act_sub.addAction("💻 Mode Ngoding / Work", lambda: self.set_state("work"))
-        act_sub.addAction("🔥 Mode Overheat (Steam)", lambda: self.set_state("overheat", 5))
-        act_sub.addAction("📜 Gelar Kertas (Paper Unroll)", lambda: self.set_state("paper_unroll", 4))
-        act_sub.addAction("😴 Tidur (Sleep)", lambda: self.set_state("sleep"))
-        act_sub.addAction("🎉 Melompat Senang (Celebration)", lambda: self.trigger_celebrate(duration=4, message="Tugas selesai dengan sukses nya! 🎉✨"))
-        act_sub.addAction("🧠 Mode Berpikir (AI Thinking)", lambda: self.trigger_thinking(duration=5, message="Hmm... Sedang menganalisis nya~ 🧠💭"))
-        act_sub.addAction("❤️ Dielus / Purring (Pet)", lambda: self.set_state("pet", 4))
-
-        cat_menu.addSeparator()
         name_action = cat_menu.addAction("👤 Set Panggilan Nama Kamu...")
         name_action.triggered.connect(self._prompt_user_name)
 
@@ -1586,46 +1556,9 @@ class DesktopPet(QWidget):
         prod_menu.addSeparator()
         note_action = prod_menu.addAction("📌 Catatan Tempel (Sticky Note)...")
         note_action.triggered.connect(self._prompt_sticky_note)
-        summary_action = prod_menu.addAction("📊 Rekap Produktivitas Harian...")
-        summary_action.triggered.connect(self._show_daily_summary)
 
         # -------------------------------------------------------------
-        # 3. 🎮 Gamifikasi & Mainan (Play & Care)
-        # -------------------------------------------------------------
-        game_menu = menu.addMenu("🎮 Gamifikasi & Mainan")
-
-        feed_sub = game_menu.addMenu("🐟 Beri Makan Kucing (Snack)")
-        feed_sub.addAction("🐟 Ikan Tuna Segar (Fresh Fish)", lambda: self.trigger_feed("fish"))
-        feed_sub.addAction("🍗 Snack Ayam Renyah (Chicken Bite)", lambda: self.trigger_feed("chicken"))
-        feed_sub.addAction("🥛 Semangkuk Susu Hangat (Warm Milk)", lambda: self.trigger_feed("milk"))
-        feed_sub.addSeparator()
-        food_count = self.settings.get("food_count", 0)
-        stat_act = feed_sub.addAction(f"📊 Total Diberi Makan: {food_count}x")
-        stat_act.setEnabled(False)
-
-        toys_sub = game_menu.addMenu("🧶 Mainan Interaktif (Toys)")
-        yarn_sub = toys_sub.addMenu("🧶 Lempar Bola Benang (Yarn Ball)")
-        yarn_sub.addAction("💖 Bola Benang Pink", lambda: self.spawn_yarn_ball("pink"))
-        yarn_sub.addAction("💙 Bola Benang Biru", lambda: self.spawn_yarn_ball("blue"))
-        yarn_sub.addAction("💚 Bola Benang Mint", lambda: self.spawn_yarn_ball("mint"))
-
-        laser_act = toys_sub.addAction("🔴 Mode Laser Pointer (Red Dot)")
-        laser_act.setCheckable(True)
-        laser_act.setChecked(hasattr(self, "laser_overlay") and self.laser_overlay is not None and self.laser_overlay.isVisible())
-        laser_act.triggered.connect(self.toggle_laser_pointer)
-
-        toys_sub.addSeparator()
-        toys_sub.addAction("🧹 Simpan & Rapikan Semua Mainan", self.dismiss_all_toys)
-
-        game_action = game_menu.addAction("🎮 Main Game Istirahat (Catch The Fish)...")
-        game_action.triggered.connect(self.launch_break_game)
-
-        game_menu.addSeparator()
-        aff_action = game_menu.addAction("💖 Status Kasih Sayang & Mood...")
-        aff_action.triggered.connect(self._show_affection_dialog)
-
-        # -------------------------------------------------------------
-        # 4. ⚙️ Pengaturan & Perilaku (Settings & Behavior)
+        # 3. ⚙️ Pengaturan & Perilaku (Settings & Behavior)
         # -------------------------------------------------------------
         settings_menu = menu.addMenu("⚙️ Pengaturan & Perilaku")
 
@@ -2049,253 +1982,15 @@ class DesktopPet(QWidget):
 
     def trigger_stretch(self, auto=False):
         """Executes the kawaii cat stretch yoga posture via Unified Center Stage."""
-        stats = self.settings.setdefault("stats", {})
-        stats["stretch_count"] = stats.get("stretch_count", 0) + 1
-        self.add_affection(2, "stretch")
-        save_settings(self.settings)
         self._start_centered_reminder("stretch", auto=auto, duration=6.0)
 
     def trigger_drink_water(self, auto=False):
         """Executes the kawaii cat drinking water animation via Unified Center Stage."""
-        stats = self.settings.setdefault("stats", {})
-        stats["hydration_count"] = stats.get("hydration_count", 0) + 1
-        self.add_affection(2, "hydration")
-        save_settings(self.settings)
         self._start_centered_reminder("drink_water", auto=auto, duration=6.0)
 
     def trigger_combo_routine(self):
         """Manually launches the full Sequential Combo Health Routine (Stretch + Drink Water)."""
         self._start_centered_reminder("stretch", auto=False, duration=5.0, queue_next=[("drink_water", False, 5.0)])
-
-    def trigger_feed(self, treat_type: str = "fish"):
-        """Feeding system: Cat eats treat/fish from a bowl with munch sounds, hearts, and purrs."""
-        if self.is_reminder_locked or self.is_dragging:
-            return
-        
-        # Increase food count stat & affection
-        self.settings["food_count"] = self.settings.get("food_count", 0) + 1
-        stats = self.settings.setdefault("stats", {})
-        stats["food_count"] = self.settings["food_count"]
-        self.add_affection(5, "feeding")
-        save_settings(self.settings)
-        
-        # Set state to feed (eating animation)
-        self.set_state("feed", duration_seconds=4.5)
-        
-        # Audio sequence: initial crunch munch -> follow up crunch -> happy purr
-        audio.play_munch(self.settings)
-        QTimer.singleShot(1400, lambda: audio.play_munch(self.settings))
-        QTimer.singleShot(2800, lambda: audio.play_purr(self.settings))
-        
-        # Dialogues per skin and treat type
-        if treat_type == "fish":
-            if self.skin == "boss_oyen":
-                msg = "Tuna sashimi kualitas bintang lima! Mantap, boss! 🐟😎✨"
-            elif self.skin == "mochi":
-                msg = "Nyam nyam! Ikan segarnya lezat banget nya! ❤️🐟"
-            elif self.skin in ("tuxedo", "calico"):
-                msg = "Meooow~! Ikan favoritku nih! Makasih banyak yaa~ 🐟✨"
-            else:
-                msg = "Nyam nyam nyam~ Seger dan kenyang nya! 🐟❤️"
-        elif treat_type == "chicken":
-            msg = "Snack ayam krispi! Nyam nyam crunch crunch nya~ 🍗✨"
-        elif treat_type == "milk":
-            msg = "Slurp slurp~ Semangkuk susu hangat yang manis & menyehatkan nya! 🥛🌸"
-        else:
-            msg = "Nyam nyam nyam! Enak banget makanannya nya~ 🐾❤️"
-            
-        self.say(msg, 4500)
-
-    # -------------------------------------------------------------
-    # Interactive Toys & Play System (Comnyang Phase 5)
-    # -------------------------------------------------------------
-    def spawn_yarn_ball(self, color="pink"):
-        """Spawns an interactive floating yarn ball toy with 60 FPS physics."""
-        if hasattr(self, "yarn_ball") and self.yarn_ball:
-            self.yarn_ball.close()
-            self.yarn_ball = None
-
-        screen = self._get_current_screen_geometry()
-        spawn_x = max(screen.left() + 50, min(int(self.pos_x_f) + self.sprite_size + 40, screen.right() - 80))
-        spawn_y = max(screen.top() + 50, min(int(self.pos_y_f), screen.bottom() - 100))
-
-        self.yarn_ball = YarnBallWidget(color_name=color, initial_pos=(spawn_x, spawn_y), parent=None)
-        self.yarn_ball.ball_moved.connect(self._on_yarn_ball_moved)
-        self.yarn_ball.show()
-        if self.settings.get("stay_on_top", True):
-            set_win32_topmost(self.yarn_ball)
-
-        audio.play_pop()
-        self.say("Wah bola benang wol! Asik buat main nya~ 🧶✨", 3500)
-
-    def _on_yarn_ball_moved(self, bx, by, vx, vy):
-        """Cat reacts to the yarn ball: chases, pounces, and bats it away!"""
-        if self.is_reminder_locked or self.is_dragging or self.state in ["drag", "land", "sleep", "feed"]:
-            return
-
-        cat_cx = self.pos_x_f + self.sprite_size / 2.0
-        cat_cy = self.pos_y_f + self.sprite_size / 2.0
-        ball_cx = bx + 22.0
-        ball_cy = by + 22.0
-        dist = math.hypot(ball_cx - cat_cx, ball_cy - cat_cy)
-
-        # Touching cat paws -> Cat bats the ball away!
-        hit_dist = 55.0 * (self.sprite_size / 128.0)
-        if dist < hit_dist:
-            if hasattr(self, "yarn_ball") and self.yarn_ball:
-                self.yarn_ball.bat_away(cat_cx, cat_cy)
-            self.set_state("celebrate", duration_seconds=1.2)
-            audio.play_meow_for_skin(self.skin, self.settings)
-            if random.random() < 0.4:
-                quotes = ["Kena bolanya nya! 🧶🐾", "Hiaatt! Cakar kilat! ✨", "Seru banget mainnya nya! 💖", "Lompat cakar! 🐱💨"]
-                self.say(random.choice(quotes), 2000)
-        # Chase rolling ball
-        elif dist < (420.0 * (self.sprite_size / 128.0)) and math.hypot(vx, vy) > 1.2:
-            if not self.is_hunting and self.state in ["idle", "walk_left", "walk_right"]:
-                if ball_cx > cat_cx + 10:
-                    self.look_dir_x = 1
-                    self.pos_x_f += 1.6
-                    self.set_state("walk_right")
-                elif ball_cx < cat_cx - 10:
-                    self.look_dir_x = -1
-                    self.pos_x_f -= 1.6
-                    self.set_state("walk_left")
-                self.move(int(self.pos_x_f), int(self.pos_y_f))
-                self._update_bubble_position()
-
-    def toggle_laser_pointer(self):
-        """Toggles interactive red laser pointer mode."""
-        if not hasattr(self, "laser_overlay") or self.laser_overlay is None:
-            self.laser_overlay = LaserPointerOverlay(parent=None)
-            self.laser_overlay.laser_position_changed.connect(self._on_laser_moved)
-
-        if self.laser_overlay.isVisible():
-            self.laser_overlay.stop_laser()
-            self.say("Mode Laser Pointer dimatikan nya~ 🐾", 2500)
-        else:
-            self.laser_overlay.start_laser()
-            self.say("Titik laser merah aktif! Kucing akan mengejarnya nya~ 🔴👀 (Klik kanan kucing untuk mematikan)", 4000)
-            audio.play_pop()
-
-    def _on_laser_moved(self, lx, ly):
-        """Cat eyes and body follow the glowing laser dot with cooldown & peek-safety."""
-        if self.is_reminder_locked or self.is_dragging or self.state in ["drag", "land", "sleep", "feed"]:
-            return
-
-        cat_cx = self.pos_x_f + self.sprite_size / 2.0
-        cat_cy = self.pos_y_f + self.sprite_size / 2.0
-        dist = math.hypot(lx - cat_cx, ly - cat_cy)
-
-        # Eye follow laser
-        dx = 1 if lx > cat_cx + 15 else (-1 if lx < cat_cx - 15 else 0)
-        dy = 1 if ly > cat_cy + 15 else (-1 if ly < cat_cy - 15 else 0)
-        self.look_dir_x = dx
-        self.look_dir_y = dy
-
-        # If currently peeking on edge, only follow with eyes without moving away from edge
-        if self.is_peeking:
-            self.update()
-            return
-
-        now = time.time()
-        # Pounce on laser if close (with 3.0s cooldown to prevent jumping spam)
-        if dist < 60.0 * (self.sprite_size / 128.0):
-            if now - getattr(self, "_last_laser_pounce_time", 0.0) > 3.0:
-                self._last_laser_pounce_time = now
-                if self.state not in ["celebrate", "drag"]:
-                    self.set_state("celebrate", duration_seconds=1.2)
-                    audio.play_pop()
-                    self.add_affection(2, "laser")
-                    if random.random() < 0.4:
-                        quotes = ["Kena titik merahnya! 🔴🐾", "Hap! Cepat kan cakarku nya! ✨", "Dapet lasernya! 🔥"]
-                        self.say(random.choice(quotes), 1800)
-        # Smooth chase laser within screen bounds
-        elif dist < 450.0 * (self.sprite_size / 128.0) and self.state in ["idle", "walk_left", "walk_right"]:
-            geo = self._get_current_screen_geometry()
-            margin = 30
-            step = 2.0
-            if lx > cat_cx + 20:
-                new_x = min(float(geo.right() - self.sprite_size - margin), self.pos_x_f + step)
-                self.pos_x_f = new_x
-                self.set_state("walk_right")
-            elif lx < cat_cx - 20:
-                new_x = max(float(geo.left() + margin), self.pos_x_f - step)
-                self.pos_x_f = new_x
-                self.set_state("walk_left")
-            self.move(int(self.pos_x_f), int(self.pos_y_f))
-            self._update_bubble_position()
-
-    def dismiss_all_toys(self):
-        """Hides and dismisses all active toys."""
-        if hasattr(self, "yarn_ball") and self.yarn_ball:
-            self.yarn_ball.close()
-            self.yarn_ball = None
-        if hasattr(self, "laser_overlay") and self.laser_overlay:
-            self.laser_overlay.stop_laser()
-        self.say("Semua mainan sudah dirapikan nya! 🧹✨", 2500)
-
-    # -------------------------------------------------------------
-    # Affection & Mood System (Comnyang Phase 5)
-    # -------------------------------------------------------------
-    def add_affection(self, points: int, reason: str = ""):
-        """Increases affection/friendship level and checks for milestone rewards."""
-        old_pts = self.affection_points
-        self.affection_points = max(0, min(100, self.affection_points + points))
-        self.settings["affection_points"] = self.affection_points
-        save_settings(self.settings)
-
-        # Milestone: Reaching 100 points (Soulmate)
-        if old_pts < 100 and self.affection_points >= 100:
-            self.say("🌟 Selamat! Tingkat kasih sayang kita sudah mencapai Sahabat Sejati (Soulmate) nya! ❤️👑", 5000)
-            audio.play_celebrate(self.settings)
-            self.set_state("celebrate", duration_seconds=2.0)
-
-    def _show_affection_dialog(self):
-        """Displays cute retro affection & mood status dialog."""
-        pet_name = PALETTES.get(self.skin, {}).get("name", "NyangBuddy")
-        stats = self.settings.get("stats", {})
-        stats["food_count"] = self.settings.get("food_count", stats.get("food_count", 0))
-        dialog = AffectionDialog(self.affection_points, stats, pet_name, parent=None)
-
-        geo = self._get_current_screen_geometry()
-        dialog.move(
-            geo.center().x() - dialog.width() // 2,
-            geo.center().y() - dialog.height() // 2
-        )
-        dialog.exec()
-
-    # -------------------------------------------------------------
-    # Daily Summary Dialog
-    # -------------------------------------------------------------
-    def _show_daily_summary(self):
-        """Displays retro pixel art daily productivity summary."""
-        pet_name = PALETTES.get(self.skin, {}).get("name", "NyangBuddy")
-        stats = self.settings.get("stats", {})
-        stats["food_count"] = self.settings.get("food_count", stats.get("food_count", 0))
-        dialog = DailySummaryDialog(stats, pet_name, self.affection_points, parent=None)
-
-        geo = self._get_current_screen_geometry()
-        dialog.move(
-            geo.center().x() - dialog.width() // 2,
-            geo.center().y() - dialog.height() // 2
-        )
-        dialog.exec()
-
-    def launch_break_game(self):
-        """Launches 60-second Catch The Fish mini break game."""
-        dialog = MiniBreakGameDialog(parent=None)
-
-        def on_game_finished(score):
-            self.add_affection(10, "mini_game")
-            self.say(f"Game selesai! Skor hebat: {score} poin! Kucingmu senang sekali nya~ 🎮🐾💖", 4500)
-
-        dialog.game_finished.connect(on_game_finished)
-        geo = self._get_current_screen_geometry()
-        dialog.move(
-            geo.center().x() - dialog.width() // 2,
-            geo.center().y() - dialog.height() // 2
-        )
-        dialog.exec()
 
     def _toggle_stretch_reminder(self, checked):
         self.settings["stretch_reminder_enabled"] = checked
@@ -2426,7 +2121,6 @@ class DesktopPet(QWidget):
                 self.say("Catatan dilepas nya~", 3000)
             self._update_bubble_position()
     def close_app(self):
-        self.dismiss_all_toys()
         self.input_watcher.stop()
         self.speech_bubble.close()
         self.close()
