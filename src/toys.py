@@ -275,12 +275,27 @@ class YarnBallWidget(QWidget):
         painter.drawPixmap(0, 0, self.pixmap)
 
 
+def make_win32_clickthrough(widget):
+    """Enforce native Win32 click-through so mouse events pass 100% through to background apps."""
+    if sys.platform == "win32" and widget:
+        try:
+            import ctypes
+            hwnd = int(widget.winId())
+            GWL_EXSTYLE = -20
+            WS_EX_TRANSPARENT = 0x00000020
+            WS_EX_LAYERED = 0x00080000
+            cur = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+            ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, cur | WS_EX_TRANSPARENT | WS_EX_LAYERED)
+        except Exception:
+            pass
+
+
 class LaserPointerOverlay(QWidget):
     """
-    Interactive Laser Pointer Overlay:
+    Interactive Laser Pointer Dot (Small 40x40 Floating Click-Through Widget):
     - Renders a glowing red dot at the mouse cursor.
-    - Allows the user to playfully lead the cat across the desktop!
-    - Click-through and keyboard cancelable (ESC / Right-click).
+    - 100% click-through to underlying Windows apps (WS_EX_TRANSPARENT).
+    - Emits laser_position_changed(x, y) for the cat to track and pounce.
     """
     laser_position_changed = pyqtSignal(int, int)
 
@@ -293,10 +308,7 @@ class LaserPointerOverlay(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-
-        screen = QApplication.primaryScreen()
-        if screen:
-            self.setGeometry(screen.geometry())
+        self.setFixedSize(40, 40)
 
         self.laser_x = -100
         self.laser_y = -100
@@ -308,10 +320,9 @@ class LaserPointerOverlay(QWidget):
         self.track_timer.timeout.connect(self._track_cursor)
 
     def start_laser(self):
-        screen = QApplication.primaryScreen()
-        if screen:
-            self.setGeometry(screen.geometry())
         self.show()
+        make_win32_clickthrough(self)
+        self._track_cursor()
         self.track_timer.start()
 
     def stop_laser(self):
@@ -322,29 +333,29 @@ class LaserPointerOverlay(QWidget):
         pos = QCursor.pos()
         self.laser_x = pos.x()
         self.laser_y = pos.y()
+        self.move(self.laser_x - 20, self.laser_y - 20)
         self.pulse = (self.pulse + 0.15) % (2.0 * math.pi)
         self.update()
         self.laser_position_changed.emit(self.laser_x, self.laser_y)
 
     def paintEvent(self, event):
-        if self.laser_x < 0 or self.laser_y < 0:
-            return
-
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
+        cx, cy = 20, 20
+
         # Outer glowing halo
-        halo_radius = 9 + int(math.sin(self.pulse) * 2)
-        glow_color = QColor(255, 30, 30, 75)
+        halo_radius = 8 + int(math.sin(self.pulse) * 3)
+        glow_color = QColor(255, 30, 30, 80)
         painter.setBrush(QBrush(glow_color))
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawEllipse(QPoint(self.laser_x, self.laser_y), halo_radius, halo_radius)
+        painter.drawEllipse(QPoint(cx, cy), halo_radius, halo_radius)
 
         # Inner bright core
         core_color = QColor(255, 70, 70, 220)
         painter.setBrush(QBrush(core_color))
-        painter.drawEllipse(QPoint(self.laser_x, self.laser_y), 4, 4)
+        painter.drawEllipse(QPoint(cx, cy), 4, 4)
 
         # Center laser pinpoint
         painter.setBrush(QBrush(QColor(255, 240, 240, 255)))
-        painter.drawEllipse(QPoint(self.laser_x, self.laser_y), 2, 2)
+        painter.drawEllipse(QPoint(cx, cy), 2, 2)

@@ -984,6 +984,15 @@ class DesktopPet(QWidget):
 
             event.accept()
 
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape:
+            if hasattr(self, "laser_overlay") and self.laser_overlay and self.laser_overlay.isVisible():
+                self.laser_overlay.stop_laser()
+                self.say("Mode Laser dimatikan nya~ 🐾", 2500)
+                event.accept()
+                return
+        super().keyPressEvent(event)
+
     # -------------------------------------------------------------
     # Dialogues & Responses
     # -------------------------------------------------------------
@@ -2179,13 +2188,11 @@ class DesktopPet(QWidget):
             self.say("Mode Laser Pointer dimatikan nya~ 🐾", 2500)
         else:
             self.laser_overlay.start_laser()
-            if self.settings.get("stay_on_top", True):
-                set_win32_topmost(self.laser_overlay)
-            self.say("Titik laser merah muncul! Mau kutangkap nya! 🔴👀🔥", 3500)
+            self.say("Titik laser merah aktif! Kucing akan mengejarnya nya~ 🔴👀 (Klik kanan kucing untuk mematikan)", 4000)
             audio.play_pop()
 
     def _on_laser_moved(self, lx, ly):
-        """Cat eyes and body excitedly follow the glowing laser dot!"""
+        """Cat eyes and body follow the glowing laser dot with cooldown & peek-safety."""
         if self.is_reminder_locked or self.is_dragging or self.state in ["drag", "land", "sleep", "feed"]:
             return
 
@@ -2199,20 +2206,35 @@ class DesktopPet(QWidget):
         self.look_dir_x = dx
         self.look_dir_y = dy
 
-        # Pounce on laser if close
-        if dist < 50.0 * (self.sprite_size / 128.0):
-            if self.state != "celebrate":
-                self.set_state("celebrate", duration_seconds=1.0)
-                audio.play_pop()
-                if random.random() < 0.35:
-                    self.say(random.choice(["Kena titik merahnya! 🔴🐾", "Hap! Cepat kan cakarku nya! ✨", "Dapet lasernya! 🔥"]), 1800)
-        elif dist < 500.0 * (self.sprite_size / 128.0) and self.state in ["idle", "walk_left", "walk_right"]:
-            step = 2.2
+        # If currently peeking on edge, only follow with eyes without moving away from edge
+        if self.is_peeking:
+            self.update()
+            return
+
+        now = time.time()
+        # Pounce on laser if close (with 3.0s cooldown to prevent jumping spam)
+        if dist < 60.0 * (self.sprite_size / 128.0):
+            if now - getattr(self, "_last_laser_pounce_time", 0.0) > 3.0:
+                self._last_laser_pounce_time = now
+                if self.state not in ["celebrate", "drag"]:
+                    self.set_state("celebrate", duration_seconds=1.2)
+                    audio.play_pop()
+                    self.add_affection(2, "laser")
+                    if random.random() < 0.4:
+                        quotes = ["Kena titik merahnya! 🔴🐾", "Hap! Cepat kan cakarku nya! ✨", "Dapet lasernya! 🔥"]
+                        self.say(random.choice(quotes), 1800)
+        # Smooth chase laser within screen bounds
+        elif dist < 450.0 * (self.sprite_size / 128.0) and self.state in ["idle", "walk_left", "walk_right"]:
+            geo = self._get_current_screen_geometry()
+            margin = 30
+            step = 2.0
             if lx > cat_cx + 20:
-                self.pos_x_f += step
+                new_x = min(float(geo.right() - self.sprite_size - margin), self.pos_x_f + step)
+                self.pos_x_f = new_x
                 self.set_state("walk_right")
             elif lx < cat_cx - 20:
-                self.pos_x_f -= step
+                new_x = max(float(geo.left() + margin), self.pos_x_f - step)
+                self.pos_x_f = new_x
                 self.set_state("walk_left")
             self.move(int(self.pos_x_f), int(self.pos_y_f))
             self._update_bubble_position()
