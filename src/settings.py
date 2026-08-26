@@ -18,7 +18,7 @@ DEFAULT_SETTINGS = {
     "hydration_reminder_enabled": True, # Hydration reminder toggle
     "stretch_reminder_min": 60,     # Posture & stretch reminder every 60 min
     "stretch_reminder_enabled": True, # Posture reminder toggle
-    "sound_enabled": True,          # Cute synthesized retro blip
+    "sound_enabled": False,         # 100% Silent Mode (Mode Senyap) by default
     "sticky_note": "",              # Pinned focus goal / note
     "user_name": "",                # Panggilan nama user
     "scale": 1.0,                   # Size scale

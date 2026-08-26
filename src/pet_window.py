@@ -34,7 +34,6 @@ from src.alarm_dialog import CustomAlarmDialog
 from src.ai_watcher import AIAgentWatcher
 from src.toys import YarnBallWidget, LaserPointerOverlay
 from src.affection_dialog import AffectionDialog
-from src.ambient import AmbientPlayer, AMBIENT_TRACKS
 from src.summary_dialog import DailySummaryDialog
 from src.break_game import MiniBreakGameDialog
 import src.audio as audio
@@ -233,9 +232,6 @@ class DesktopPet(QWidget):
         # Interactive Toys (Yarn Ball & Laser Pointer)
         self.yarn_ball = None
         self.laser_overlay = None
-
-        # Cozy Ambient Sound Player (Comnyang Phase 5)
-        self.ambient_player = AmbientPlayer()
 
         # Position on screen
         self._snap_to_initial_position()
@@ -1629,40 +1625,7 @@ class DesktopPet(QWidget):
         aff_action.triggered.connect(self._show_affection_dialog)
 
         # -------------------------------------------------------------
-        # 4. 🔊 Audio & Suasana (Sounds & Lo-Fi)
-        # -------------------------------------------------------------
-        audio_menu = menu.addMenu("🔊 Audio & Suasana")
-
-        ambient_sub = audio_menu.addMenu("🌧️ Suara Latar Ambient (Cozy Lo-Fi)")
-        for tr_key, tr_info in AMBIENT_TRACKS.items():
-            act = ambient_sub.addAction(tr_info["name"])
-            act.setCheckable(True)
-            act.setChecked(self.ambient_player.active_track == tr_key)
-            act.triggered.connect(lambda checked, k=tr_key: self.toggle_ambient(k))
-        if self.ambient_player.is_playing():
-            ambient_sub.addSeparator()
-            ambient_sub.addAction("🔇 Matikan Suara Ambient", lambda: self.toggle_ambient(self.ambient_player.active_track))
-
-        sound_sub = audio_menu.addMenu("🔊 Uji Suara Meong (Kucing Asli)")
-        sound_sub.addAction("🐱 Meow Lembut Manis (Cute)", lambda: self._test_sound("meow_cute"))
-        sound_sub.addAction("😸 Meow Ceria Nyaring (Happy)", lambda: self._test_sound("meow_happy"))
-        sound_sub.addAction("😎 Meow Boss Oyen (Deep Meow)", lambda: self._test_sound("meow_boss"))
-        sound_sub.addAction("🐾 Meow Kitten Chibi (Mochi)", lambda: self._test_sound("meow_chibi"))
-        sound_sub.addAction("❤️ Dengkuran Purr (Petting)", lambda: self._test_sound("purr"))
-        sound_sub.addAction("🍖 Suara Mengunyah (Munch)", lambda: self._test_sound("munch"))
-        sound_sub.addAction("✨ Selebrasi Kemenangan (Sparkle)", lambda: self._test_sound("celebrate"))
-        sound_sub.addAction("🫧 Gelembung Pop", lambda: self._test_sound("pop"))
-        sound_sub.addAction("💧 Percikan Air (Water Splash)", lambda: self._test_sound("water"))
-        sound_sub.addAction("🧘 Regangan Ngantuk (Yawn)", lambda: self._test_sound("stretch"))
-
-        audio_menu.addSeparator()
-        sound_act = audio_menu.addAction("🔔 Efek Suara & Meong Kucing")
-        sound_act.setCheckable(True)
-        sound_act.setChecked(self.settings.get("sound_enabled", True))
-        sound_act.triggered.connect(self._toggle_sound)
-
-        # -------------------------------------------------------------
-        # 5. ⚙️ Pengaturan & Perilaku (Settings & Behavior)
+        # 4. ⚙️ Pengaturan & Perilaku (Settings & Behavior)
         # -------------------------------------------------------------
         settings_menu = menu.addMenu("⚙️ Pengaturan & Perilaku")
 
@@ -1679,6 +1642,11 @@ class DesktopPet(QWidget):
         auto_peek_act.triggered.connect(self._toggle_auto_peek_fullscreen)
 
         settings_menu.addSeparator()
+
+        sound_act = settings_menu.addAction("🔔 Efek Suara (Nonaktif = Mode Senyap Total)")
+        sound_act.setCheckable(True)
+        sound_act.setChecked(self.settings.get("sound_enabled", False))
+        sound_act.triggered.connect(self._toggle_sound)
 
         hunt_act = settings_menu.addAction("🎯 Kejar Kursor Cepat (Mouse Hunt)")
         hunt_act.setCheckable(True)
@@ -1712,7 +1680,7 @@ class DesktopPet(QWidget):
         menu.addSeparator()
 
         # -------------------------------------------------------------
-        # 6. ❌ Keluar (Close)
+        # 5. ❌ Keluar (Close)
         # -------------------------------------------------------------
         quit_act = menu.addAction("❌ Keluar (Close)")
         quit_act.triggered.connect(self.close_app)
@@ -2297,23 +2265,8 @@ class DesktopPet(QWidget):
         dialog.exec()
 
     # -------------------------------------------------------------
-    # Cozy Ambient Sound Player & Daily Summary (Comnyang Phase 5)
+    # Daily Summary Dialog
     # -------------------------------------------------------------
-    def toggle_ambient(self, track_name: str):
-        """Toggles looping ambient sound track."""
-        if self.ambient_player.active_track == track_name:
-            self.ambient_player.stop()
-            self.say("Suara ambient dinonaktifkan nya~ 🔇🐾", 2500)
-        else:
-            self.ambient_player.play(track_name)
-            names = {
-                "rain": "Suara Hujan Lembut 🌧️",
-                "fire": "Gemeretak Api Unggun 🪵",
-                "waves": "Deburan Ombak Santai 🌊"
-            }
-            track_label = names.get(track_name, "Ambient Sound")
-            self.say(f"Memutar {track_label} untuk menemanimu fokus nya~ 🎧✨", 4000)
-
     def _show_daily_summary(self):
         """Displays retro pixel art daily productivity summary."""
         pet_name = PALETTES.get(self.skin, {}).get("name", "NyangBuddy")
@@ -2474,8 +2427,6 @@ class DesktopPet(QWidget):
             self._update_bubble_position()
     def close_app(self):
         self.dismiss_all_toys()
-        if hasattr(self, "ambient_player") and self.ambient_player:
-            self.ambient_player.stop()
         self.input_watcher.stop()
         self.speech_bubble.close()
         self.close()
