@@ -24,7 +24,9 @@ DEFAULT_SETTINGS = {
     "scale": 1.0,                   # Size scale
     "run_on_startup": False,        # Windows Registry Run on startup
     "ai_watcher_enabled": True,     # Auto-detect AI Agent thinking & celebration
-    "auto_peek_fullscreen": True    # Auto-peek at screen edge during fullscreen/gaming
+    "auto_peek_fullscreen": True,   # Auto-peek at screen edge during fullscreen/gaming
+    "toxic_guardian_enabled": True, # Real-time Anti-Toxic companion & reaction
+    "toxic_sensitivity": "normal"   # "normal" or "strict"
 }
 
 if getattr(sys, "frozen", False):

@@ -207,8 +207,9 @@ class DesktopPet(QWidget):
         self.ai_watcher.ai_task_completed.connect(self._on_ai_task_completed)
         self.ai_watcher.external_message_received.connect(lambda msg: self.say(msg, 3500))
 
-        # Global Input Watcher (Comnyang-style cadence reaction to typing, overheat, and scrolling)
-        self.input_watcher = GlobalInputWatcher(self)
+        # Global Input Watcher (Comnyang-style cadence reaction to typing, overheat, scrolling, and toxic detection)
+        toxic_enabled = self.settings.get("toxic_guardian_enabled", True)
+        self.input_watcher = GlobalInputWatcher(self, toxic_guardian_enabled=toxic_enabled)
         self.input_watcher.typing_started.connect(self._on_global_typing_start)
         self.input_watcher.typing_started.connect(self.ai_watcher.on_user_activity)
         self.input_watcher.typing_stopped.connect(self._on_global_typing_stop)
@@ -217,6 +218,7 @@ class DesktopPet(QWidget):
         self.input_watcher.mouse_scrolled.connect(self._on_global_scroll)
         self.input_watcher.mouse_scrolled.connect(lambda dx, dy: self.ai_watcher.on_user_activity())
         self.input_watcher.enter_pressed.connect(self.ai_watcher.on_user_pressed_enter)
+        self.input_watcher.toxic_detected.connect(self._on_toxic_detected)
 
         # Animation Loop Timer (110ms per frame for smooth 9-10 FPS sprite cycling)
         self.anim_timer = QTimer(self)
@@ -747,6 +749,47 @@ class DesktopPet(QWidget):
             self.is_hunting = True
             self.say("Kejaaar nya! 🐾🎯", 1800)
             self._play_sound_blip(freq=1420, dur=35)
+
+    def _on_toxic_detected(self, snippet: str, severity: str, matched_words: str):
+        """
+        Anti-Toxic Guardian reaction: Cat alerts the user with funny & calming responses
+        when profanity/toxicity is detected in real-time.
+        """
+        if self.is_reminder_locked or self.is_dragging:
+            return
+
+        # Choose distinct reactions & dialogues according to severity level
+        if severity == "high":
+            self._play_sound_blip(freq=600, dur=100)
+            self.set_state("overheat", duration_seconds=3.5)
+            high_quotes = [
+                "Astaghfirullah jarimu meong! 😾 Istighfar dulu yuk...",
+                "Waduh kasar banget meong! 🙀 Tarik napas dulu bro...",
+                "Jangan toxic dong nya! Nanti kena banned/report lho! 😾",
+                "Meong kaget dengernya! Jarimu butuh ditenangin meong 🐾💧",
+                "Dih ngegas parah meong! Santai bro, jangan kebawa emosi! 🔥"
+            ]
+            self.say(random.choice(high_quotes), 4500)
+        elif severity == "medium":
+            self._play_sound_blip(freq=800, dur=80)
+            self.set_state("thinking", duration_seconds=3.0)
+            med_quotes = [
+                "Dih ngegas amat meong... Santai dulu napa 😾",
+                "Sabar bro, main game/ngetik dibawa santai aja nya~ 🐾",
+                "Kok toxic sih meong? Senyum dulu yuk! 🐱✨",
+                "Jangan emosi bro, keyboardnya kasian diketik kasar 🐾",
+                "Kalo emosi mending minum air dulu ya nya~ 💧"
+            ]
+            self.say(random.choice(med_quotes), 4000)
+        else:  # mild
+            self._play_sound_blip(freq=1100, dur=60)
+            self.set_state("thinking", duration_seconds=2.5)
+            mild_quotes = [
+                "Eits, ada yang lagi kesel nih meong~ 🐾",
+                "Santai bro, peluk meong dulu biar adem 🐱💤",
+                "Sabar ya meong, semua masalah pasti ada solusinya ✨"
+            ]
+            self.say(random.choice(mild_quotes), 3500)
 
     # -------------------------------------------------------------
     # Paint & Render (Nearest-Neighbor Crisp Scaling + Mochi Tilt)
@@ -1572,6 +1615,11 @@ class DesktopPet(QWidget):
         ai_act.setChecked(self.settings.get("ai_watcher_enabled", True))
         ai_act.triggered.connect(self._toggle_ai_watcher)
 
+        toxic_act = settings_menu.addAction("🛡️ Mode Anti-Toxic Guardian (NyangGuard)")
+        toxic_act.setCheckable(True)
+        toxic_act.setChecked(self.settings.get("toxic_guardian_enabled", True))
+        toxic_act.triggered.connect(self._toggle_toxic_guardian)
+
         ontop_act = settings_menu.addAction("🔝 Selalu di Atas Layar (Always on Top)")
         ontop_act.setCheckable(True)
         ontop_act.setChecked(self.settings.get("stay_on_top", True))
@@ -1665,6 +1713,17 @@ class DesktopPet(QWidget):
         save_settings(self.settings)
         if not checked:
             self.set_state("idle")
+
+    def _toggle_toxic_guardian(self, checked: bool):
+        self.settings["toxic_guardian_enabled"] = checked
+        save_settings(self.settings)
+        if hasattr(self, "input_watcher") and self.input_watcher:
+            self.input_watcher.set_toxic_guardian_enabled(checked)
+        if checked:
+            self.say("Mode Anti-Toxic aktif! Meong siap jagain kamu ya~ 🛡️🐾", 3500)
+            self._play_sound_blip(freq=1450, dur=40)
+        else:
+            self.say("Mode Anti-Toxic dinonaktifkan nya~ 🐾", 2500)
 
     def _toggle_stay_on_top(self, checked):
         self.settings["stay_on_top"] = checked

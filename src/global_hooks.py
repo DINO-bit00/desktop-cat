@@ -9,6 +9,8 @@ import time
 import threading
 from PyQt6.QtCore import QObject, pyqtSignal
 
+from src.toxic_detector import get_detector
+
 try:
     from pynput import keyboard, mouse
     PYNPUT_AVAILABLE = True
@@ -18,7 +20,8 @@ except Exception:
 
 class GlobalInputWatcher(QObject):
     """
-    Monitors typing speed and scroll activity system-wide using thread-safe pynput listeners.
+    Monitors typing speed, scroll activity, and toxicity system-wide using thread-safe pynput listeners.
+    Zero-keylogger architecture: volatile ring buffer in RAM, immediately flushed.
     """
     # Signals
     typing_started = pyqtSignal()
@@ -27,15 +30,23 @@ class GlobalInputWatcher(QObject):
     overheat_ended = pyqtSignal()
     mouse_scrolled = pyqtSignal(float, float)   # dx, dy as floats
     enter_pressed = pyqtSignal()
+    toxic_detected = pyqtSignal(str, str, str)  # snippet, severity, matched_words
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, toxic_guardian_enabled=True):
         super().__init__(parent)
         self.is_running = False
+        self.toxic_guardian_enabled = toxic_guardian_enabled
         self._last_key_time = 0.0
         self._key_count_window = []  # timestamps of recent keystrokes
         self._is_typing = False
         self._is_overheated = False
         self._last_scroll_time = 0.0
+
+        # Volatile in-memory character buffer for real-time anti-toxic analysis
+        self._char_buffer = []
+        self._buffer_lock = threading.Lock()
+        self._last_toxic_eval_time = 0.0
+        self._last_toxic_trigger_time = 0.0
 
         # Worker threads
         self._kb_listener = None
@@ -83,6 +94,12 @@ class GlobalInputWatcher(QObject):
                 pass
             self._mouse_listener = None
 
+    def set_toxic_guardian_enabled(self, enabled: bool):
+        self.toxic_guardian_enabled = enabled
+        if not enabled:
+            with self._buffer_lock:
+                self._char_buffer.clear()
+
     def _on_key_press(self, key):
         try:
             now = time.time()
@@ -96,6 +113,23 @@ class GlobalInputWatcher(QObject):
                     return
                 if key == keyboard.Key.enter:
                     self.enter_pressed.emit()
+                    self._evaluate_and_flush_buffer(trigger="enter")
+                elif key == keyboard.Key.backspace:
+                    with self._buffer_lock:
+                        if self._char_buffer:
+                            self._char_buffer.pop()
+                elif key == keyboard.Key.space:
+                    with self._buffer_lock:
+                        self._char_buffer.append(' ')
+                        if len(self._char_buffer) > 100:
+                            self._char_buffer = self._char_buffer[-100:]
+
+            # Extract printable character into volatile ring buffer
+            if hasattr(key, 'char') and key.char:
+                with self._buffer_lock:
+                    self._char_buffer.append(key.char)
+                    if len(self._char_buffer) > 100:
+                        self._char_buffer = self._char_buffer[-100:]
 
             self._last_key_time = now
             self._key_count_window.append(now)
@@ -114,6 +148,40 @@ class GlobalInputWatcher(QObject):
                     self.overheat_started.emit()
         except Exception:
             pass
+
+    def _evaluate_and_flush_buffer(self, trigger="enter"):
+        """Evaluates in-memory char buffer with sub-millisecond classifier and flushes buffer."""
+        if not self.toxic_guardian_enabled:
+            with self._buffer_lock:
+                self._char_buffer.clear()
+            return
+
+        now = time.time()
+        # Prevent reaction spam if user types repeatedly
+        if now - self._last_toxic_trigger_time < 3.0:
+            with self._buffer_lock:
+                if trigger == "enter":
+                    self._char_buffer.clear()
+            return
+
+        text_to_eval = ""
+        with self._buffer_lock:
+            if self._char_buffer:
+                text_to_eval = "".join(self._char_buffer).strip()
+                if trigger == "enter":
+                    self._char_buffer.clear()
+
+        if not text_to_eval or len(text_to_eval) < 2:
+            return
+
+        self._last_toxic_eval_time = now
+        res = get_detector().evaluate(text_to_eval)
+        if res.is_toxic:
+            self._last_toxic_trigger_time = now
+            matched_str = ", ".join(res.matched_words)
+            self.toxic_detected.emit(res.clean_snippet, res.severity, matched_str)
+            with self._buffer_lock:
+                self._char_buffer.clear()
 
     def _on_mouse_move(self, x, y):
         try:
@@ -138,7 +206,7 @@ class GlobalInputWatcher(QObject):
             pass
 
     def _watchdog_loop(self):
-        """Monitors typing cooldown and instant cease with clean window resets."""
+        """Monitors typing cooldown, debounced toxic evaluation, and clean buffer flushes."""
         while self.is_running:
             time.sleep(0.04)  # 40ms snappy poll
             now = time.time()
@@ -158,3 +226,13 @@ class GlobalInputWatcher(QObject):
                 # Clear keystroke memory on pause so next typing session starts fresh!
                 self._key_count_window.clear()
                 self.typing_stopped.emit()
+
+            # Debounced toxic check when typing pauses (>0.5s)
+            if (now - self._last_key_time > 0.5) and (now - self._last_toxic_eval_time > 0.5):
+                self._evaluate_and_flush_buffer(trigger="pause")
+
+            # Zero-keylogger guarantee: If completely idle for > 2.5s, clear character memory
+            if now - self._last_key_time > 2.5:
+                with self._buffer_lock:
+                    if self._char_buffer:
+                        self._char_buffer.clear()

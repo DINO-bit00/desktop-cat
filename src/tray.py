@@ -48,6 +48,11 @@ class CatTrayIcon(QSystemTrayIcon):
         startup_act.setChecked(is_startup_enabled())
         startup_act.triggered.connect(self.pet_window._toggle_startup)
 
+        toxic_act = self.menu.addAction("🛡️ Anti-Toxic Guardian")
+        toxic_act.setCheckable(True)
+        toxic_act.setChecked(self.pet_window.settings.get("toxic_guardian_enabled", True))
+        toxic_act.triggered.connect(self.pet_window._toggle_toxic_guardian)
+
         self.menu.addSeparator()
 
         quit_act = self.menu.addAction("❌ Keluar")
