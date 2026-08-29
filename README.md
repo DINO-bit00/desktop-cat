@@ -24,7 +24,7 @@ Inspired by cozy virtual pets (seperti *Comnyang* & *Oneko*), **NyangBuddy** ada
 
 Tidak perlu install Python atau mengunduh dependency rumit! Kamu bisa langsung mengunduh file `.exe` mandiri (*standalone*):
 
-### 👉 [**Unduh NyangBuddy v1.0.0 (NyangBuddy.exe)**](https://github.com/DINO-bit00/desktop-cat/releases/latest)
+### 👉 [**Unduh NyangBuddy**](https://github.com/DINO-bit00/desktop-cat/releases/latest)
 
 1. Unduh **`NyangBuddy.exe`** dari halaman [GitHub Releases](https://github.com/DINO-bit00/desktop-cat/releases/latest).
 2. Pindahkan file `.exe` ke folder favoritmu (misal: `C:\Users\NamaKamu\NyangBuddy\`).
