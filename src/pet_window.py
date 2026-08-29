@@ -593,10 +593,11 @@ class DesktopPet(QWidget):
             return
 
         # ── 3. TEMPORARY STATES TIMEOUT ──
-        if self.state in ["celebrate", "land", "stretch", "drink_water"]:
-            self.state_ticks += 1
-            if self.state_ticks > self.max_state_ticks:
-                self.resume_default_state()
+        if self.state in ["celebrate", "land", "stretch", "drink_water", "overheat"]:
+            if not getattr(self.input_watcher, "_is_overheated", False) or self.max_state_ticks < 100000:
+                self.state_ticks += 1
+                if self.state_ticks > self.max_state_ticks:
+                    self.resume_default_state()
             return
         elif self.state == "thinking":
             if not self.ai_watcher.is_active_ai_session and self.max_state_ticks < 10000:

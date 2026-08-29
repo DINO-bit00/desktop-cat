@@ -67,6 +67,7 @@ def build():
         "--hidden-import", "src.tray",
         "--hidden-import", "src.settings",
         "--hidden-import", "src.audio",
+        "--hidden-import", "src.toxic_detector",
         "main.py"
     ]
     print(f"[Build] Executing optimized lightweight build...")
