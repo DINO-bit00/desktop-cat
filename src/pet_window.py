@@ -225,6 +225,13 @@ class DesktopPet(QWidget):
         self.anim_timer.timeout.connect(self._update_animation)
         self.anim_timer.start(110)
 
+        # Anti-Toxic Guardian Micro-Jitter Shock Shake
+        self.toxic_session_count = 0
+        self._shock_shake_offset = (0, 0)
+        self._shock_shake_ticks = 0
+        self._shock_shake_timer = QTimer(self)
+        self._shock_shake_timer.timeout.connect(self._on_shock_shake_tick)
+
         # Physics & AI Behavior Timer (16ms = 60 FPS game loop)
         self.physics_timer = QTimer(self)
         self.physics_timer.timeout.connect(self._update_physics_loop)
@@ -751,44 +758,88 @@ class DesktopPet(QWidget):
             self.say("Kejaaar nya! 🐾🎯", 1800)
             self._play_sound_blip(freq=1420, dur=35)
 
+    def _trigger_shock_jitter(self, ticks=8):
+        """Triggers a snappy, visible micro-jitter vibration on the cat when shocked."""
+        self._shock_shake_ticks = ticks
+        if not self._shock_shake_timer.isActive():
+            self._shock_shake_timer.start(35)
+
+    def _on_shock_shake_tick(self):
+        if self._shock_shake_ticks > 0:
+            self._shock_shake_ticks -= 1
+            # Random snappy jitter offsets (-3 to +3 pixels)
+            jx = random.choice([-3, 3, -2, 2, -1, 1])
+            jy = random.choice([-2, 2, -1, 1, 0])
+            self._shock_shake_offset = (jx, jy)
+            self.update()
+        else:
+            self._shock_shake_offset = (0, 0)
+            self._shock_shake_timer.stop()
+            self.update()
+
     def _on_toxic_detected(self, snippet: str, severity: str, matched_words: str):
         """
-        Anti-Toxic Guardian reaction: Cat alerts the user with funny & calming responses
-        when profanity/toxicity is detected in real-time.
+        Anti-Toxic Guardian reaction (Tahap 1):
+        Cat alerts user with micro-jitter shock, personalized name, session frequency tracking,
+        and funny/calming contextual dialogues.
         """
         if self.is_reminder_locked or self.is_dragging:
             return
 
+        raw_name = self.settings.get("user_name", "").strip()
+        user_name = f" {raw_name}" if raw_name else " bro"
+
+        self.toxic_session_count += 1
+
+        # Intervention dialogue on repeated toxicity in current session (every 3rd or >=4th time)
+        if self.toxic_session_count >= 4 and (self.toxic_session_count % 2 == 0):
+            self._trigger_shock_jitter(ticks=12)
+            self._play_sound_blip(freq=550, dur=120)
+            self.set_state("overheat", duration_seconds=4.0)
+            intervention_quotes = [
+                f"Waduh{user_name}, udah {self.toxic_session_count}x ngegas sesi ini! Meong kasih catnip biar adem ya 🌿🐱",
+                f"Duh jarimu panas banget{user_name} (udah {self.toxic_session_count}x toxic)! Istirahat minum air dulu yuk 💧🐾",
+                f"Sabar ya{user_name}... Jangan biarin emosi ngalahin fokus kamu! Semangat meong! ✨🐱",
+                f"Keyboard kamu capek diketik kasar terus{user_name}... Tarik napas 3 detik bareng meong yuk 🐾🧘"
+            ]
+            self.say(random.choice(intervention_quotes), 5000)
+            return
+
         # Choose distinct reactions & dialogues according to severity level
         if severity == "high":
+            self._trigger_shock_jitter(ticks=10)
             self._play_sound_blip(freq=600, dur=100)
             self.set_state("overheat", duration_seconds=3.5)
             high_quotes = [
-                "Astaghfirullah jarimu meong! 😾 Istighfar dulu yuk...",
-                "Waduh kasar banget meong! 🙀 Tarik napas dulu bro...",
-                "Jangan toxic dong nya! Nanti kena banned/report lho! 😾",
-                "Meong kaget dengernya! Jarimu butuh ditenangin meong 🐾💧",
-                "Dih ngegas parah meong! Santai bro, jangan kebawa emosi! 🔥"
+                f"Astaghfirullah jarimu{user_name}! 😾 Istighfar dulu yuk...",
+                f"Waduh kasar banget meong! 🙀 Tarik napas panjang dulu{user_name}...",
+                f"Jangan toxic dong nya! Nanti kena banned/report lho{user_name}! 😾",
+                f"Meong kaget dengernya! Jarimu butuh ditenangin meong 🐾💧",
+                f"Dih ngegas parah meong! Santai{user_name}, jangan kebawa emosi game! 🔥🎮",
+                f"Keyboard lu ga salah apa-apa{user_name}, jangan dihantam kasar nya~ 🐾"
             ]
             self.say(random.choice(high_quotes), 4500)
         elif severity == "medium":
+            self._trigger_shock_jitter(ticks=6)
             self._play_sound_blip(freq=800, dur=80)
             self.set_state("thinking", duration_seconds=3.0)
             med_quotes = [
-                "Dih ngegas amat meong... Santai dulu napa 😾",
-                "Sabar bro, main game/ngetik dibawa santai aja nya~ 🐾",
-                "Kok toxic sih meong? Senyum dulu yuk! 🐱✨",
-                "Jangan emosi bro, keyboardnya kasian diketik kasar 🐾",
-                "Kalo emosi mending minum air dulu ya nya~ 💧"
+                f"Dih ngegas amat meong... Santai dulu napa{user_name} 😾",
+                f"Sabar{user_name}, main game/ngetik dibawa santai aja nya~ 🐾",
+                f"Kok toxic sih meong? Senyum dulu yuk{user_name}! 🐱✨",
+                f"Jangan emosi{user_name}, keyboardnya kasian diketik kasar 🐾",
+                f"Kalo emosi mending minum air dulu ya nya{user_name}~ 💧",
+                f"Fokus santai{user_name}, emosi ga bikin menang kok nya 🐾🎯"
             ]
             self.say(random.choice(med_quotes), 4000)
         else:  # mild
             self._play_sound_blip(freq=1100, dur=60)
             self.set_state("thinking", duration_seconds=2.5)
             mild_quotes = [
-                "Eits, ada yang lagi kesel nih meong~ 🐾",
-                "Santai bro, peluk meong dulu biar adem 🐱💤",
-                "Sabar ya meong, semua masalah pasti ada solusinya ✨"
+                f"Eits, ada yang lagi kesel nih meong~ 🐾",
+                f"Santai{user_name}, peluk meong dulu biar adem 🐱💤",
+                f"Sabar ya{user_name}, semua masalah pasti ada solusinya ✨",
+                f"Tarik napas hembuskan nya~ Meong temenin di sini 🐾"
             ]
             self.say(random.choice(mild_quotes), 3500)
 
@@ -798,6 +849,11 @@ class DesktopPet(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+
+        # Micro-Jitter Shock Shake Translation
+        shake_x, shake_y = getattr(self, "_shock_shake_offset", (0, 0))
+        if shake_x != 0 or shake_y != 0:
+            painter.translate(shake_x, shake_y)
 
         pixmap = self._get_current_pixmap()
         if not pixmap:
