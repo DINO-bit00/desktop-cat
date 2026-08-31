@@ -1492,6 +1492,75 @@ def _draw_cat_feeding(p: dict, frame_idx: int) -> Image.Image:
     return img
 
 
+# ─── 14. SULK / NGAMBEK POSE (BACK TURNED & ANIME ANGER MARK 💢) ───────────
+def _draw_sulk(p: dict, frame_idx: int) -> Image.Image:
+    """
+    Sulk / Ngambek pose:
+    Cat turns its back in annoyance, ears turned away, twitching tail,
+    and animated pulsing anime anger mark (💢).
+    """
+    img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+
+    O = p["fur_main"]
+    S = p["fur_shade"]
+    W = p["fur_belly"]
+    K = p["outline"]
+
+    breath_y = -1 if frame_idx in (1, 2) else 0
+
+    # 1. Agitated Tail (Curled up to right flank with twitch)
+    tail_flick = [-2, 0, 2, 0][frame_idx % 4]
+    d.line([(24, 25 + breath_y), (27, 22 + breath_y), (28, 17 + breath_y + tail_flick), (26, 14 + breath_y + tail_flick)], fill=O, width=2)
+    d.line([(25, 26 + breath_y), (28, 22 + breath_y), (29, 17 + breath_y + tail_flick), (26, 13 + breath_y + tail_flick)], fill=K)
+
+    # 2. Cat Body from Behind (Exact match to front idle body)
+    body_top = 17 + breath_y
+    d.ellipse([7, body_top, 24, 28 + breath_y], fill=O, outline=K)
+
+    # Back spine fur stripes
+    d.line([(12, body_top + 3), (12, body_top + 8)], fill=S)
+    d.line([(15, body_top + 2), (15, body_top + 9)], fill=S, width=2)
+    d.line([(19, body_top + 3), (19, body_top + 8)], fill=S)
+
+    # Back paws (tucked flat on ground)
+    paw_y = 27 + breath_y
+    d.rectangle([8, paw_y, 12, 29 + breath_y], fill=O, outline=K)
+    d.rectangle([19, paw_y, 23, 29 + breath_y], fill=O, outline=K)
+
+    # 3. Head from Behind (Exact match to front idle head)
+    head_y = 6 + breath_y
+
+    # Ears from behind (Solid fur matching body, no pink inner ear)
+    d.polygon([(7, head_y + 3), (7, head_y - 3), (12, head_y + 3)], fill=O, outline=K)
+    d.polygon([(19, head_y + 3), (24, head_y - 3), (24, head_y + 3)], fill=O, outline=K)
+
+    # Head ellipse
+    d.ellipse([6, head_y, 25, head_y + 12], fill=O, outline=K)
+
+    # Back of head fur stripes
+    d.line([(13, head_y + 2), (13, head_y + 7)], fill=S)
+    d.line([(15, head_y + 1), (15, head_y + 8)], fill=S, width=2)
+    d.line([(18, head_y + 2), (18, head_y + 7)], fill=S)
+
+    # 4. Animated Red Manga Anger Mark 💢 (Pulsing over top-right head)
+    anger_red = (255, 35, 60, 255)
+    pop = 1 if frame_idx in (0, 2) else 0
+
+    ax, ay = 23 + pop, 1 - pop
+
+    # 4-curve anime anger vein
+    d.line([(ax, ay + 1), (ax + 1, ay)], fill=anger_red)
+    d.line([(ax + 3, ay), (ax + 4, ay + 1)], fill=anger_red)
+    d.line([(ax, ay + 3), (ax + 1, ay + 4)], fill=anger_red)
+    d.line([(ax + 3, ay + 4), (ax + 4, ay + 3)], fill=anger_red)
+    d.line([(ax + 2, ay + 1), (ax + 2, ay + 3)], fill=anger_red)
+    d.line([(ax + 1, ay + 2), (ax + 3, ay + 2)], fill=anger_red)
+    img.putpixel((ax + 2, ay + 2), (255, 190, 200, 255)) # highlight
+
+    return img
+
+
 # ─── WARDROBE ACCESSORIES DEFINITIONS & LAYER ENGINE ───────────────────────
 ACCESSORIES = {
     "none": {"name": "🚫 Tanpa Aksesoris (None)", "icon": "🚫"},
@@ -1592,51 +1661,72 @@ def _draw_accessory_layer(img: Image.Image, accessory: str, state: str, frame_id
         PURPLE = (110, 45, 185, 255)
         PURPLE_DARK = (75, 25, 135, 255)
         GOLD = (255, 215, 45, 255)
-        bx1, bx2, by = head_cx - 6, head_cx + 6, skull_top_y
-        # Wide brim
-        d.rectangle([bx1, by - 1, bx2, by], fill=PURPLE_DARK, outline=K)
-        # Pointed Hat Cone bending slightly
-        d.polygon([
-            (head_cx - 4, by - 1),
-            (head_cx + 4, by - 1),
-            (head_cx + 2, by - 5),
-            (head_cx - 1, by - 7),
-            (head_cx - 3, by - 7),
-            (head_cx - 1, by - 4)
-        ], fill=PURPLE, outline=K)
-        # Gold Star Buckle
-        d.line([(head_cx - 3, by - 2), (head_cx + 3, by - 2)], fill=GOLD)
-        img.putpixel((head_cx, by - 2), (255, 255, 255, 255))
+    # Render specific wardrobe accessory
+    if accessory == "wizard_hat":
+        # Purple pointed wizard hat with gold band and yellow star
+        hat_col = (95, 45, 160, 255)
+        hat_shade = (70, 30, 120, 255)
+        star_gold = (255, 225, 50, 255)
+        # Brim
+        d.line([(head_cx - 8, skull_top_y), (head_cx + 8, skull_top_y)], fill=hat_shade, width=2)
+        d.line([(head_cx - 7, skull_top_y - 1), (head_cx + 7, skull_top_y - 1)], fill=hat_col)
+        # Cone
+        d.polygon([(head_cx - 5, skull_top_y - 1), (head_cx + 5, skull_top_y - 1), (head_cx + 2, skull_top_y - 9), (head_cx - 1, skull_top_y - 9)], fill=hat_col, outline=K)
+        # Gold band
+        d.line([(head_cx - 4, skull_top_y - 2), (head_cx + 4, skull_top_y - 2)], fill=star_gold)
+        # Star on tip
+        img.putpixel((head_cx, max(0, skull_top_y - 10)), star_gold)
+
+    elif accessory == "royal_crown":
+        # Shiny gold crown with 3 peaks and ruby gems
+        gold = (255, 215, 30, 255)
+        gold_shade = (210, 160, 15, 255)
+        ruby = (235, 35, 65, 255)
+        # Base band
+        d.rectangle([head_cx - 5, skull_top_y - 2, head_cx + 5, skull_top_y], fill=gold_shade, outline=K)
+        d.line([(head_cx - 4, skull_top_y - 1), (head_cx + 4, skull_top_y - 1)], fill=gold)
+        # 3 Crown Peaks
+        d.polygon([(head_cx - 5, skull_top_y - 2), (head_cx - 4, skull_top_y - 6), (head_cx - 2, skull_top_y - 3)], fill=gold, outline=K)
+        d.polygon([(head_cx - 2, skull_top_y - 2), (head_cx, skull_top_y - 7), (head_cx + 2, skull_top_y - 2)], fill=gold, outline=K)
+        d.polygon([(head_cx + 2, skull_top_y - 3), (head_cx + 4, skull_top_y - 6), (head_cx + 5, skull_top_y - 2)], fill=gold, outline=K)
+        # Gems
+        img.putpixel((head_cx, skull_top_y - 4), ruby)
+        img.putpixel((head_cx - 4, skull_top_y - 1), ruby)
+        img.putpixel((head_cx + 4, skull_top_y - 1), ruby)
 
     elif accessory == "cute_ribbon":
-        PINK = (255, 110, 160, 255)
-        PINK_DARK = (220, 60, 115, 255)
-        rx, ry = head_cx + 5, skull_top_y
-        d.polygon([(rx - 3, ry - 2), (rx - 1, ry), (rx - 3, ry + 2)], fill=PINK, outline=K)
-        d.polygon([(rx + 3, ry - 2), (rx + 1, ry), (rx + 3, ry + 2)], fill=PINK, outline=K)
-        d.rectangle([rx - 1, ry - 1, rx + 1, ry + 1], fill=PINK_DARK, outline=K)
+        # Pink bow ribbon on right ear
+        pink = (255, 110, 160, 255)
+        pink_dark = (215, 65, 120, 255)
+        rx, ry = head_cx + 5, skull_top_y - 1
+        d.polygon([(rx, ry), (rx + 4, ry - 3), (rx + 4, ry + 3)], fill=pink, outline=K)
+        d.polygon([(rx, ry), (rx - 4, ry - 3), (rx - 4, ry + 3)], fill=pink, outline=K)
+        d.ellipse([rx - 1, ry - 1, rx + 1, ry + 1], fill=pink_dark, outline=K)
 
     elif accessory == "flower_pin":
-        PETAL = (255, 175, 200, 255)
-        CORE = (255, 225, 60, 255)
-        fx, fy = head_cx - 5, skull_top_y
-        d.rectangle([fx - 1, fy - 1, fx + 1, fy + 1], fill=PETAL)
-        img.putpixel((fx, fy - 2), PETAL)
-        img.putpixel((fx, fy + 2), PETAL)
-        img.putpixel((fx - 2, fy), PETAL)
-        img.putpixel((fx + 2, fy), PETAL)
-        img.putpixel((fx, fy), CORE)
+        # Sakura pink flower with gold center on left ear
+        sakura = (255, 185, 215, 255)
+        sakura_edge = (245, 135, 175, 255)
+        gold = (255, 220, 60, 255)
+        fx, fy = head_cx - 5, skull_top_y - 1
+        d.ellipse([fx - 3, fy - 3, fx + 3, fy + 3], fill=sakura, outline=sakura_edge)
+        img.putpixel((fx, fy), gold)
 
     elif accessory == "sunglasses":
-        SHADE = (18, 18, 22, 255)
-        d.rectangle([head_cx - 7, eye_y - 1, head_cx + 7, eye_y + 3], fill=SHADE, outline=K)
-        img.putpixel((head_cx - 4, eye_y), (255, 255, 255, 255))
-        img.putpixel((head_cx + 3, eye_y), (255, 255, 255, 255))
+        # Cool retro black shades over eyes
+        shades_col = (20, 20, 26, 255)
+        shades_rim = (10, 10, 14, 255)
+        d.rectangle([head_cx - 7, eye_y - 2, head_cx + 7, eye_y + 2], fill=shades_col, outline=shades_rim)
+        # Glare reflections
+        img.putpixel((head_cx - 5, eye_y - 1), (255, 255, 255, 220))
+        img.putpixel((head_cx + 3, eye_y - 1), (255, 255, 255, 220))
 
     elif accessory == "winter_scarf":
+        # Cozy warm red striped winter scarf around neck
         RED = (225, 45, 55, 255)
-        WHITE = (245, 245, 250, 255)
-        d.rectangle([head_cx - 6, neck_y, head_cx + 6, neck_y + 2], fill=RED, outline=K)
+        WHITE = (250, 250, 255, 255)
+        # Main wrap
+        d.rectangle([head_cx - 7, neck_y - 1, head_cx + 7, neck_y + 2], fill=RED, outline=K)
         d.line([(head_cx - 3, neck_y), (head_cx - 3, neck_y + 2)], fill=WHITE)
         d.line([(head_cx + 3, neck_y), (head_cx + 3, neck_y + 2)], fill=WHITE)
         d.rectangle([head_cx + 3, neck_y + 3, head_cx + 5, neck_y + 6], fill=RED, outline=K)
@@ -1675,6 +1765,8 @@ def render_cat_frame(skin_key: str = "boss_oyen",
         native = _draw_knead_work(p, fi)
     elif state in ("overheat", "heat", "hot"):
         native = _draw_overheat(p, fi)
+    elif state in ("sulk", "angry", "ngambek", "pout"):
+        native = _draw_sulk(p, fi)
     elif state in ("paper_unroll", "scroll", "paper"):
         native = _draw_paper_unroll(p, fi)
     elif state in ("pet", "purr", "happy"):
@@ -1716,7 +1808,7 @@ def pregenerate_all_sprites(output_dir: str = "assets/sprites") -> None:
     """Pre-generate all sprite frames to disk."""
     os.makedirs(output_dir, exist_ok=True)
     states = [
-        "idle", "walk_left", "walk_right", "work", "overheat",
+        "idle", "walk_left", "walk_right", "work", "overheat", "sulk",
         "paper_unroll", "pet", "sleep", "drag", "celebrate", "thinking",
         "peek_right", "peek_left", "peek_bottom"
     ]

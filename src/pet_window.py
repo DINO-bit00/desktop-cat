@@ -600,7 +600,7 @@ class DesktopPet(QWidget):
             return
 
         # ── 3. TEMPORARY STATES TIMEOUT ──
-        if self.state in ["celebrate", "land", "stretch", "drink_water", "overheat"]:
+        if self.state in ["celebrate", "land", "stretch", "drink_water", "overheat", "sulk"]:
             if not getattr(self.input_watcher, "_is_overheated", False) or self.max_state_ticks < 100000:
                 self.state_ticks += 1
                 if self.state_ticks > self.max_state_ticks:
@@ -623,10 +623,10 @@ class DesktopPet(QWidget):
                 self.resume_default_state()
             return
 
-        # Do not wander if Pomodoro is active, typing/overheated, stretching, drinking water, thinking, celebrating, or peeking
+        # Do not wander if Pomodoro is active, typing/overheated, stretching, drinking water, thinking, celebrating, peeking, or sulking
         if not self.settings.get("wander_mode", True) or self.pomodoro.is_active or self.state in [
             "work", "overheat", "paper_unroll", "sleep", "stretch", "drink_water",
-            "thinking", "celebrate", "peek_left", "peek_right", "peek_bottom", "peek"
+            "thinking", "celebrate", "sulk", "peek_left", "peek_right", "peek_bottom", "peek"
         ]:
             return
 
@@ -779,9 +779,9 @@ class DesktopPet(QWidget):
 
     def _on_toxic_detected(self, snippet: str, severity: str, matched_words: str):
         """
-        Anti-Toxic Guardian reaction (Tahap 1):
+        Anti-Toxic Guardian reaction (Tahap 1 & 2):
         Cat alerts user with micro-jitter shock, personalized name, session frequency tracking,
-        and funny/calming contextual dialogues.
+        and sulking / overheat funny reactions with animated anime anger mark 💢.
         """
         if self.is_reminder_locked or self.is_dragging:
             return
@@ -795,9 +795,9 @@ class DesktopPet(QWidget):
         if self.toxic_session_count >= 4 and (self.toxic_session_count % 2 == 0):
             self._trigger_shock_jitter(ticks=12)
             self._play_sound_blip(freq=550, dur=120)
-            self.set_state("overheat", duration_seconds=4.0)
+            self.set_state("sulk", duration_seconds=5.0)
             intervention_quotes = [
-                f"Waduh{user_name}, udah {self.toxic_session_count}x ngegas sesi ini! Meong kasih catnip biar adem ya 🌿🐱",
+                f"Waduh{user_name}, udah {self.toxic_session_count}x ngegas sesi ini! Meong ngambek nih 😾💢",
                 f"Duh jarimu panas banget{user_name} (udah {self.toxic_session_count}x toxic)! Istirahat minum air dulu yuk 💧🐾",
                 f"Sabar ya{user_name}... Jangan biarin emosi ngalahin fokus kamu! Semangat meong! ✨🐱",
                 f"Keyboard kamu capek diketik kasar terus{user_name}... Tarik napas 3 detik bareng meong yuk 🐾🧘"
@@ -809,28 +809,48 @@ class DesktopPet(QWidget):
         if severity == "high":
             self._trigger_shock_jitter(ticks=10)
             self._play_sound_blip(freq=600, dur=100)
-            self.set_state("overheat", duration_seconds=3.5)
-            high_quotes = [
-                f"Astaghfirullah jarimu{user_name}! 😾 Istighfar dulu yuk...",
-                f"Waduh kasar banget meong! 🙀 Tarik napas panjang dulu{user_name}...",
-                f"Jangan toxic dong nya! Nanti kena banned/report lho{user_name}! 😾",
-                f"Meong kaget dengernya! Jarimu butuh ditenangin meong 🐾💧",
-                f"Dih ngegas parah meong! Santai{user_name}, jangan kebawa emosi game! 🔥🎮",
-                f"Keyboard lu ga salah apa-apa{user_name}, jangan dihantam kasar nya~ 🐾"
-            ]
+            # 55% chance to sulk (pout facing away) or 45% overheat
+            if random.random() < 0.55:
+                self.set_state("sulk", duration_seconds=4.5)
+                high_quotes = [
+                    f"Hmph! Meong ngambek ya{user_name}! Kasar banget jarimu 😾💢",
+                    f"Astaghfirullah jarimu{user_name}! 😾 Istighfar dulu yuk...",
+                    f"Meong buang muka nih! Jangan toxic dong nya{user_name} 😾",
+                    f"Waduh kasar banget meong! 🙀 Tarik napas panjang dulu{user_name}...",
+                    f"Dih ngegas parah meong! Santai{user_name}, jangan kebawa emosi game! 🔥🎮",
+                    f"Keyboard lu ga salah apa-apa{user_name}, jangan dihantam kasar nya~ 🐾"
+                ]
+            else:
+                self.set_state("overheat", duration_seconds=3.5)
+                high_quotes = [
+                    f"Astaghfirullah jarimu{user_name}! 😾 Istighfar dulu yuk...",
+                    f"Waduh kasar banget meong! 🙀 Tarik napas panjang dulu{user_name}...",
+                    f"Jangan toxic dong nya! Nanti kena banned/report lho{user_name}! 😾",
+                    f"Meong kaget dengernya! Jarimu butuh ditenangin meong 🐾💧",
+                    f"Dih ngegas parah meong! Santai{user_name}, jangan kebawa emosi game! 🔥🎮",
+                    f"Keyboard lu ga salah apa-apa{user_name}, jangan dihantam kasar nya~ 🐾"
+                ]
             self.say(random.choice(high_quotes), 4500)
         elif severity == "medium":
             self._trigger_shock_jitter(ticks=6)
             self._play_sound_blip(freq=800, dur=80)
-            self.set_state("thinking", duration_seconds=3.0)
-            med_quotes = [
-                f"Dih ngegas amat meong... Santai dulu napa{user_name} 😾",
-                f"Sabar{user_name}, main game/ngetik dibawa santai aja nya~ 🐾",
-                f"Kok toxic sih meong? Senyum dulu yuk{user_name}! 🐱✨",
-                f"Jangan emosi{user_name}, keyboardnya kasian diketik kasar 🐾",
-                f"Kalo emosi mending minum air dulu ya nya{user_name}~ 💧",
-                f"Fokus santai{user_name}, emosi ga bikin menang kok nya 🐾🎯"
-            ]
+            if random.random() < 0.35:
+                self.set_state("sulk", duration_seconds=3.5)
+                med_quotes = [
+                    f"Hmph! Dih ngegas amat meong... Santai dulu napa{user_name} 😾💢",
+                    f"Meong gamau denger kata kasar nya{user_name}~ 🐾",
+                    f"Kok toxic sih meong? Senyum dulu yuk{user_name}! 🐱✨"
+                ]
+            else:
+                self.set_state("thinking", duration_seconds=3.0)
+                med_quotes = [
+                    f"Dih ngegas amat meong... Santai dulu napa{user_name} 😾",
+                    f"Sabar{user_name}, main game/ngetik dibawa santai aja nya~ 🐾",
+                    f"Kok toxic sih meong? Senyum dulu yuk{user_name}! 🐱✨",
+                    f"Jangan emosi{user_name}, keyboardnya kasian diketik kasar 🐾",
+                    f"Kalo emosi mending minum air dulu ya nya{user_name}~ 💧",
+                    f"Fokus santai{user_name}, emosi ga bikin menang kok nya 🐾🎯"
+                ]
             self.say(random.choice(med_quotes), 4000)
         else:  # mild
             self._play_sound_blip(freq=1100, dur=60)
@@ -970,7 +990,7 @@ class DesktopPet(QWidget):
             head_rect = self._get_head_rect()
 
             if head_rect.contains(local_pos):
-                if self.state != "pet" and self.state not in ["drag", "land", "work", "overheat"]:
+                if self.state != "pet" and self.state not in ["drag", "land", "work", "overheat", "sulk"]:
                     self.set_state("pet")
                     audio.play_purr(self.settings)
             else:
@@ -1052,7 +1072,7 @@ class DesktopPet(QWidget):
                     ]
                     QTimer.singleShot(400, lambda: self.say(random.choice(landing_quotes), 3000))
             else:
-                # Option A: Single left-click only speaks & plays sound without changing animation!
+                # Single left-click response
                 self._on_pet_clicked()
 
             event.accept()
@@ -1079,7 +1099,6 @@ class DesktopPet(QWidget):
         self._update_bubble_position()
         self._play_sound_blip("pop")
 
-
     def _on_bubble_hidden(self):
         # Restore floating widgets when speech bubble hides
         self.sticky_note.temp_show()
@@ -1087,6 +1106,7 @@ class DesktopPet(QWidget):
             self.pomodoro_badge.temp_show()
         elif self.pomodoro.is_active:
             self.pomodoro_badge.show()
+
     def _say_welcome(self):
         pet_name = PALETTES.get(self.skin, {}).get("name", "Nyang")
         user_name = self.settings.get("user_name", "").strip()
@@ -1100,6 +1120,20 @@ class DesktopPet(QWidget):
 
     def _on_pet_clicked(self):
         """Single left-click response: Shows dialogue and cute sound without changing animation."""
+        if self.state == "sulk":
+            self._trigger_shock_jitter(ticks=6)
+            self._play_sound_blip(freq=750, dur=60)
+            raw_name = self.settings.get("user_name", "").strip()
+            user_name = f" {raw_name}" if raw_name else " bro"
+            pout_quotes = [
+                f"Hmph! Meong lagi ngambek{user_name}! 😾💢",
+                f"Nanti dulu elusnya meong, jarimu masih kasar tadi... 😾",
+                f"Jangan toxic lagi ya{user_name}, meong sedih dengernya nya~ 🐾💧",
+                f"Meong lagi buang muka nih! Jangan diganggu dulu meong~ 😾"
+            ]
+            self.say(random.choice(pout_quotes), 3500)
+            return
+
         if self.pomodoro.is_active and self.pomodoro.mode == "work":
             if self.skin == "boss_oyen":
                 quotes = [
