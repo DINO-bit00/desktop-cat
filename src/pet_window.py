@@ -806,10 +806,12 @@ class DesktopPet(QWidget):
             self._play_sound_blip(freq=550, dur=120)
             self.set_state("sulk", duration_seconds=5.0)
             intervention_quotes = [
-                f"Waduh{user_name}, udah {self.toxic_session_count}x ngegas sesi ini! Meong ngambek nih 😾💢",
-                f"Duh jarimu panas banget{user_name} (udah {self.toxic_session_count}x toxic)! Istirahat minum air dulu yuk 💧🐾",
-                f"Sabar ya{user_name}... Jangan biarin emosi ngalahin fokus kamu! Semangat meong! ✨🐱",
-                f"Keyboard kamu capek diketik kasar terus{user_name}... Tarik napas 3 detik bareng meong yuk 🐾🧘"
+                f"Waduh kegep lagi{user_name}! Nih meong kasih catnip biar tensinya turun nyaa~ 🌿🐱",
+                f"Duh jarimu kayak knalpot brong{user_name}, ngegas mulu meong nyaa! 🏍️💨",
+                f"Ini udah ke-{self.toxic_session_count}x lho{user_name}! Meong denda 1 snack ikan asin ya nyaa 🐟📝",
+                f"Keyboard kamu teriak: 'TOLOOONG JANGAN DIHANTAM NYAA!' 🙀⌨️",
+                f"Tensi naik terus nih{user_name}... Minum es teh manis dulu yuk bareng meong nyaa 🧊🐱",
+                f"Sabar ya{user_name}... Jangan biarin emosi ngalahin fokus kamu nyaa! ✨🐱"
             ]
             self.say(random.choice(intervention_quotes), 5000)
             return
@@ -822,22 +824,23 @@ class DesktopPet(QWidget):
             if random.random() < 0.55:
                 self.set_state("sulk", duration_seconds=4.5)
                 high_quotes = [
-                    f"Hmph! Meong ngambek ya{user_name}! Kasar banget jarimu 😾💢",
-                    f"Astaghfirullah jarimu{user_name}! 😾 Istighfar dulu yuk...",
-                    f"Meong buang muka nih! Jangan toxic dong nya{user_name} 😾",
-                    f"Waduh kasar banget meong! 🙀 Tarik napas panjang dulu{user_name}...",
-                    f"Dih ngegas parah meong! Santai{user_name}, jangan kebawa emosi game! 🔥🎮",
-                    f"Keyboard lu ga salah apa-apa{user_name}, jangan dihantam kasar nya~ 🐾"
+                    f"Hmph! No talk me, meong angy nyaa! 😾💢 Jarimu kasar meong~",
+                    f"Meong buang muka! Gamau liat jarimu yang lagi ngegas{user_name} nyaa 😾💢",
+                    f"Pundung mode: ON 😾💢 Meong gamau denger kata-kata tadi nyaa~",
+                    f"Hmph! Meong pura-pura jadi patung dulu karena ada yang toxic{user_name} 🗿🐾",
+                    f"Meong ngambek 5 detik! Jangan diajak ngomong dulu ya{user_name} nyaa 😾",
+                    f"Tet-tot! 🚨 No no toxic ya{user_name}! Meong sensor pake cakar nih nyaa 🐾❌"
                 ]
             else:
                 self.set_state("overheat", duration_seconds=3.5)
                 high_quotes = [
-                    f"Astaghfirullah jarimu{user_name}! 😾 Istighfar dulu yuk...",
-                    f"Waduh kasar banget meong! 🙀 Tarik napas panjang dulu{user_name}...",
-                    f"Jangan toxic dong nya! Nanti kena banned/report lho{user_name}! 😾",
-                    f"Meong kaget dengernya! Jarimu butuh ditenangin meong 🐾💧",
-                    f"Dih ngegas parah meong! Santai{user_name}, jangan kebawa emosi game! 🔥🎮",
-                    f"Keyboard lu ga salah apa-apa{user_name}, jangan dihantam kasar nya~ 🐾"
+                    f"Tet-tot! 🚨 No no toxic ya{user_name}! Meong sensor pake cakar nih nyaa 🐾❌",
+                    f"Eits! Jarinya nakal ya{user_name}, no no toxic meong nyaa~ 😾☝️",
+                    f"Tiiittt! 🚫 Area bebas toxic! Meong tutup telinga dulu nyaa 🐱👂",
+                    f"Nu-uh! Jarimu disensor meong! Nanti bulu meong rontok denger yang kasar-kasar nyaa 🐾😿",
+                    f"Sabaaar{user_name}... Tim lu emang beban, tapi keyboard lu ga salah apa-apa nyaa 🎮🐾",
+                    f"Tarik napas... hembuskan... jangan biarin game ngalahin ketampananmu{user_name} nyaa ✨🐱",
+                    f"Jarimu panas banget{user_name}! Nih meong tiupin: huuuush nyaa~ 💨🐾"
                 ]
             self.say(random.choice(high_quotes), 4500)
         elif severity == "medium":
@@ -846,29 +849,31 @@ class DesktopPet(QWidget):
             if random.random() < 0.35:
                 self.set_state("sulk", duration_seconds=3.5)
                 med_quotes = [
-                    f"Hmph! Dih ngegas amat meong... Santai dulu napa{user_name} 😾💢",
-                    f"Meong gamau denger kata kasar nya{user_name}~ 🐾",
-                    f"Kok toxic sih meong? Senyum dulu yuk{user_name}! 🐱✨"
+                    f"Hmph! Eits jarinya nakal ya{user_name}, no no toxic meong nyaa~ 😾💢",
+                    f"Meong gamau denger kata kasar nyaa{user_name}~ 🐾",
+                    f"Kok toxic sih meong? Senyum dulu yuk{user_name} nyaa! 🐱✨",
+                    f"Hmph! Pundung mode: ON nyaa 😾💢"
                 ]
             else:
                 self.set_state("thinking", duration_seconds=3.0)
                 med_quotes = [
-                    f"Dih ngegas amat meong... Santai dulu napa{user_name} 😾",
-                    f"Sabar{user_name}, main game/ngetik dibawa santai aja nya~ 🐾",
-                    f"Kok toxic sih meong? Senyum dulu yuk{user_name}! 🐱✨",
-                    f"Jangan emosi{user_name}, keyboardnya kasian diketik kasar 🐾",
-                    f"Kalo emosi mending minum air dulu ya nya{user_name}~ 💧",
-                    f"Fokus santai{user_name}, emosi ga bikin menang kok nya 🐾🎯"
+                    f"Dih ngegas amat meong... Santai dulu napa{user_name} nyaa 😾",
+                    f"Sabar{user_name}, main game/ngetik dibawa santai aja nyaa~ 🐾",
+                    f"Kalah game gapapa{user_name}, yang penting kita tetap chill and slay nyaa~ 😎💅",
+                    f"Jangan emosi{user_name}, keyboardnya kasian diketik kasar nyaa 🐾",
+                    f"Kalo emosi mending minum air dulu ya nyaa{user_name}~ 💧",
+                    f"Fokus santai{user_name}, emosi ga bikin menang kok nyaa 🐾🎯"
                 ]
             self.say(random.choice(med_quotes), 4000)
         else:  # mild
             self._play_sound_blip(freq=1100, dur=60)
             self.set_state("thinking", duration_seconds=2.5)
             mild_quotes = [
-                f"Eits, ada yang lagi kesel nih meong~ 🐾",
-                f"Santai{user_name}, peluk meong dulu biar adem 🐱💤",
-                f"Sabar ya{user_name}, semua masalah pasti ada solusinya ✨",
-                f"Tarik napas hembuskan nya~ Meong temenin di sini 🐾"
+                f"Eits, ada yang lagi kesel nih meong nyaa~ 🐾",
+                f"Santai{user_name}, peluk meong dulu biar adem nyaa 🐱💤",
+                f"Dosa jari terdeteksi! Senyum dulu yuk bareng meong nyaa ✨🐱",
+                f"Stop! Polisi Kucing lewat! Dilarang ngegas di area ini meong nyaa~ 😼👮",
+                f"Tarik napas hembuskan nyaa~ Meong temenin di sini 🐾"
             ]
             self.say(random.choice(mild_quotes), 3500)
 
@@ -1186,10 +1191,10 @@ class DesktopPet(QWidget):
             raw_name = self.settings.get("user_name", "").strip()
             user_name = f" {raw_name}" if raw_name else " bro"
             pout_quotes = [
-                f"Hmph! Meong lagi ngambek{user_name}! 😾💢",
-                f"Nanti dulu elusnya meong, jarimu masih kasar tadi... 😾",
-                f"Jangan toxic lagi ya{user_name}, meong sedih dengernya nya~ 🐾💧",
-                f"Meong lagi buang muka nih! Jangan diganggu dulu meong~ 😾"
+                f"Hmph! Jangan colek-colek meong, lagi mode no-no toxic nih nyaa 😾❌",
+                f"Nanti dulu elusnya meong, jarimu masih ada sisa-sisa racun tadi nyaa 😾💢",
+                f"Dielus-elus ga bikin meong langsung luluh ya nyaa! Minta maaf dulu meong~ 😾",
+                f"Lagi pasang tampang judes nih{user_name}, jangan diganggu dulu meong nyaa~ 😾🐾"
             ]
             self.say(random.choice(pout_quotes), 3500)
             return
