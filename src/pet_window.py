@@ -225,18 +225,12 @@ class DesktopPet(QWidget):
         self.anim_timer.timeout.connect(self._update_animation)
         self.anim_timer.start(110)
 
-        # Anti-Toxic Guardian Micro-Jitter Shock Shake & Peace Streak Tracker (Stage 3)
+        # Anti-Toxic Guardian Micro-Jitter Shock Shake
         self.toxic_session_count = 0
         self._shock_shake_offset = (0, 0)
         self._shock_shake_ticks = 0
         self._shock_shake_timer = QTimer(self)
         self._shock_shake_timer.timeout.connect(self._on_shock_shake_tick)
-
-        self.peace_streak_start_time = time.time()
-        self.peace_streak_last_milestone = 0
-        self._peace_streak_timer = QTimer(self)
-        self._peace_streak_timer.timeout.connect(self._check_peace_streak_milestones)
-        self._peace_streak_timer.start(15000)
 
         # Physics & AI Behavior Timer (16ms = 60 FPS game loop)
         self.physics_timer = QTimer(self)
@@ -796,9 +790,6 @@ class DesktopPet(QWidget):
         user_name = f" {raw_name}" if raw_name else " bro"
 
         self.toxic_session_count += 1
-        now = time.time()
-        self.peace_streak_start_time = now
-        self.peace_streak_last_milestone = 0
 
         # Intervention dialogue on repeated toxicity in current session (every 3rd or >=4th time)
         if self.toxic_session_count >= 4 and (self.toxic_session_count % 2 == 0):
@@ -876,57 +867,6 @@ class DesktopPet(QWidget):
                 f"Tarik napas hembuskan nyaa~ Meong temenin di sini 🐾"
             ]
             self.say(random.choice(mild_quotes), 3500)
-
-    def _check_peace_streak_milestones(self):
-        """Monitors peace streak (kindness gamification) and triggers celebration on milestones."""
-        if not self.settings.get("toxic_guardian_enabled", True):
-            return
-        if self.is_reminder_locked or self.is_dragging or self.state in ["drag", "land", "sulk", "overheat"]:
-            return
-
-        now = time.time()
-        streak_min = int((now - self.peace_streak_start_time) / 60.0)
-
-        # Gamified Kindness Milestones: 25m, 50m, 75m, 100m, 120m (2h)
-        milestones = [25, 50, 75, 100, 120]
-        for m in milestones:
-            if streak_min >= m and self.peace_streak_last_milestone < m:
-                self.peace_streak_last_milestone = m
-                self._trigger_peace_streak_celebration(m)
-                break
-
-    def _trigger_peace_streak_celebration(self, minutes: int):
-        """Triggers cat celebration jump and proud reward dialogue for peaceful typing streak."""
-        raw_name = self.settings.get("user_name", "").strip()
-        user_name = f" {raw_name}" if raw_name else " bro"
-
-        self._play_sound_blip(freq=1450, dur=90)
-        self.set_state("celebrate", duration_seconds=3.5)
-
-        if minutes == 25:
-            quotes = [
-                f"Keren banget{user_name}! 25 menit fokus ngetik tanpa toxic sama sekali! ⭐🎉",
-                f"25 menit kerja adem ayem{user_name}! Meong bangga sama kamu nya~ 🐱✨",
-                f"Mood kamu hari ini adem banget{user_name}! Tetap santai dan fokus ya 🐾💖"
-            ]
-        elif minutes == 50:
-            quotes = [
-                f"Luar biasa{user_name}! 50 menit damai tanpa kata kasar! Meong kasih bintang kebaikan ⭐✨",
-                f"50 menit fokus total tanpa emosi{user_name}! Pertahankan terus ya nya~ 🎉🐾",
-                f"Jarimu tenang dan fokus banget{user_name}! Meong senang nemenin kamu 🐱💖"
-            ]
-        elif minutes >= 100:
-            hours = minutes // 60
-            quotes = [
-                f"Juara bertahan{user_name}! Hampir {hours} jam ngetik tanpa emosi! Kamu luar biasa nya~ 🏆⭐",
-                f"Master of Peace{user_name}! {hours} jam fokus damai dan produktif! Meong kasih snack kebaikan 🐟✨"
-            ]
-        else:
-            quotes = [
-                f"Hebat{user_name}! {minutes} menit ngetik santai tanpa toxic! Semangat terus nya~ ⭐🎉",
-                f"Streak damai {minutes} menit tercapai{user_name}! Keren banget meong! 🐱✨"
-            ]
-        self.say(random.choice(quotes), 5000)
 
     # -------------------------------------------------------------
     # Paint & Render (Nearest-Neighbor Crisp Scaling + Mochi Tilt)
@@ -1771,20 +1711,7 @@ class DesktopPet(QWidget):
         ai_act.setChecked(self.settings.get("ai_watcher_enabled", True))
         ai_act.triggered.connect(self._toggle_ai_watcher)
 
-        toxic_sub = settings_menu.addMenu("🛡️ Anti-Toxic Guardian (NyangGuard)")
-
-        now = time.time()
-        peace_mins = int((now - getattr(self, "peace_streak_start_time", now)) / 60.0)
-        streak_str = f"⭐ Streak Damai: {peace_mins} Menit Bersih" if peace_mins < 60 else f"⭐ Streak Damai: {peace_mins//60} Jam {peace_mins%60} Menit Bersih"
-        streak_info = toxic_sub.addAction(streak_str)
-        streak_info.setEnabled(False)
-
-        toxic_count_str = f"📊 Emosi Sesi Ini: {getattr(self, 'toxic_session_count', 0)}x Terdeteksi"
-        count_info = toxic_sub.addAction(toxic_count_str)
-        count_info.setEnabled(False)
-
-        toxic_sub.addSeparator()
-        toxic_act = toxic_sub.addAction("✅ Aktifkan Mode Anti-Toxic")
+        toxic_act = settings_menu.addAction("🛡️ Mode Anti-Toxic Guardian (NyangGuard)")
         toxic_act.setCheckable(True)
         toxic_act.setChecked(self.settings.get("toxic_guardian_enabled", True))
         toxic_act.triggered.connect(self._toggle_toxic_guardian)
