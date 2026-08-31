@@ -48,7 +48,20 @@ class CatTrayIcon(QSystemTrayIcon):
         startup_act.setChecked(is_startup_enabled())
         startup_act.triggered.connect(self.pet_window._toggle_startup)
 
-        toxic_act = self.menu.addAction("🛡️ Anti-Toxic Guardian")
+        import time
+        toxic_sub = self.menu.addMenu("🛡️ Anti-Toxic Guardian")
+        now = time.time()
+        peace_mins = int((now - getattr(self.pet_window, "peace_streak_start_time", now)) / 60.0)
+        streak_str = f"⭐ Streak Damai: {peace_mins}m Bersih" if peace_mins < 60 else f"⭐ Streak Damai: {peace_mins//60}h {peace_mins%60}m Bersih"
+        streak_info = toxic_sub.addAction(streak_str)
+        streak_info.setEnabled(False)
+
+        toxic_count_str = f"📊 Emosi: {getattr(self.pet_window, 'toxic_session_count', 0)}x Terdeteksi"
+        count_info = toxic_sub.addAction(toxic_count_str)
+        count_info.setEnabled(False)
+
+        toxic_sub.addSeparator()
+        toxic_act = toxic_sub.addAction("✅ Aktifkan Anti-Toxic")
         toxic_act.setCheckable(True)
         toxic_act.setChecked(self.pet_window.settings.get("toxic_guardian_enabled", True))
         toxic_act.triggered.connect(self.pet_window._toggle_toxic_guardian)
