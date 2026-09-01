@@ -125,6 +125,7 @@ class FishCatchGame(BaseGameOverlay):
         # Snap pet window to start position
         self.pet_window.move(int(self.geometry().left() + self.cat_current_x), int(self.geometry().top() + self.cat_y))
         self.pet_window.set_state("idle")
+        self.pet_window.raise_()
 
         # Spawn timing
         self.time_since_spawn = 0.0
@@ -441,63 +442,69 @@ class FishCatchGame(BaseGameOverlay):
 
     def _draw_fish_item(self, painter: QPainter, item: FishItem):
         """Draws pixel-styled jumping fish with rotation."""
-        painter.save()
-        painter.translate(item.x, item.y)
-        painter.rotate(item.rotation)
+        try:
+            painter.save()
+            painter.translate(item.x, item.y)
+            painter.rotate(item.rotation)
 
-        s = item.size
+            s = float(item.size)
 
-        if item.item_type == "silver_fish":
-            # Cute Cyan/Silver Fish
-            # Body
-            painter.setPen(QPen(QColor(15, 45, 90), 1.5))
-            painter.setBrush(QBrush(QColor(80, 210, 255)))
-            painter.drawEllipse(QRectF(-s * 0.5, -s * 0.28, s, s * 0.56))
-            # Belly
-            painter.setBrush(QBrush(QColor(230, 250, 255)))
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawEllipse(QRectF(-s * 0.4, 0, s * 0.7, s * 0.24))
-            # Tail Fin
-            tail = QPolygonF([QPoint(int(s * 0.4), 0), QPoint(int(s * 0.75), int(-s * 0.35)), QPoint(int(s * 0.75), int(s * 0.35))])
-            painter.setPen(QPen(QColor(15, 45, 90), 1.5))
-            painter.setBrush(QBrush(QColor(60, 180, 240)))
-            painter.drawPolygon(tail)
-            # Eye
-            painter.setBrush(QBrush(QColor(18, 18, 24)))
-            painter.drawEllipse(QPoint(int(-s * 0.25), int(-s * 0.08)), 2, 2)
+            if item.item_type == "silver_fish":
+                # Cute Cyan/Silver Fish
+                # Body
+                painter.setPen(QPen(QColor(15, 45, 90), 1.5))
+                painter.setBrush(QBrush(QColor(80, 210, 255)))
+                painter.drawEllipse(QRectF(-s * 0.5, -s * 0.28, s, s * 0.56))
+                # Belly
+                painter.setBrush(QBrush(QColor(230, 250, 255)))
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.drawEllipse(QRectF(-s * 0.4, 0.0, s * 0.7, s * 0.24))
+                # Tail Fin
+                tail = QPolygonF([QPointF(s * 0.4, 0.0), QPointF(s * 0.75, -s * 0.35), QPointF(s * 0.75, s * 0.35)])
+                painter.setPen(QPen(QColor(15, 45, 90), 1.5))
+                painter.setBrush(QBrush(QColor(60, 180, 240)))
+                painter.drawPolygon(tail)
+                # Eye
+                painter.setBrush(QBrush(QColor(18, 18, 24)))
+                painter.drawEllipse(QRectF(-s * 0.28, -s * 0.12, 4.0, 4.0))
 
-        elif item.item_type == "golden_salmon":
-            # Shiny Golden Salmon Fillet with Sparkles
-            # Body
-            painter.setPen(QPen(QColor(160, 100, 10), 1.8))
-            painter.setBrush(QBrush(QColor(255, 195, 30)))
-            painter.drawEllipse(QRectF(-s * 0.55, -s * 0.3, s * 1.1, s * 0.6))
-            # Gold Stripes
-            painter.setPen(QPen(QColor(255, 110, 30), 2))
-            painter.drawLine(QPoint(int(-s * 0.15), int(-s * 0.22)), QPoint(int(-s * 0.05), int(s * 0.22)))
-            painter.drawLine(QPoint(int(s * 0.1), int(-s * 0.22)), QPoint(int(s * 0.2), int(s * 0.22)))
-            # Golden Tail Fin
-            tail = QPolygonF([QPoint(int(s * 0.45), 0), QPoint(int(s * 0.8), int(-s * 0.4)), QPoint(int(s * 0.8), int(s * 0.4))])
-            painter.setPen(QPen(QColor(160, 100, 10), 1.5))
-            painter.setBrush(QBrush(QColor(255, 160, 20)))
-            painter.drawPolygon(tail)
-            # Star Eye
-            painter.setBrush(QBrush(QColor(255, 255, 255)))
-            painter.drawEllipse(QPoint(int(-s * 0.3), int(-s * 0.1)), 3, 3)
+            elif item.item_type == "golden_salmon":
+                # Shiny Golden Salmon Fillet with Sparkles
+                # Body
+                painter.setPen(QPen(QColor(160, 100, 10), 1.8))
+                painter.setBrush(QBrush(QColor(255, 195, 30)))
+                painter.drawEllipse(QRectF(-s * 0.55, -s * 0.3, s * 1.1, s * 0.6))
+                # Gold Stripes
+                painter.setPen(QPen(QColor(255, 110, 30), 2))
+                painter.drawLine(QPointF(-s * 0.15, -s * 0.22), QPointF(-s * 0.05, s * 0.22))
+                painter.drawLine(QPointF(s * 0.1, -s * 0.22), QPointF(s * 0.2, s * 0.22))
+                # Golden Tail Fin
+                tail = QPolygonF([QPointF(s * 0.45, 0.0), QPointF(s * 0.8, -s * 0.4), QPointF(s * 0.8, s * 0.4)])
+                painter.setPen(QPen(QColor(160, 100, 10), 1.5))
+                painter.setBrush(QBrush(QColor(255, 160, 20)))
+                painter.drawPolygon(tail)
+                # Star Eye
+                painter.setBrush(QBrush(QColor(255, 255, 255)))
+                painter.drawEllipse(QRectF(-s * 0.35, -s * 0.14, 5.0, 5.0))
 
-        elif item.item_type == "junk_can":
-            # Rusty Gray Tin Can
-            painter.setPen(QPen(QColor(40, 40, 50), 1.5))
-            painter.setBrush(QBrush(QColor(160, 165, 175)))
-            painter.drawRoundedRect(QRectF(-s * 0.35, -s * 0.4, s * 0.7, s * 0.8), 3, 3)
-            # Rust band & X mark
-            painter.setBrush(QBrush(QColor(210, 75, 75)))
-            painter.drawRect(QRectF(-s * 0.35, -s * 0.12, s * 0.7, s * 0.24))
-            painter.setPen(QPen(QColor(255, 255, 255), 1.5))
-            painter.drawLine(QPoint(int(-s * 0.15), int(-s * 0.08)), QPoint(int(s * 0.15), int(s * 0.08)))
-            painter.drawLine(QPoint(int(-s * 0.15), int(s * 0.08)), QPoint(int(s * 0.15), int(-s * 0.08)))
+            elif item.item_type == "junk_can":
+                # Rusty Gray Tin Can
+                painter.setPen(QPen(QColor(40, 40, 50), 1.5))
+                painter.setBrush(QBrush(QColor(160, 165, 175)))
+                painter.drawRoundedRect(QRectF(-s * 0.35, -s * 0.4, s * 0.7, s * 0.8), 3.0, 3.0)
+                # Rust band & X mark
+                painter.setBrush(QBrush(QColor(210, 75, 75)))
+                painter.drawRect(QRectF(-s * 0.35, -s * 0.12, s * 0.7, s * 0.24))
+                painter.setPen(QPen(QColor(255, 255, 255), 1.5))
+                painter.drawLine(QPointF(-s * 0.15, -s * 0.08), QPointF(s * 0.15, s * 0.08))
+                painter.drawLine(QPointF(-s * 0.15, s * 0.08), QPointF(s * 0.15, -s * 0.08))
 
-        painter.restore()
+            painter.restore()
+        except Exception as e:
+            try:
+                painter.restore()
+            except Exception:
+                pass
 
     def _draw_game_over_modal(self, painter: QPainter):
         """Draws retro game over result dialog."""
