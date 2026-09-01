@@ -64,7 +64,7 @@ class BaseGameOverlay(QWidget):
         dt = max(0.001, min(0.1, now - self.last_tick_time))
         self.last_tick_time = now
 
-        if not self.is_game_over:
+        if getattr(self, "is_timer_running", True) and not self.is_game_over:
             self.time_remaining -= dt
             if self.time_remaining <= 0.0:
                 self.time_remaining = 0.0

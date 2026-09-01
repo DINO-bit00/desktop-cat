@@ -109,6 +109,7 @@ class FishCatchGame(BaseGameOverlay):
 
         # Game states: 'tutorial', 'playing', 'game_over'
         self.game_state = "tutorial"
+        self.is_timer_running = False
 
         self.game_time_limit = 30.0
         self.time_remaining = self.game_time_limit
@@ -307,6 +308,8 @@ class FishCatchGame(BaseGameOverlay):
     def start_game_from_tutorial(self):
         """Transitions from tutorial card to active gameplay."""
         self.game_state = "playing"
+        self.is_timer_running = True
+        self.last_tick_time = time.time()
         self.time_remaining = self.game_time_limit
         self.score = 0
         self.combo = 0
@@ -492,7 +495,7 @@ class FishCatchGame(BaseGameOverlay):
         # Header Title
         painter.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
         painter.setPen(QColor(255, 225, 70))
-        painter.drawText(QRect(card_x, card_y + 18, card_w, 32), Qt.AlignmentFlag.AlignCenter, "🐟 CARA BERMAIN: TANGKAP IKAN")
+        painter.drawText(QRect(card_x, card_y + 18, card_w, 32), Qt.AlignmentFlag.AlignCenter, "CARA BERMAIN: TANGKAP IKAN")
 
         # Subtitle
         painter.setFont(QFont("Segoe UI", 9))
@@ -502,28 +505,40 @@ class FishCatchGame(BaseGameOverlay):
         # Item rules box
         box_y = card_y + 80
         # Row 1: Silver Fish
+        preview_silver = FishItem(card_x + 48, box_y + 20, "silver_fish", 0, 0)
+        preview_silver.size = 38
+        self._draw_fish_item(painter, preview_silver)
+
         painter.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
         painter.setPen(QColor(100, 235, 255))
-        painter.drawText(card_x + 45, box_y + 20, "🐟 Ikan Sarden")
+        painter.drawText(card_x + 82, box_y + 24, "Ikan Sarden")
         painter.setFont(QFont("Segoe UI", 10))
         painter.setPen(QColor(230, 240, 255))
-        painter.drawText(card_x + 180, box_y + 20, "• Poin: +10 PTS  (Ikan normal, berenang lincah)")
+        painter.drawText(card_x + 195, box_y + 24, "• Poin: +10 PTS  (Ikan normal, berenang lincah)")
 
         # Row 2: Golden Salmon
+        preview_salmon = FishItem(card_x + 48, box_y + 58, "golden_salmon", 0, 0)
+        preview_salmon.size = 42
+        self._draw_fish_item(painter, preview_salmon)
+
         painter.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
         painter.setPen(QColor(255, 215, 40))
-        painter.drawText(card_x + 45, box_y + 55, "🍣 Salmon Emas")
+        painter.drawText(card_x + 82, box_y + 62, "Salmon Emas")
         painter.setFont(QFont("Segoe UI", 10))
         painter.setPen(QColor(230, 240, 255))
-        painter.drawText(card_x + 180, box_y + 55, "• Poin: +50 PTS  (Langka, berkilau & poin tinggi!)")
+        painter.drawText(card_x + 195, box_y + 62, "• Poin: +50 PTS  (Langka, berkilau & poin tinggi!)")
 
         # Row 3: Junk Can
+        preview_can = FishItem(card_x + 48, box_y + 96, "junk_can", 0, 0)
+        preview_can.size = 32
+        self._draw_fish_item(painter, preview_can)
+
         painter.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
         painter.setPen(QColor(255, 90, 90))
-        painter.drawText(card_x + 45, box_y + 90, "🥫 Kaleng Zonk")
+        painter.drawText(card_x + 82, box_y + 100, "Kaleng Zonk")
         painter.setFont(QFont("Segoe UI", 10))
         painter.setPen(QColor(230, 240, 255))
-        painter.drawText(card_x + 180, box_y + 90, "• Poin: -10 PTS  (Zonk! Hati-hati jangan ditangkap)")
+        painter.drawText(card_x + 195, box_y + 100, "• Poin: -10 PTS  (Zonk! Hati-hati jangan ditangkap)")
 
         # Controls Section
         ctrl_y = box_y + 130
@@ -703,16 +718,24 @@ class FishCatchGame(BaseGameOverlay):
             painter.drawText(QRect(card_x, card_y + 96, card_w, 20), Qt.AlignmentFlag.AlignCenter, f"Rekor Tertinggi: {self.high_score} PTS")
 
         # Stats Breakdown
+        preview_stat_silver = FishItem(card_x + 65, card_y + 138, "silver_fish", 0, 0)
+        preview_stat_silver.size = 28
+        self._draw_fish_item(painter, preview_stat_silver)
+
         painter.setFont(QFont("Segoe UI", 10))
         painter.setPen(QColor(230, 235, 250))
-        painter.drawText(card_x + 65, card_y + 138, f"🐟 Ikan Sarden:")
-        painter.drawText(card_x + 290, card_y + 138, f"{self.fish_caught_count} ekor")
+        painter.drawText(card_x + 90, card_y + 143, "Ikan Sarden:")
+        painter.drawText(card_x + 290, card_y + 143, f"{self.fish_caught_count} ekor")
 
-        painter.drawText(card_x + 65, card_y + 166, f"🍣 Salmon Emas:")
-        painter.drawText(card_x + 290, card_y + 166, f"{self.salmon_caught_count} ekor")
+        preview_stat_salmon = FishItem(card_x + 65, card_y + 168, "golden_salmon", 0, 0)
+        preview_stat_salmon.size = 32
+        self._draw_fish_item(painter, preview_stat_salmon)
 
-        painter.drawText(card_x + 65, card_y + 194, f"🔥 Combo Tertinggi:")
-        painter.drawText(card_x + 290, card_y + 194, f"{self.max_combo}x Combo")
+        painter.drawText(card_x + 90, card_y + 173, "Salmon Emas:")
+        painter.drawText(card_x + 290, card_y + 173, f"{self.salmon_caught_count} ekor")
+
+        painter.drawText(card_x + 65, card_y + 201, "🔥 Combo Tertinggi:")
+        painter.drawText(card_x + 290, card_y + 201, f"{self.max_combo}x Combo")
 
         # Buttons
         btn_w = 145
