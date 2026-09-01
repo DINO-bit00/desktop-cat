@@ -91,6 +91,8 @@ class BaseGameOverlay(QWidget):
         self.game_timer.stop()
         self.pet_window.settings["wander_mode"] = self._prev_wander_mode
         self.pet_window._active_reminder_type = None
+        if hasattr(self.pet_window, "_active_game") and self.pet_window._active_game is self:
+            self.pet_window._active_game = None
         self.pet_window.resume_default_state()
         self.close()
         self.deleteLater()
@@ -120,33 +122,37 @@ class BaseGameOverlay(QWidget):
     def draw_arcade_hud(self, painter: QPainter):
         """Draws retro 8-bit arcade top bar with score, timer, and close button."""
         # Top HUD Banner Background
-        hud_w = 480
-        hud_h = 44
+        hud_w = 640
+        hud_h = 48
         hud_x = (self.width() - hud_w) // 2
         hud_y = 16
 
-        painter.setPen(QPen(QColor(255, 215, 0, 220), 2))
-        painter.setBrush(QBrush(QColor(18, 18, 28, 220)))
-        painter.drawRoundedRect(hud_x, hud_y, hud_w, hud_h, 8, 8)
+        # Update close button inside or near HUD
+        self.close_btn_rect = QRect(hud_x + hud_w - 105, hud_y + 8, 95, 32)
+
+        # Outer Glow / Border
+        painter.setPen(QPen(QColor(255, 215, 0, 240), 2.5))
+        painter.setBrush(QBrush(QColor(14, 16, 26, 245)))
+        painter.drawRoundedRect(hud_x, hud_y, hud_w, hud_h, 10, 10)
 
         # Title
         painter.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
         painter.setPen(QColor(255, 235, 120))
-        painter.drawText(hud_x + 16, hud_y + 27, self.game_title)
+        painter.drawText(hud_x + 18, hud_y + 30, self.game_title)
 
         # Score
-        painter.setFont(QFont("Consolas", 12, QFont.Weight.Bold))
-        painter.setPen(QColor(100, 240, 255))
-        painter.drawText(hud_x + 230, hud_y + 28, f"PTS: {self.score}")
+        painter.setFont(QFont("Consolas", 13, QFont.Weight.Bold))
+        painter.setPen(QColor(100, 245, 255))
+        painter.drawText(hud_x + 315, hud_y + 31, f"🏆 {self.score} PTS")
 
         # Timer
-        time_col = QColor(255, 100, 100) if self.time_remaining <= 5.0 else QColor(120, 255, 140)
+        time_col = QColor(255, 90, 90) if self.time_remaining <= 5.0 else QColor(120, 255, 140)
         painter.setPen(time_col)
-        painter.drawText(hud_x + 370, hud_y + 28, f"⏱️ {int(self.time_remaining):02d}s")
+        painter.drawText(hud_x + 440, hud_y + 31, f"⏱️ {int(self.time_remaining):02d}s")
 
         # Close Button
-        btn_bg = QColor(220, 50, 60, 230) if self._close_hover else QColor(30, 30, 42, 200)
-        btn_border = QColor(255, 120, 120) if self._close_hover else QColor(180, 180, 200, 160)
+        btn_bg = QColor(220, 50, 60, 240) if self._close_hover else QColor(40, 42, 58, 220)
+        btn_border = QColor(255, 140, 140) if self._close_hover else QColor(180, 190, 220, 180)
         painter.setPen(QPen(btn_border, 1.5))
         painter.setBrush(QBrush(btn_bg))
         painter.drawRoundedRect(self.close_btn_rect, 6, 6)

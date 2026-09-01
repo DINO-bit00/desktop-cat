@@ -1762,10 +1762,19 @@ class DesktopPet(QWidget):
     def start_fish_catch_game(self):
         """Launches Catch the Fish Arcade Mini-Game Overlay."""
         from src.games.fish_catch import FishCatchGame
-        if hasattr(self, "_active_game") and self._active_game and self._active_game.isVisible():
-            self._active_game.close_game()
+        try:
+            if hasattr(self, "_active_game") and self._active_game is not None:
+                try:
+                    self._active_game.close_game()
+                except Exception:
+                    pass
+                self._active_game = None
+        except Exception:
+            self._active_game = None
+
         self._active_game = FishCatchGame(self)
         self._active_game.show()
+        self.raise_()
 
     def _change_skin(self, skin_key):
         self._load_skin_sprites(skin_key)
