@@ -68,6 +68,9 @@ def build():
         "--hidden-import", "src.settings",
         "--hidden-import", "src.audio",
         "--hidden-import", "src.toxic_detector",
+        "--hidden-import", "src.games",
+        "--hidden-import", "src.games.base_game",
+        "--hidden-import", "src.games.fish_catch",
         "main.py"
     ]
     print(f"[Build] Executing optimized lightweight build...")

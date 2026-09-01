@@ -1673,7 +1673,14 @@ class DesktopPet(QWidget):
         note_action.triggered.connect(self._prompt_sticky_note)
 
         # -------------------------------------------------------------
-        # 3. ⚙️ Pengaturan & Perilaku (Settings & Behavior)
+        # 3. 🎮 Mini-Games Arcade (Istirahat Santai)
+        # -------------------------------------------------------------
+        arcade_menu = menu.addMenu("🎮 Mini-Games Arcade (Istirahat)")
+        fish_act = arcade_menu.addAction("🐟 Tangkap Ikan Lompat (Catch the Fish)")
+        fish_act.triggered.connect(self.start_fish_catch_game)
+
+        # -------------------------------------------------------------
+        # 4. ⚙️ Pengaturan & Perilaku (Settings & Behavior)
         # -------------------------------------------------------------
         settings_menu = menu.addMenu("⚙️ Pengaturan & Perilaku")
 
@@ -1751,6 +1758,14 @@ class DesktopPet(QWidget):
             os.startfile(folder)
         except Exception as e:
             print(f"[App] Error opening folder: {e}")
+
+    def start_fish_catch_game(self):
+        """Launches Catch the Fish Arcade Mini-Game Overlay."""
+        from src.games.fish_catch import FishCatchGame
+        if hasattr(self, "_active_game") and self._active_game and self._active_game.isVisible():
+            self._active_game.close_game()
+        self._active_game = FishCatchGame(self)
+        self._active_game.show()
 
     def _change_skin(self, skin_key):
         self._load_skin_sprites(skin_key)

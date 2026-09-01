@@ -53,6 +53,10 @@ class CatTrayIcon(QSystemTrayIcon):
         toxic_act.setChecked(self.pet_window.settings.get("toxic_guardian_enabled", True))
         toxic_act.triggered.connect(self.pet_window._toggle_toxic_guardian)
 
+        arcade_menu = self.menu.addMenu("🎮 Mini-Games Arcade")
+        fish_act = arcade_menu.addAction("🐟 Tangkap Ikan (Catch the Fish)")
+        fish_act.triggered.connect(self.pet_window.start_fish_catch_game)
+
         self.menu.addSeparator()
 
         quit_act = self.menu.addAction("❌ Keluar")
