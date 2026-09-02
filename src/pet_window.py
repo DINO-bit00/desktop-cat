@@ -1678,6 +1678,8 @@ class DesktopPet(QWidget):
         arcade_menu = menu.addMenu("🎮 Mini-Games Arcade (Istirahat)")
         fish_act = arcade_menu.addAction("🐟 Tangkap Ikan Lompat (Catch the Fish)")
         fish_act.triggered.connect(self.start_fish_catch_game)
+        yarn_act = arcade_menu.addAction("🧶 Juggling Bola Benang (Cat Yarn Bounce)")
+        yarn_act.triggered.connect(self.start_yarn_bounce_game)
 
         # -------------------------------------------------------------
         # 4. ⚙️ Pengaturan & Perilaku (Settings & Behavior)
@@ -1773,6 +1775,23 @@ class DesktopPet(QWidget):
             self._active_game = None
 
         self._active_game = FishCatchGame(self)
+        self._active_game.show()
+        self.raise_()
+
+    def start_yarn_bounce_game(self):
+        """Launches Cat Yarn Bounce Arcade Mini-Game Overlay."""
+        from src.games.yarn_bounce import YarnBounceGame
+        try:
+            if hasattr(self, "_active_game") and self._active_game is not None:
+                try:
+                    self._active_game.close_game()
+                except Exception:
+                    pass
+                self._active_game = None
+        except Exception:
+            self._active_game = None
+
+        self._active_game = YarnBounceGame(self)
         self._active_game.show()
         self.raise_()
 

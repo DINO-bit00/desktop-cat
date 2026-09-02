@@ -71,6 +71,7 @@ def build():
         "--hidden-import", "src.games",
         "--hidden-import", "src.games.base_game",
         "--hidden-import", "src.games.fish_catch",
+        "--hidden-import", "src.games.yarn_bounce",
         "main.py"
     ]
     print(f"[Build] Executing optimized lightweight build...")

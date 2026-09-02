@@ -56,6 +56,8 @@ class CatTrayIcon(QSystemTrayIcon):
         arcade_menu = self.menu.addMenu("🎮 Mini-Games Arcade")
         fish_act = arcade_menu.addAction("🐟 Tangkap Ikan (Catch the Fish)")
         fish_act.triggered.connect(self.pet_window.start_fish_catch_game)
+        yarn_act = arcade_menu.addAction("🧶 Bola Benang (Cat Yarn Bounce)")
+        yarn_act.triggered.connect(self.pet_window.start_yarn_bounce_game)
 
         self.menu.addSeparator()
 
