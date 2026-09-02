@@ -215,12 +215,13 @@ class BoxShuffleGame(BaseGameOverlay):
             card_h = 320
             card_x = (self.width() - card_w) // 2
             card_y = (self.height() - card_h) // 2 - 20
-            if self.width() > card_x + card_w + self.pet_window.sprite_size + 20:
-                target_x = float(screen_geo.left() + card_x + card_w + 25)
-                target_y = float(screen_geo.top() + card_y + 100)
+            if self.width() > card_x + card_w + self.pet_window.sprite_size + 30:
+                target_x = float(screen_geo.left() + card_x + card_w + 35)
+                target_y = float(screen_geo.top() + card_y + card_h - self.pet_window.sprite_size)
             else:
                 target_x = float(screen_geo.left() + self.width() - self.pet_window.sprite_size - 20)
                 target_y = float(screen_geo.top() + self.height() - self.pet_window.sprite_size - 40)
+            self.pet_window.eye_dir = "left"
 
         else:
             # Active gameplay (show_snack, shuffling, guessing, revealing):
@@ -404,6 +405,8 @@ class BoxShuffleGame(BaseGameOverlay):
 
         self.particles.clear()
         self.floating_texts.clear()
+        if hasattr(self.pet_window, "bubble"):
+            self.pet_window.bubble.hide()
         self._calculate_slots()
 
         # Reset boxes
@@ -426,6 +429,8 @@ class BoxShuffleGame(BaseGameOverlay):
         self.is_timer_running = False
         self.time_remaining = 99999.0
         self.floating_texts.clear()
+        if hasattr(self.pet_window, "bubble"):
+            self.pet_window.bubble.hide()
 
         if self.score > self.high_score:
             self.high_score = self.score
@@ -434,17 +439,20 @@ class BoxShuffleGame(BaseGameOverlay):
 
         if self.correct_guesses >= 5:
             self.pet_window.set_state("celebrate", duration_seconds=4.0)
-            raw_name = self.pet_window.settings.get("user_name", "").strip()
-            user_name = f" {raw_name}" if raw_name else ""
-            self.pet_window.say(f"Mata kamu tajam banget{user_name}! Snacknya dapet banyak nya~ 📦⭐", 4000)
         else:
             self.pet_window.set_state("sulk", duration_seconds=4.0)
-            self.pet_window.say("Kardusnya muter cepet banget nya! Coba lagi yuk? 🐾📦", 3500)
+
+    def close_game(self):
+        if hasattr(self.pet_window, "bubble"):
+            self.pet_window.bubble.hide()
+        super().close_game()
 
     def restart_game(self):
         self.is_game_over = False
         self.is_timer_running = False
         self.time_remaining = 99999.0
+        if hasattr(self.pet_window, "bubble"):
+            self.pet_window.bubble.hide()
         self.start_game_from_tutorial()
 
     def keyPressEvent(self, event: QKeyEvent):
@@ -869,6 +877,17 @@ class BoxShuffleGame(BaseGameOverlay):
 
         painter.drawText(card_x + 85, card_y + 175, "🔥 Streak Tertinggi:")
         painter.drawText(card_x + 290, card_y + 175, f"{self.max_streak}x Streak")
+
+        # Cat Game Over Quote (Clean native font inside the card)
+        painter.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
+        painter.setPen(QColor(255, 215, 120))
+        raw_name = self.pet_window.settings.get("user_name", "").strip()
+        u_name = f" {raw_name}" if raw_name else ""
+        if self.correct_guesses >= 5:
+            quote = f"🐾 \"Mata kamu tajam banget{u_name}! Dapet banyak snack nya~ ⭐\""
+        else:
+            quote = f"🐾 \"Kardusnya muter cepet banget nya{u_name}! Coba lagi yuk?\""
+        painter.drawText(QRect(card_x + 20, card_y + 204, card_w - 40, 24), Qt.AlignmentFlag.AlignCenter, quote)
 
         # Buttons
         btn_w = 145
