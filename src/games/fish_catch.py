@@ -354,6 +354,7 @@ class FishCatchGame(BaseGameOverlay):
     def start_game_from_tutorial(self):
         """Transitions from tutorial card to active gameplay."""
         self.game_state = "playing"
+        self.is_game_over = False
         self.is_timer_running = True
         self.last_tick_time = time.time()
         self.time_remaining = self.game_time_limit
@@ -361,9 +362,13 @@ class FishCatchGame(BaseGameOverlay):
         self.combo = 0
         self.fish_caught_count = 0
         self.salmon_caught_count = 0
+        self.cat_jump_offset_y = 0.0
+        self.cat_jump_vy = 0.0
+        self.cat_jump_active = False
         self.items.clear()
         self.floating_texts.clear()
         self.particles.clear()
+        self.claw_slashes.clear()
         self.floating_texts.append(FloatingText(self.width() / 2, self.height() / 2 - 40, "GO! TANGKAP IKAN! 🐟", QColor(255, 230, 80)))
         self.pet_window.set_state("idle")
 
