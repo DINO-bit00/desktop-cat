@@ -142,11 +142,15 @@ class BoxShuffleGame(BaseGameOverlay):
         self.particles: List[BoxParticle] = []
         self.floating_texts: List[FloatingText] = []
 
-        # Position Pet Window sitting above or next to the boxes
-        self.pet_target_x = float(self.width() // 2 - self.pet_window.sprite_size // 2)
-        self.pet_y = float(self.table_y - self.pet_window.sprite_size - 40)
-        self.pet_window.move(int(self.geometry().left() + self.pet_target_x), int(self.geometry().top() + self.pet_y))
-        self.pet_window.set_state("idle")
+        # Position Pet Window sitting below the cardboard boxes, facing up towards them
+        screen_geo = self.geometry()
+        init_x = int(screen_geo.left() + self.pet_target_x)
+        init_y = int(screen_geo.top() + self.pet_y)
+        self.pet_window.pos_x_f = float(init_x)
+        self.pet_window.pos_y_f = float(init_y)
+        self.pet_window.move(init_x, init_y)
+        self.pet_window.set_state("thinking")
+        self.pet_window.eye_dir = "up"
         self.pet_window.raise_()
 
         # UI Button Rects
@@ -160,8 +164,11 @@ class BoxShuffleGame(BaseGameOverlay):
     def _calculate_slots(self):
         cx = float(self.width() / 2.0)
         spacing = 210.0
-        self.table_y = float(self.height() / 2.0 + 35.0)
+        # Position table slightly higher so there is ample room for the cat below
+        self.table_y = float(self.height() / 2.0 - 50.0)
         self.slot_x_positions = [cx - spacing, cx, cx + spacing]
+        self.pet_target_x = float(cx - self.pet_window.sprite_size / 2.0)
+        self.pet_y = float(self.table_y + 85.0)
 
     def update_game_physics(self, dt: float):
         # Update boxes
@@ -176,6 +183,18 @@ class BoxShuffleGame(BaseGameOverlay):
         for ft in self.floating_texts:
             ft.update(dt)
         self.floating_texts = [ft for ft in self.floating_texts if not ft.is_dead]
+
+        # Keep pet window positioned below the boxes facing them
+        screen_geo = self.geometry()
+        target_x = float(screen_geo.left() + self.pet_target_x)
+        target_y = float(screen_geo.top() + self.pet_y)
+        self.pet_window.pos_x_f = target_x
+        self.pet_window.pos_y_f = target_y
+        self.pet_window.move(int(target_x), int(target_y))
+        if self.game_state in ["show_snack", "shuffling", "guessing"]:
+            if self.pet_window.state not in ["thinking", "celebrate", "sulk"]:
+                self.pet_window.set_state("thinking")
+            self.pet_window.eye_dir = "up"
 
         # State Machine Logic
         if self.game_state == "show_snack":
@@ -215,7 +234,8 @@ class BoxShuffleGame(BaseGameOverlay):
         # Audio & Sparkle
         self._play_sound_blip(freq=1600, dur=40)
         self._create_sparkles(snack_box.x, snack_box.y - 25, QColor(255, 215, 50), count=12)
-        self.pet_window.set_state("idle")
+        self.pet_window.set_state("thinking")
+        self.pet_window.eye_dir = "up"
 
         slot_label = snack_box.pos_idx + 1
         self.floating_texts.append(FloatingText(snack_box.x, snack_box.y - 135, f"SNACK DI KARDUS [{slot_label}]! 🍣", QColor(255, 220, 60)))
@@ -299,7 +319,7 @@ class BoxShuffleGame(BaseGameOverlay):
             self.streak = 0
             self.lives -= 1
 
-            self.pet_window.set_state("overheat", duration_seconds=1.2)
+            self.pet_window.set_state("sulk", duration_seconds=1.5)
             self._play_sound_blip(freq=350, dur=90)
             self._create_dust(box.x, box.y - 15, QColor(140, 140, 150), count=16)
 
@@ -333,7 +353,8 @@ class BoxShuffleGame(BaseGameOverlay):
         """Starts a fresh game from tutorial card."""
         self.game_state = "show_snack"
         self.is_game_over = False
-        self.is_timer_running = True
+        self.is_timer_running = False
+        self.time_remaining = 99999.0
         self.score = 0
         self.streak = 0
         self.max_streak = 0
@@ -361,6 +382,10 @@ class BoxShuffleGame(BaseGameOverlay):
     def on_game_over(self):
         """Triggered when lives run out."""
         self.game_state = "game_over"
+        self.is_game_over = True
+        self.is_timer_running = False
+        self.time_remaining = 99999.0
+        self.floating_texts.clear()
 
         if self.score > self.high_score:
             self.high_score = self.score
@@ -373,10 +398,13 @@ class BoxShuffleGame(BaseGameOverlay):
             user_name = f" {raw_name}" if raw_name else ""
             self.pet_window.say(f"Mata kamu tajam banget{user_name}! Snacknya dapet banyak nya~ 📦⭐", 4000)
         else:
-            self.pet_window.set_state("idle")
+            self.pet_window.set_state("sulk", duration_seconds=4.0)
             self.pet_window.say("Kardusnya muter cepet banget nya! Coba lagi yuk? 🐾📦", 3500)
 
     def restart_game(self):
+        self.is_game_over = False
+        self.is_timer_running = False
+        self.time_remaining = 99999.0
         self.start_game_from_tutorial()
 
     def keyPressEvent(self, event: QKeyEvent):
@@ -792,14 +820,14 @@ class BoxShuffleGame(BaseGameOverlay):
             painter.drawText(QRect(card_x, card_y + 96, card_w, 20), Qt.AlignmentFlag.AlignCenter, f"Rekor Tertinggi: {self.high_score} PTS")
 
         # Stats Breakdown
-        self._draw_golden_salmon_snack(painter, card_x + 65, card_y + 140)
+        self._draw_golden_salmon_snack(painter, card_x + 50, card_y + 148, size=32.0)
 
         painter.setFont(QFont("Segoe UI", 10))
         painter.setPen(QColor(230, 235, 250))
-        painter.drawText(card_x + 95, card_y + 145, "Tebakan Tepat:")
+        painter.drawText(card_x + 85, card_y + 145, "Tebakan Tepat:")
         painter.drawText(card_x + 290, card_y + 145, f"{self.correct_guesses} ronde")
 
-        painter.drawText(card_x + 95, card_y + 175, "🔥 Streak Tertinggi:")
+        painter.drawText(card_x + 85, card_y + 175, "🔥 Streak Tertinggi:")
         painter.drawText(card_x + 290, card_y + 175, f"{self.max_streak}x Streak")
 
         # Buttons
