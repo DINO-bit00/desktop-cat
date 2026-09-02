@@ -142,15 +142,24 @@ class BoxShuffleGame(BaseGameOverlay):
         self.particles: List[BoxParticle] = []
         self.floating_texts: List[FloatingText] = []
 
-        # Position Pet Window sitting below the cardboard boxes, facing up towards them
+        # Position Pet Window outside tutorial card initially
         screen_geo = self.geometry()
-        init_x = int(screen_geo.left() + self.pet_target_x)
-        init_y = int(screen_geo.top() + self.pet_y)
+        card_w = 540
+        card_h = 390
+        card_x = (self.width() - card_w) // 2
+        card_y = (self.height() - card_h) // 2 - 20
+        if self.width() > card_x + card_w + self.pet_window.sprite_size + 20:
+            init_x = int(screen_geo.left() + card_x + card_w + 25)
+            init_y = int(screen_geo.top() + card_y + card_h - self.pet_window.sprite_size)
+        else:
+            init_x = int(screen_geo.left() + self.width() - self.pet_window.sprite_size - 20)
+            init_y = int(screen_geo.top() + self.height() - self.pet_window.sprite_size - 40)
+
         self.pet_window.pos_x_f = float(init_x)
         self.pet_window.pos_y_f = float(init_y)
         self.pet_window.move(init_x, init_y)
-        self.pet_window.set_state("thinking")
-        self.pet_window.eye_dir = "up"
+        self.pet_window.set_state("idle")
+        self.pet_window.eye_dir = "left"
         self.pet_window.raise_()
 
         # UI Button Rects
@@ -184,17 +193,48 @@ class BoxShuffleGame(BaseGameOverlay):
             ft.update(dt)
         self.floating_texts = [ft for ft in self.floating_texts if not ft.is_dead]
 
-        # Keep pet window positioned below the boxes facing them
+        # Position pet window based on game state so it NEVER obstructs cards
         screen_geo = self.geometry()
-        target_x = float(screen_geo.left() + self.pet_target_x)
-        target_y = float(screen_geo.top() + self.pet_y)
+        if self.game_state == "tutorial":
+            card_w = 540
+            card_h = 390
+            card_x = (self.width() - card_w) // 2
+            card_y = (self.height() - card_h) // 2 - 20
+            if self.width() > card_x + card_w + self.pet_window.sprite_size + 20:
+                target_x = float(screen_geo.left() + card_x + card_w + 25)
+                target_y = float(screen_geo.top() + card_y + card_h - self.pet_window.sprite_size)
+            else:
+                target_x = float(screen_geo.left() + self.width() - self.pet_window.sprite_size - 20)
+                target_y = float(screen_geo.top() + self.height() - self.pet_window.sprite_size - 40)
+            if self.pet_window.state != "idle":
+                self.pet_window.set_state("idle")
+            self.pet_window.eye_dir = "left"
+
+        elif self.game_state == "game_over":
+            card_w = 440
+            card_h = 320
+            card_x = (self.width() - card_w) // 2
+            card_y = (self.height() - card_h) // 2 - 20
+            if self.width() > card_x + card_w + self.pet_window.sprite_size + 20:
+                target_x = float(screen_geo.left() + card_x + card_w + 25)
+                target_y = float(screen_geo.top() + card_y + 100)
+            else:
+                target_x = float(screen_geo.left() + self.width() - self.pet_window.sprite_size - 20)
+                target_y = float(screen_geo.top() + self.height() - self.pet_window.sprite_size - 40)
+
+        else:
+            # Active gameplay (show_snack, shuffling, guessing, revealing):
+            # Sit directly below the center box, looking up towards the boxes in thinking state
+            target_x = float(screen_geo.left() + self.pet_target_x)
+            target_y = float(screen_geo.top() + self.pet_y)
+            if self.game_state in ["show_snack", "shuffling", "guessing"]:
+                if self.pet_window.state not in ["thinking", "celebrate", "sulk"]:
+                    self.pet_window.set_state("thinking")
+                self.pet_window.eye_dir = "up"
+
         self.pet_window.pos_x_f = target_x
         self.pet_window.pos_y_f = target_y
         self.pet_window.move(int(target_x), int(target_y))
-        if self.game_state in ["show_snack", "shuffling", "guessing"]:
-            if self.pet_window.state not in ["thinking", "celebrate", "sulk"]:
-                self.pet_window.set_state("thinking")
-            self.pet_window.eye_dir = "up"
 
         # State Machine Logic
         if self.game_state == "show_snack":
