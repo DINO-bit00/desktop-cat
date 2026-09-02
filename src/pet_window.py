@@ -1680,8 +1680,8 @@ class DesktopPet(QWidget):
         fish_act.triggered.connect(self.start_fish_catch_game)
         yarn_act = arcade_menu.addAction("🧶 Juggling Bola Benang (Cat Yarn Bounce)")
         yarn_act.triggered.connect(self.start_yarn_bounce_game)
-        laser_act = arcade_menu.addAction("🔴 Berburu Laser (Laser Hunter)")
-        laser_act.triggered.connect(self.start_laser_hunter_game)
+        box_act = arcade_menu.addAction("📦 Tebak Kardus Snack (Box Shuffle)")
+        box_act.triggered.connect(self.start_box_shuffle_game)
 
         # -------------------------------------------------------------
         # 4. ⚙️ Pengaturan & Perilaku (Settings & Behavior)
@@ -1797,9 +1797,9 @@ class DesktopPet(QWidget):
         self._active_game.show()
         self.raise_()
 
-    def start_laser_hunter_game(self):
-        """Launches Laser Hunter Arcade Mini-Game Overlay."""
-        from src.games.laser_hunter import LaserHunterGame
+    def start_box_shuffle_game(self):
+        """Launches Box Shuffle Arcade Mini-Game Overlay."""
+        from src.games.box_shuffle import BoxShuffleGame
         try:
             if hasattr(self, "_active_game") and self._active_game is not None:
                 try:
@@ -1810,7 +1810,7 @@ class DesktopPet(QWidget):
         except Exception:
             self._active_game = None
 
-        self._active_game = LaserHunterGame(self)
+        self._active_game = BoxShuffleGame(self)
         self._active_game.show()
         self.raise_()
 
