@@ -331,7 +331,7 @@ class YarnBounceGame(BaseGameOverlay):
                 pass
 
     def start_game_from_tutorial(self):
-        """Starts the active yarn bounce game."""
+        """Starts or restarts the active yarn bounce game with a high loft launch from above the cat."""
         self.game_state = "playing"
         self.is_game_over = False
         self.is_timer_running = True
@@ -339,11 +339,32 @@ class YarnBounceGame(BaseGameOverlay):
         self.combo = 0
         self.max_combo = 0
         self.total_bounces = 0
-        self.yarn_ball = YarnBall(self.width() / 2.0, self.height() / 2.5)
+
+        # Center Cat position
+        self.cat_target_x = float(self.width() // 2 - self.pet_window.sprite_size // 2)
+        self.cat_current_x = self.cat_target_x
+        self.cat_jump_offset_y = 0.0
+        self.cat_jump_vy = 0.0
+        self.cat_jump_active = False
+
+        screen_geo = self.geometry()
+        target_screen_x = int(screen_geo.left() + self.cat_current_x)
+        target_screen_y = int(screen_geo.top() + self.cat_y)
+        self.pet_window.move(target_screen_x, target_screen_y)
+
+        # Launch ball upwards from directly above the cat
+        ball_x = self.cat_current_x + self.pet_window.sprite_size / 2.0
+        ball_y = self.cat_y - 35.0
+        self.yarn_ball = YarnBall(ball_x, ball_y)
+        self.yarn_ball.vy = -680.0  # High launch arch!
+        self.yarn_ball.vx = random.choice([-90.0, 90.0])
+
         self.floating_texts.clear()
         self.fuzz_particles.clear()
-        self.floating_texts.append(FloatingText(self.width() / 2, self.height() / 2 - 40, "GO! JUGGLE BOLA BENANG! 🧶", QColor(255, 230, 80)))
-        self.pet_window.set_state("idle")
+        self.floating_texts.append(FloatingText(ball_x, ball_y - 20, "SERVIS AWAL! 🧶🚀", QColor(255, 230, 80)))
+        self._spawn_fuzz_particles(ball_x, ball_y, self.yarn_ball.color, count=12)
+        self._play_sound_blip(freq=1450, dur=40)
+        self.pet_window.set_state("celebrate", duration_seconds=0.5)
 
     def on_game_over(self):
         """Triggered when yarn ball touches the floor."""
@@ -372,6 +393,11 @@ class YarnBounceGame(BaseGameOverlay):
         if self.game_state == "tutorial":
             if event.key() in (Qt.Key.Key_Space, Qt.Key.Key_Return, Qt.Key.Key_Enter):
                 self.start_game_from_tutorial()
+                event.accept()
+                return
+        elif self.game_state == "game_over":
+            if event.key() in (Qt.Key.Key_Space, Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                self.restart_game()
                 event.accept()
                 return
         elif self.game_state == "playing":
@@ -711,9 +737,9 @@ class YarnBounceGame(BaseGameOverlay):
         painter.setBrush(QBrush(r_bg))
         painter.drawRoundedRect(self.restart_btn_rect, 6, 6)
 
-        painter.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        painter.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
         painter.setPen(QColor(255, 255, 255))
-        painter.drawText(self.restart_btn_rect, Qt.AlignmentFlag.AlignCenter, "▶ MAIN LAGI")
+        painter.drawText(self.restart_btn_rect, Qt.AlignmentFlag.AlignCenter, "▶ MAIN LAGI (SPASI)")
 
         # Quit Button
         q_bg = QColor(210, 50, 60, 245) if self._quit_hover else QColor(150, 35, 45, 230)
