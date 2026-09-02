@@ -1680,6 +1680,8 @@ class DesktopPet(QWidget):
         fish_act.triggered.connect(self.start_fish_catch_game)
         yarn_act = arcade_menu.addAction("🧶 Juggling Bola Benang (Cat Yarn Bounce)")
         yarn_act.triggered.connect(self.start_yarn_bounce_game)
+        laser_act = arcade_menu.addAction("🔴 Berburu Laser (Laser Hunter)")
+        laser_act.triggered.connect(self.start_laser_hunter_game)
 
         # -------------------------------------------------------------
         # 4. ⚙️ Pengaturan & Perilaku (Settings & Behavior)
@@ -1792,6 +1794,23 @@ class DesktopPet(QWidget):
             self._active_game = None
 
         self._active_game = YarnBounceGame(self)
+        self._active_game.show()
+        self.raise_()
+
+    def start_laser_hunter_game(self):
+        """Launches Laser Hunter Arcade Mini-Game Overlay."""
+        from src.games.laser_hunter import LaserHunterGame
+        try:
+            if hasattr(self, "_active_game") and self._active_game is not None:
+                try:
+                    self._active_game.close_game()
+                except Exception:
+                    pass
+                self._active_game = None
+        except Exception:
+            self._active_game = None
+
+        self._active_game = LaserHunterGame(self)
         self._active_game.show()
         self.raise_()
 

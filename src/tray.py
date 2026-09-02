@@ -58,6 +58,8 @@ class CatTrayIcon(QSystemTrayIcon):
         fish_act.triggered.connect(self.pet_window.start_fish_catch_game)
         yarn_act = arcade_menu.addAction("🧶 Bola Benang (Cat Yarn Bounce)")
         yarn_act.triggered.connect(self.pet_window.start_yarn_bounce_game)
+        laser_act = arcade_menu.addAction("🔴 Berburu Laser (Laser Hunter)")
+        laser_act.triggered.connect(self.pet_window.start_laser_hunter_game)
 
         self.menu.addSeparator()
 
