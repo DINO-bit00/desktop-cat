@@ -1673,9 +1673,9 @@ class DesktopPet(QWidget):
         note_action.triggered.connect(self._prompt_sticky_note)
 
         # -------------------------------------------------------------
-        # 3. 🎮 Mini-Games Arcade (Istirahat Santai)
+        # 3. 🎮 Mini-Games Arcade
         # -------------------------------------------------------------
-        arcade_menu = menu.addMenu("🎮 Mini-Games Arcade (Istirahat)")
+        arcade_menu = menu.addMenu("🎮 Mini-Games Arcade")
         fish_act = arcade_menu.addAction("🐟 Tangkap Ikan Lompat (Catch the Fish)")
         fish_act.triggered.connect(self.start_fish_catch_game)
         yarn_act = arcade_menu.addAction("🧶 Juggling Bola Benang (Cat Yarn Bounce)")
