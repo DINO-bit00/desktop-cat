@@ -100,6 +100,29 @@ class Particle:
         return self.age >= self.lifetime
 
 
+class ClawSlash:
+    """Animated luminous claw slash effect when pressing Spacebar."""
+    def __init__(self, x: float, y: float):
+        self.x = x
+        self.y = y
+        self.age = 0.0
+        self.lifetime = 0.32  # seconds
+        self.scale = 0.6
+
+    def update(self, dt: float):
+        self.age += dt
+        self.scale = min(1.4, 0.6 + (self.age / self.lifetime) * 0.8)
+        self.y -= 45.0 * dt
+
+    @property
+    def is_dead(self) -> bool:
+        return self.age >= self.lifetime
+
+    @property
+    def opacity(self) -> float:
+        return max(0.0, 1.0 - (self.age / self.lifetime))
+
+
 class FishCatchGame(BaseGameOverlay):
     """
     Catch the Fish Arcade Mini-Game Overlay with Tutorial & Enhanced Visuals.
@@ -126,11 +149,17 @@ class FishCatchGame(BaseGameOverlay):
         self.items: List[FishItem] = []
         self.floating_texts: List[FloatingText] = []
         self.particles: List[Particle] = []
+        self.claw_slashes: List[ClawSlash] = []
 
         # Cat positioning & steering
         self.cat_target_x = float(self.width() // 2 - self.pet_window.sprite_size // 2)
         self.cat_current_x = self.cat_target_x
         self.cat_y = float(self.height() - self.pet_window.sprite_size - 25)
+
+        # Cat Jump & Pounce Physics
+        self.cat_jump_offset_y = 0.0
+        self.cat_jump_vy = 0.0
+        self.cat_jump_active = False
 
         # Snap pet window to start position
         self.pet_window.move(int(self.geometry().left() + self.cat_current_x), int(self.geometry().top() + self.cat_y))
@@ -173,21 +202,33 @@ class FishCatchGame(BaseGameOverlay):
             dx = self.cat_target_x - self.cat_current_x
             self.cat_current_x += dx * min(1.0, dt * 15.0)
 
+            # Update Cat jump physics
+            if self.cat_jump_active:
+                self.cat_jump_vy += 1500.0 * dt  # Gravity
+                self.cat_jump_offset_y += self.cat_jump_vy * dt
+                if self.cat_jump_offset_y >= 0.0:
+                    self.cat_jump_offset_y = 0.0
+                    self.cat_jump_vy = 0.0
+                    self.cat_jump_active = False
+                    if self.pet_window.state == "celebrate":
+                        self.pet_window.set_state("idle")
+
             # Move pet window
             screen_geo = self.geometry()
             target_screen_x = int(screen_geo.left() + self.cat_current_x)
-            target_screen_y = int(screen_geo.top() + self.cat_y)
+            target_screen_y = int(screen_geo.top() + self.cat_y + self.cat_jump_offset_y)
             self.pet_window.move(target_screen_x, target_screen_y)
 
             # Update cat facing animation
-            if abs(dx) > 4.0:
-                if dx < 0 and self.pet_window.state != "walk_left":
-                    self.pet_window.set_state("walk_left")
-                elif dx > 0 and self.pet_window.state != "walk_right":
-                    self.pet_window.set_state("walk_right")
-            else:
-                if self.pet_window.state not in ["idle", "feed", "celebrate", "overheat"]:
-                    self.pet_window.set_state("idle")
+            if not self.cat_jump_active:
+                if abs(dx) > 4.0:
+                    if dx < 0 and self.pet_window.state != "walk_left":
+                        self.pet_window.set_state("walk_left")
+                    elif dx > 0 and self.pet_window.state != "walk_right":
+                        self.pet_window.set_state("walk_right")
+                else:
+                    if self.pet_window.state not in ["idle", "feed", "celebrate", "overheat"]:
+                        self.pet_window.set_state("idle")
 
             # Spawn fish items
             self.time_since_spawn += dt
@@ -198,7 +239,7 @@ class FishCatchGame(BaseGameOverlay):
 
         # Update fish items
         cat_center_x = self.cat_current_x + self.pet_window.sprite_size / 2.0
-        cat_center_y = self.cat_y + self.pet_window.sprite_size / 2.0
+        cat_center_y = self.cat_y + self.cat_jump_offset_y + self.pet_window.sprite_size / 2.0
         cat_catch_radius = self.pet_window.sprite_size * 0.52
 
         for item in self.items:
@@ -209,6 +250,11 @@ class FishCatchGame(BaseGameOverlay):
                 dist = math.hypot(item.x - cat_center_x, item.y - cat_center_y)
                 if dist <= (cat_catch_radius + item.size * 0.4):
                     self._catch_item(item)
+
+        # Update claw slashes
+        for cs in self.claw_slashes:
+            cs.update(dt)
+        self.claw_slashes = [cs for cs in self.claw_slashes if not cs.is_dead]
 
         # Filter dead items
         self.items = [item for item in self.items if not item.is_dead]
@@ -376,15 +422,26 @@ class FishCatchGame(BaseGameOverlay):
         super().keyReleaseEvent(event)
 
     def _attempt_space_catch(self):
-        """Cat pounces up slightly to snatch nearby fish."""
-        cat_center_x = self.cat_current_x + self.pet_window.sprite_size / 2.0
-        cat_top_y = self.cat_y + 10
+        """Cat leaps into the air with an energetic paw claw swipe to catch nearby fish."""
+        # 1. Trigger Jump Physics & Animation
+        self.cat_jump_vy = -480.0
+        self.cat_jump_active = True
+        self.pet_window.set_state("celebrate", duration_seconds=0.45)
 
-        # Find closest fish within expanded catch range
+        # 2. Spawn Visual Claw Slash Effect above cat head
+        cat_center_x = self.cat_current_x + self.pet_window.sprite_size / 2.0
+        cat_top_y = self.cat_y + self.cat_jump_offset_y - 20
+        self.claw_slashes.append(ClawSlash(cat_center_x, cat_top_y))
+
+        # 3. Audio & Sparkle Feedback
+        self._play_sound_blip(freq=1550, dur=35)
+        self._create_particles(cat_center_x, cat_top_y, QColor(100, 240, 255), count=6)
+
+        # 4. Check & Catch Fish in expanded air zone
         for item in self.items:
             if not item.is_caught:
-                dist = math.hypot(item.x - cat_center_x, item.y - cat_top_y)
-                if dist <= (self.pet_window.sprite_size * 1.0 + item.size * 0.5):
+                dist = math.hypot(item.x - cat_center_x, item.y - (cat_top_y - 30))
+                if dist <= (self.pet_window.sprite_size * 1.35 + item.size * 0.7):
                     self._catch_item(item)
                     break
 
@@ -446,22 +503,26 @@ class FishCatchGame(BaseGameOverlay):
         # 2. Draw Fish Catch Zone indicator (subtle glowing ripple under cat)
         if self.game_state == "playing":
             cat_cx = self.cat_current_x + self.pet_window.sprite_size / 2.0
-            cat_bot_y = self.cat_y + self.pet_window.sprite_size - 10
+            cat_bot_y = self.cat_y + self.cat_jump_offset_y + self.pet_window.sprite_size - 10
             painter.setPen(QPen(QColor(80, 220, 255, 110), 2, Qt.PenStyle.DashLine))
             painter.setBrush(QBrush(QColor(40, 180, 240, 30)))
             painter.drawEllipse(QPoint(int(cat_cx), int(cat_bot_y)), int(self.pet_window.sprite_size * 0.52), 18)
 
-        # 3. Draw Jumping Fish Items
+        # 3. Draw Claw Slash FX
+        for cs in self.claw_slashes:
+            self._draw_claw_slash(painter, cs)
+
+        # 4. Draw Jumping Fish Items
         for item in self.items:
             self._draw_fish_item(painter, item)
 
-        # 4. Draw Particles
+        # 5. Draw Particles
         for p in self.particles:
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(p.color))
             painter.drawEllipse(QPoint(int(p.x), int(p.y)), int(p.size), int(p.size))
 
-        # 5. Draw Floating Texts
+        # 6. Draw Floating Texts
         for ft in self.floating_texts:
             painter.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
             col = QColor(ft.color)
@@ -469,16 +530,44 @@ class FishCatchGame(BaseGameOverlay):
             painter.setPen(col)
             painter.drawText(int(ft.x - 70), int(ft.y), ft.text)
 
-        # 6. Draw Bottom Controls Hint
+        # 7. Draw Bottom Controls Hint
         if self.game_state == "playing":
             painter.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
             painter.setPen(QColor(255, 255, 255, 220))
-            hint = "🕹️ Gerakkan Mouse / [A][D]  •  Tekan [Spasi] atau Klik Ikan untuk HAP!  •  [Esc] Keluar"
+            hint = "🕹️ Gerakkan Mouse / [A][D]  •  Tekan [Spasi] untuk LOMPAT Cakar  •  Klik Ikan  •  [Esc] Keluar"
             painter.drawText(QRect(0, self.height() - 32, self.width(), 22), Qt.AlignmentFlag.AlignCenter, hint)
 
-        # 7. Draw Game Over Modal Card
+        # 8. Draw Game Over Modal Card
         if self.game_state == "game_over":
             self._draw_game_over_modal(painter)
+
+    def _draw_claw_slash(self, painter: QPainter, slash: ClawSlash):
+        """Draws animated luminous cyan/white claw swipe arc."""
+        try:
+            painter.save()
+            painter.translate(slash.x, slash.y)
+            painter.scale(slash.scale, slash.scale)
+
+            op = slash.opacity
+            col_main = QColor(100, 240, 255, int(230 * op))
+            col_glow = QColor(255, 255, 255, int(255 * op))
+
+            # 3 Curved Claw Swipe Arcs
+            painter.setPen(QPen(col_main, 4.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+            painter.drawArc(QRectF(-40, -30, 36, 50), 30 * 16, 120 * 16)
+            painter.drawArc(QRectF(-18, -45, 36, 60), 30 * 16, 120 * 16)
+            painter.drawArc(QRectF(4, -30, 36, 50), 30 * 16, 120 * 16)
+
+            # Bright Core Glint
+            painter.setPen(QPen(col_glow, 2.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+            painter.drawArc(QRectF(-18, -45, 36, 60), 40 * 16, 100 * 16)
+
+            painter.restore()
+        except Exception:
+            try:
+                painter.restore()
+            except Exception:
+                pass
 
     def _draw_tutorial_modal(self, painter: QPainter):
         """Draws clear How to Play tutorial screen before starting."""
