@@ -334,7 +334,8 @@ class YarnBounceGame(BaseGameOverlay):
         """Starts or restarts the active yarn bounce game with a high loft launch from above the cat."""
         self.game_state = "playing"
         self.is_game_over = False
-        self.is_timer_running = True
+        self.is_timer_running = False
+        self.time_remaining = 99999.0
         self.score = 0
         self.combo = 0
         self.max_combo = 0
@@ -346,6 +347,9 @@ class YarnBounceGame(BaseGameOverlay):
         self.cat_jump_offset_y = 0.0
         self.cat_jump_vy = 0.0
         self.cat_jump_active = False
+
+        if hasattr(self.pet_window, "bubble"):
+            self.pet_window.bubble.hide()
 
         screen_geo = self.geometry()
         target_screen_x = int(screen_geo.left() + self.cat_current_x)
@@ -369,6 +373,13 @@ class YarnBounceGame(BaseGameOverlay):
     def on_game_over(self):
         """Triggered when yarn ball touches the floor."""
         self.game_state = "game_over"
+        self.is_game_over = True
+        self.is_timer_running = False
+        self.time_remaining = 99999.0
+        self.floating_texts.clear()
+
+        if hasattr(self.pet_window, "bubble"):
+            self.pet_window.bubble.hide()
 
         # Check High Score
         if self.score > self.high_score:
@@ -376,17 +387,23 @@ class YarnBounceGame(BaseGameOverlay):
             self.pet_window.settings["high_score_yarn_bounce"] = self.high_score
             save_settings(self.pet_window.settings)
 
-        # Pet dialogue feedback
+        # Pet animation reaction (dialogue is rendered cleanly inside the modal card)
         if self.max_combo >= 15:
             self.pet_window.set_state("celebrate", duration_seconds=4.0)
-            raw_name = self.pet_window.settings.get("user_name", "").strip()
-            user_name = f" {raw_name}" if raw_name else ""
-            self.pet_window.say(f"Jago banget jugglingnya{user_name}! Seru banget main bola benang nya~ 🧶⭐", 4000)
         else:
-            self.pet_window.set_state("idle")
-            self.pet_window.say("Ups, bolanya jatuh nya! Mau coba main lagi? 🐾🧶", 3500)
+            self.pet_window.set_state("sulk", duration_seconds=4.0)
+
+    def close_game(self):
+        if hasattr(self.pet_window, "bubble"):
+            self.pet_window.bubble.hide()
+        super().close_game()
 
     def restart_game(self):
+        self.is_game_over = False
+        self.is_timer_running = False
+        self.time_remaining = 99999.0
+        if hasattr(self.pet_window, "bubble"):
+            self.pet_window.bubble.hide()
         self.start_game_from_tutorial()
 
     def keyPressEvent(self, event: QKeyEvent):
@@ -724,6 +741,17 @@ class YarnBounceGame(BaseGameOverlay):
 
         painter.drawText(card_x + 90, card_y + 175, "🔥 Combo Tertinggi:")
         painter.drawText(card_x + 290, card_y + 175, f"{self.max_combo}x Combo")
+
+        # Cat Game Over Quote (Clean native font inside the card)
+        painter.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
+        painter.setPen(QColor(255, 215, 120))
+        raw_name = self.pet_window.settings.get("user_name", "").strip()
+        u_name = f" {raw_name}" if raw_name else ""
+        if self.max_combo >= 15:
+            quote = f"🐾 \"Jago banget jugglingnya{u_name}! Seru banget nya~ 🧶⭐\""
+        else:
+            quote = f"🐾 \"Ups, bolanya jatuh nya{u_name}! Mau coba main lagi?\""
+        painter.drawText(QRect(card_x + 20, card_y + 204, card_w - 40, 24), Qt.AlignmentFlag.AlignCenter, quote)
 
         # Buttons
         btn_w = 145
