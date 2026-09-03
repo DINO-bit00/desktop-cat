@@ -369,12 +369,18 @@ class FishCatchGame(BaseGameOverlay):
         self.floating_texts.clear()
         self.particles.clear()
         self.claw_slashes.clear()
+        if hasattr(self.pet_window, "bubble"):
+            self.pet_window.bubble.hide()
         self.floating_texts.append(FloatingText(self.width() / 2, self.height() / 2 - 40, "GO! TANGKAP IKAN! 🐟", QColor(255, 230, 80)))
         self.pet_window.set_state("idle")
 
     def on_game_over(self):
         """Triggered when 30s timer runs out."""
         self.game_state = "game_over"
+        self.is_game_over = True
+        self.is_timer_running = False
+        if hasattr(self.pet_window, "bubble"):
+            self.pet_window.bubble.hide()
 
         # Check High Score
         if self.score > self.high_score:
@@ -382,24 +388,33 @@ class FishCatchGame(BaseGameOverlay):
             self.pet_window.settings["high_score_fish_catch"] = self.high_score
             save_settings(self.pet_window.settings)
 
-        # Pet celebration if good score
+        # Pet celebration if good score (dialogue is rendered cleanly inside the modal card)
         if self.score >= 80:
             self.pet_window.set_state("celebrate", duration_seconds=4.0)
-            raw_name = self.pet_window.settings.get("user_name", "").strip()
-            user_name = f" {raw_name}" if raw_name else ""
-            self.pet_window.say(f"Keren banget{user_name}! Kenyang makan ikan nya~ ⭐🍣", 4000)
         else:
             self.pet_window.set_state("idle")
-            self.pet_window.say("Permainan selesai nya! Mau main lagi? 🐾🐟", 3500)
+
+    def close_game(self):
+        if hasattr(self.pet_window, "bubble"):
+            self.pet_window.bubble.hide()
+        super().close_game()
 
     def restart_game(self):
         """Restarts the catch the fish mini-game."""
+        self.is_game_over = False
+        if hasattr(self.pet_window, "bubble"):
+            self.pet_window.bubble.hide()
         self.start_game_from_tutorial()
 
     def keyPressEvent(self, event: QKeyEvent):
         if self.game_state == "tutorial":
             if event.key() in (Qt.Key.Key_Space, Qt.Key.Key_Return, Qt.Key.Key_Enter):
                 self.start_game_from_tutorial()
+                event.accept()
+                return
+        elif self.game_state == "game_over":
+            if event.key() in (Qt.Key.Key_Space, Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                self.restart_game()
                 event.accept()
                 return
         elif self.game_state == "playing":
@@ -831,6 +846,17 @@ class FishCatchGame(BaseGameOverlay):
         painter.drawText(card_x + 65, card_y + 201, "🔥 Combo Tertinggi:")
         painter.drawText(card_x + 290, card_y + 201, f"{self.max_combo}x Combo")
 
+        # Cat Game Over Quote (Clean native font inside the card)
+        painter.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
+        painter.setPen(QColor(255, 215, 120))
+        raw_name = self.pet_window.settings.get("user_name", "").strip()
+        u_name = f" {raw_name}" if raw_name else ""
+        if self.score >= 80:
+            quote = f"🐾 \"Keren banget{u_name}! Kenyang makan ikan nya~ ⭐🍣\""
+        else:
+            quote = f"🐾 \"Permainan selesai nya{u_name}! Mau coba main lagi?\""
+        painter.drawText(QRect(card_x + 20, card_y + 218, card_w - 40, 20), Qt.AlignmentFlag.AlignCenter, quote)
+
         # Buttons
         btn_w = 145
         btn_h = 40
@@ -843,9 +869,9 @@ class FishCatchGame(BaseGameOverlay):
         painter.setBrush(QBrush(r_bg))
         painter.drawRoundedRect(self.restart_btn_rect, 6, 6)
 
-        painter.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        painter.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
         painter.setPen(QColor(255, 255, 255))
-        painter.drawText(self.restart_btn_rect, Qt.AlignmentFlag.AlignCenter, "▶ MAIN LAGI")
+        painter.drawText(self.restart_btn_rect, Qt.AlignmentFlag.AlignCenter, "▶ MAIN LAGI (SPASI)")
 
         # Quit Button
         q_bg = QColor(210, 50, 60, 245) if self._quit_hover else QColor(150, 35, 45, 230)
