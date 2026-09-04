@@ -10,7 +10,7 @@
 **Virtual Pet & Productivity Companion untuk Desktop Windows**  
 *100% Offline, Transparan, Bebas Telemetri, Ringan, dan Dibuat dari Nol (From Scratch) dengan Python & PyQt6.*
 
-[📥 **Download NyangBuddy.exe (Rilis Terbaru)**](https://github.com/DINO-bit00/desktop-cat/releases/latest) • [✨ Fitur](#-fitur-fitur-unggulan) • [🎮 Kontrol](#-panduan-kontrol--navigasi) • [🛠️ Build dari Source](#-cara-menjalankan-dari-source-code)
+[📥 **Download NyangBuddy.exe (Rilis Terbaru)**](https://github.com/DINO-bit00/desktop-cat/releases/latest) • [✨ Fitur](#-fitur-fitur-unggulan) • [🎮 Arcade Mini-Games](#-7-mini-games-arcade-hiburan-interaktif) • [🕹️ Kontrol](#-panduan-kontrol--navigasi) • [🛠️ Build dari Source](#-cara-menjalankan-dari-source-code)
 
 ---
 
@@ -132,7 +132,32 @@ Kucingmu kini punya naluri penjaga ketenangan! Saat kamu mengetik kata-kata kasa
 
 ---
 
-## 🎮 Panduan Kontrol & Navigasi
+### 🎮 7. Mini-Games Arcade (Hiburan Interaktif Layar Desktop)
+Saat butuh *break* atau hiburan sejenak di sela-sela aktivitas, ajak kucingmu bermain di **Mini-Games Arcade** langsung di layar monitor desktop dengan tampilan retro yang memikat:
+* 🐟 **Catch the Fish (Refleks Tangkap Ikan):**
+  * Uji kecepatan refleksmu dalam sesi seru 30 detik! Ikan-ikan segar melompat bergantian dari dasar layar monitor.
+  * Gerakkan kucing menyusuri layar menggunakan kursor Mouse atau tombol panah / `[A]` & `[D]`.
+  * Tekan tombol **`[Spasi]`** untuk melompat menerkam di udara (*claw slash pounce*).
+  * Tangkap **Ikan Sarden (+10 PTS)** dan **Salmon Emas Langka (+25 PTS)** untuk mengumpulkan kombo beruntun!
+  * Waspadai **Kaleng Bekas Berkarat (-10 PTS)** yang membuat kucing pusing (*zonk*)!
+* 🧶 **Cat Yarn Bounce (Juggling Bola Benang):**
+  * Mini-game ketahanan fisik tanpa batas waktu (*endless physics juggling*).
+  * Sundul bola benang wol membal di atas kepala kucing agar tidak pernah menyentuh lantai.
+  * Tekan tombol **`[Spasi]`** atau klik langsung pada bola benang untuk melancarkan **Power Bounce 🚀** melambung tinggi.
+  * Raih kombo pantulan setinggi-tingginya dan cetak rekor terbaikmu!
+* 📦 **Tebak Kardus Snack (Box Shuffle / Memory Puzzle):**
+  * Asah ketajaman mata, fokus visual, dan memori jangka pendekmu!
+  * Di awal ronde, kucing menaruh sepotong **Golden Salmon** berkilau di dalam salah satu dari 3 kardus bertelinga kucing yang imut.
+  * Kardus menutup rapat lalu berputar acak saling bertukar posisi dengan animasi luncuran halus (*smooth ease physics*). Kecepatan dan jumlah putaran meningkat seiring tingginya *streak*!
+  * Tebak kardus yang tepat dengan mengklik kardus pilihanmu atau menekan tombol angka **`[1]`**, **`[2]`**, **`[3]`** (atau **`[A]`**, **`[S]`**, **`[D]`**).
+  * Kamu dibekali **3 Kesempatan (Nyawa ❤️❤️❤️)**. Kucing akan duduk di bawah kardus memantau dalam mode berpikir (`thinking`), melompat selebrasi saat tebakanmu benar, atau merajuk lucu saat salah!
+* ⚡ **Fitur Universal Mini-Games Arcade:**
+  * **Restart Instan:** Cukup tekan tombol **`[Spasi]`** di keyboard pada kartu Game Over untuk langsung memulai ronde baru tanpa jeda.
+  * **Tampilan Bersih & Terintegrasi:** Rekor skor (*High Score*), statistik performa ronde, dan kutipan dialog kucing digambar rapi menyatu di dalam kartu modal retro.
+
+---
+
+## 🕹️ Panduan Kontrol & Navigasi
 
 | Aksi | Kontrol |
 | :--- | :--- |
@@ -144,25 +169,29 @@ Kucingmu kini punya naluri penjaga ketenangan! Saat kamu mengetik kata-kata kasa
 | **Hentikan Sesi Pomodoro** | Klik langsung pada mini badge Pomodoro |
 
 ### 🧭 Struktur Menu Klik Kanan
-Menu klik kanan dirancang rapi dalam 3 kategori utama:
+Menu klik kanan dirancang intuitif dalam 4 kategori utama:
 1. 🐱 **Karakter & Kostum:**
    - Pilih 7 Skin Kucing
    - Pilih 6 Aksesoris & Topi
    - Mode Mengintip (Tepi Kanan, Kiri, Bawah)
    - Mode Berjalan Bebas (Wander on/off)
-2. ⏱️ **Produktivitas & Kesehatan:**
+2. 🎮 **Mini-Games Arcade:**
+   - 🐟 Tangkap Ikan (Catch the Fish)
+   - 🧶 Bola Benang (Cat Yarn Bounce)
+   - 📦 Tebak Kardus Snack (Box Shuffle)
+3. ⏱️ **Produktivitas & Kesehatan:**
    - Mulai Pomodoro (Standar 25m, Sprint 50m, Atur Kustom)
    - Pasang Target Kerja (*Sticky Note*)
    - Set Alarm & Pengingat
    - Latihan Regang Postur & Minum Air
-3. ⚙️ **Pengaturan & Perilaku:**
+4. ⚙️ **Pengaturan & Perilaku:**
    - 🛡️ Mode Anti-Toxic Guardian *(Demo Preview on/off)*
    - Ubah Ukuran Kucing (Kecil, Sedang, Besar, Raksasa, Kustom)
    - Otomatis Mengintip saat Game/Video Fullscreen
    - Jalankan saat Windows Startup
    - Pengaturan Nama & Preferensi Suara
    - 📂 Buka Folder Aplikasi & Rilis Executable
-4. ❌ **Keluar**
+5. ❌ **Keluar**
 
 ---
 
@@ -213,6 +242,11 @@ desktop-cat/
 ├── dist/
 │   └── NyangBuddy.exe       # Standalone executable siap pakai (~42 MB)
 ├── src/
+│   ├── games/               # Framework & Mini-Games Arcade
+│   │   ├── base_game.py     # Base overlay window & 60 FPS physics game loop
+│   │   ├── box_shuffle.py   # Stage 3: Tebak Kardus Snack (Box Shuffle)
+│   │   ├── fish_catch.py    # Stage 1: Catch the Fish (Refleks Tangkap Ikan)
+│   │   └── yarn_bounce.py   # Stage 2: Cat Yarn Bounce (Juggling Bola Benang)
 │   ├── ai_watcher.py        # Sinkronisasi status AI Agent (Antigravity/Gemini/Web AI)
 │   ├── alarm_dialog.py      # Dialog alarm & pengingat kustom
 │   ├── audio.py             # Zero-disk procedural sound & silent engine
