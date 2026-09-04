@@ -237,8 +237,7 @@ python build.py
 ```
 desktop-cat/
 ├── assets/
-│   ├── icon.ico             # Ikon resmi aplikasi NyangBuddy
-│   └── nyangbuddy_portfolio_cover.jpg # Poster showcase portofolio
+│   └── icon.ico             # Ikon resmi aplikasi NyangBuddy
 ├── dist/
 │   └── NyangBuddy.exe       # Standalone executable siap pakai (~42 MB)
 ├── src/
