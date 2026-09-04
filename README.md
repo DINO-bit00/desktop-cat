@@ -151,9 +151,6 @@ Saat butuh *break* atau hiburan sejenak di sela-sela aktivitas, ajak kucingmu be
   * Kardus menutup rapat lalu berputar acak saling bertukar posisi dengan animasi luncuran halus (*smooth ease physics*). Kecepatan dan jumlah putaran meningkat seiring tingginya *streak*!
   * Tebak kardus yang tepat dengan mengklik kardus pilihanmu atau menekan tombol angka **`[1]`**, **`[2]`**, **`[3]`** (atau **`[A]`**, **`[S]`**, **`[D]`**).
   * Kamu dibekali **3 Kesempatan (Nyawa ❤️❤️❤️)**. Kucing akan duduk di bawah kardus memantau dalam mode berpikir (`thinking`), melompat selebrasi saat tebakanmu benar, atau merajuk lucu saat salah!
-* ⚡ **Fitur Universal Mini-Games Arcade:**
-  * **Restart Instan:** Cukup tekan tombol **`[Spasi]`** di keyboard pada kartu Game Over untuk langsung memulai ronde baru tanpa jeda.
-  * **Tampilan Bersih & Terintegrasi:** Rekor skor (*High Score*), statistik performa ronde, dan kutipan dialog kucing digambar rapi menyatu di dalam kartu modal retro.
 
 ---
 
