@@ -30,12 +30,13 @@ _MOOD_KEY_HASHES = {
 }
 
 _MOOD_GREETING_PRESETS = [
-    "V2FoaCBrYWsge25hbWV9PyEg4pyo8J+SliBNZW9uZyBzZW5lbmcgYmFuZ2V0ISBNZW9uZyB0ZW1lbmluIHRlcnVzIHlhYSBueWFhfiDwn4y48J+Qvg==",
-    "SGFsbyBrYWsge25hbWV9ISBNZW9uZyBzaWFwIGphZ2FpbiBkYW4gbmVtZW5pbiBrYW11IGhhcmkgaW5pIG55YWF+IOKcqPCfkpY=",
-    "S2FrIHtuYW1lfSBqYW5nYW4gbHVwYSBzZW55dW0geWFhIGhhcmkgaW5pISBNZW9uZyBkdWt1bmcgZGFyaSBzaW5pIG55YWF+IOKcqPCfkpY=",
-    "S2FrIHtuYW1lfSB0YXUgZ2EgbnlhYT8gTWVvbmcgZGVuZ2VyIGFkYSB5YW5nIGRpYW0tZGlhbSBzZWxhbHUgbWlraXJpbiBrYW11IGxoby4uLiBlaGVoZSDwn5Cx8J+SjA==",
-    "U2VtYW5nYXQgdGVydXMgeWFhIGthayB7bmFtZX0hIE1lb25nIHNlbGFsdSBhZGEgYnVhdCBuZW1lbmluIGthbXUgbnlhYX4g8J+MuPCfkL4=",
-    "S2FsbyBjYXBlayBpc3RpcmFoYXQgZHVsdSB5YWEga2FrIHtuYW1lfSwgcGVsdWsgbWVvbmcgZHVsdSBiaWFyIGFkZW0gbnlhYX4g8J+SpOKcqA==",
+    "RWgga2FrIHtuYW1lfT8gQXNpaywgbWVvbmcgc2lhcCBuZW1lbmluIGthbXUgc2VoYXJpYW4gbnlhYX4g8J+Qvg==",
+    "SGFsbyBrYWsge25hbWV9ISBTZW1hbmdhdCB5YSBidWF0IGhhcmkgaW5pIG55YX4g8J+Qvg==",
+    "SmFuZ2FuIGx1cGEgaXN0aXJhaGF0IHNlYmVudGFyIHlhIGthayB7bmFtZX0gbnlhYX4g4piV",
+    "U2VtYW5nYXQgdGVydXMgeWFhIGthayB7bmFtZX0sIG1lb25nIHRlbWVuaW4gZGFyaSBzaW5pIG55YX4g8J+Qvg==",
+    "U2VueXVtIGR1bHUga2FrIHtuYW1lfSwgYmlhciBoYXJpbnlhIG1ha2luIGNlcmFoIG55YWF+IOKcqA==",
+    "S2FsbyBjYXBlayByZWhhdCBkdWx1IHlhIGthayB7bmFtZX0sIGphbmdhbiBkaXBvcnNpciBueWFhfiDwn421",
+    "S2FrIHtuYW1lfSB0YXUgZ2E/IEFkYSB5YW5nIGRpZW0tZGllbSBzdWthIG1lcmhhdGlpbiBrYW11IGxobyBueWFhLi4uIGVoZWhlIPCfkL4=",
 ]
 
 def _is_charm_persona(name: str) -> bool:
@@ -1149,8 +1150,7 @@ class DesktopPet(QWidget):
         user_name = self.settings.get("user_name", "").strip()
         if _is_charm_persona(user_name):
             audio.play_purr(self.settings)
-            self.set_state("celebrate", duration_seconds=3.5)
-            self.say(_get_charm_message(1, user_name), 5000)
+            self.say(_get_charm_message(1, user_name), 4000)
         else:
             greeting = f"Halo {user_name}!" if user_name else "Halo!"
             self.say(f"{greeting} Aku {pet_name} siap nemenin kamu kerja nya~ 🐾")
@@ -1163,12 +1163,17 @@ class DesktopPet(QWidget):
     def _on_pet_clicked(self):
         """Single left-click response: Shows dialogue and cute sound without changing animation."""
         user_name = self.settings.get("user_name", "").strip()
-        if _is_charm_persona(user_name) and random.random() < 0.55:
-            msg_idx = random.randint(2, len(_MOOD_GREETING_PRESETS) - 1)
-            audio.play_purr(self.settings)
-            self.set_state("celebrate", duration_seconds=1.5)
-            self.say(_get_charm_message(msg_idx, user_name), 4500)
-            return
+        if _is_charm_persona(user_name):
+            roll = random.random()
+            if roll < 0.02:  # Ultra-rare whisper (hanya 2% chance!)
+                audio.play_purr(self.settings)
+                self.say(_get_charm_message(6, user_name), 4000)
+                return
+            elif roll < 0.35:  # Respon ramah penyemangat natural (33% chance)
+                msg_idx = random.randint(2, 5)
+                audio.play_purr(self.settings)
+                self.say(_get_charm_message(msg_idx, user_name), 3500)
+                return
 
         if self.state == "sulk":
             self._trigger_shock_jitter(ticks=6)
@@ -2304,10 +2309,9 @@ class DesktopPet(QWidget):
             save_settings(self.settings)
             if text:
                 if _is_charm_persona(text):
-                    audio.play_celebrate(self.settings)
                     audio.play_purr(self.settings)
-                    self.set_state("celebrate", duration_seconds=5.0)
-                    self.say(_get_charm_message(0, text), 6000)
+                    self.set_state("celebrate", duration_seconds=2.5)
+                    self.say(_get_charm_message(0, text), 4500)
                 else:
                     self.say(f"Halo {text}! Salam kenal ya nya~ 🐾", 5000)
             else:
