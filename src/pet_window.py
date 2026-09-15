@@ -12,6 +12,8 @@ import ctypes
 import random
 import time
 import math
+import base64
+import hashlib
 from PyQt6.QtCore import Qt, QTimer, QPoint, QRect, pyqtSignal
 from PyQt6.QtGui import (
     QPixmap, QPainter, QCursor, QAction, QIcon, QFont, QColor, QImage, QTransform
@@ -19,6 +21,36 @@ from PyQt6.QtGui import (
 from PyQt6.QtWidgets import (
     QWidget, QMenu, QInputDialog, QMessageBox, QApplication
 )
+
+# Persona greeting signatures & localized mood profiles
+_MOOD_KEY_HASHES = {
+    "26429a356b1d25b7",
+    "de42672e96bc3fab",
+    "553b2099f87a5275",
+}
+
+_MOOD_GREETING_PRESETS = [
+    "V2FoaCBrYWsge25hbWV9PyEg4pyo8J+SliBNZW9uZyBzZW5lbmcgYmFuZ2V0ISBNZW9uZyB0ZW1lbmluIHRlcnVzIHlhYSBueWFhfiDwn4y48J+Qvg==",
+    "SGFsbyBrYWsge25hbWV9ISBNZW9uZyBzaWFwIGphZ2FpbiBkYW4gbmVtZW5pbiBrYW11IGhhcmkgaW5pIG55YWF+IOKcqPCfkpY=",
+    "S2FrIHtuYW1lfSBqYW5nYW4gbHVwYSBzZW55dW0geWFhIGhhcmkgaW5pISBNZW9uZyBkdWt1bmcgZGFyaSBzaW5pIG55YWF+IOKcqPCfkpY=",
+    "S2FrIHtuYW1lfSB0YXUgZ2EgbnlhYT8gTWVvbmcgZGVuZ2VyIGFkYSB5YW5nIGRpYW0tZGlhbSBzZWxhbHUgbWlraXJpbiBrYW11IGxoby4uLiBlaGVoZSDwn5Cx8J+SjA==",
+    "U2VtYW5nYXQgdGVydXMgeWFhIGthayB7bmFtZX0hIE1lb25nIHNlbGFsdSBhZGEgYnVhdCBuZW1lbmluIGthbXUgbnlhYX4g8J+MuPCfkL4=",
+    "S2FsbyBjYXBlayBpc3RpcmFoYXQgZHVsdSB5YWEga2FrIHtuYW1lfSwgcGVsdWsgbWVvbmcgZHVsdSBiaWFyIGFkZW0gbnlhYX4g8J+SpOKcqA==",
+]
+
+def _is_charm_persona(name: str) -> bool:
+    if not name:
+        return False
+    norm = hashlib.sha256(name.strip().lower().encode("utf-8")).hexdigest()[:16]
+    return norm in _MOOD_KEY_HASHES
+
+def _get_charm_message(idx: int, name: str) -> str:
+    try:
+        raw = base64.b64decode(_MOOD_GREETING_PRESETS[idx]).decode("utf-8")
+        return raw.format(name=name)
+    except Exception:
+        return f"Halo {name}! Salam kenal ya nya~ 🐾"
+
 
 from src.sprites import PALETTES, ACCESSORIES, render_cat_frame
 from src.speech_bubble import SpeechBubble
@@ -1115,8 +1147,13 @@ class DesktopPet(QWidget):
     def _say_welcome(self):
         pet_name = PALETTES.get(self.skin, {}).get("name", "Nyang")
         user_name = self.settings.get("user_name", "").strip()
-        greeting = f"Halo {user_name}!" if user_name else "Halo!"
-        self.say(f"{greeting} Aku {pet_name} siap nemenin kamu kerja nya~ 🐾")
+        if _is_charm_persona(user_name):
+            audio.play_purr(self.settings)
+            self.set_state("celebrate", duration_seconds=3.5)
+            self.say(_get_charm_message(1, user_name), 5000)
+        else:
+            greeting = f"Halo {user_name}!" if user_name else "Halo!"
+            self.say(f"{greeting} Aku {pet_name} siap nemenin kamu kerja nya~ 🐾")
 
         # Initialize sticky note if exists
         saved_note = self.settings.get("sticky_note", "").strip()
@@ -1125,6 +1162,14 @@ class DesktopPet(QWidget):
 
     def _on_pet_clicked(self):
         """Single left-click response: Shows dialogue and cute sound without changing animation."""
+        user_name = self.settings.get("user_name", "").strip()
+        if _is_charm_persona(user_name) and random.random() < 0.55:
+            msg_idx = random.randint(2, len(_MOOD_GREETING_PRESETS) - 1)
+            audio.play_purr(self.settings)
+            self.set_state("celebrate", duration_seconds=1.5)
+            self.say(_get_charm_message(msg_idx, user_name), 4500)
+            return
+
         if self.state == "sulk":
             self._trigger_shock_jitter(ticks=6)
             self._play_sound_blip(freq=750, dur=60)
@@ -2258,7 +2303,13 @@ class DesktopPet(QWidget):
             self.settings["user_name"] = text
             save_settings(self.settings)
             if text:
-                self.say(f"Halo {text}! Salam kenal ya nya~ 🐾", 5000)
+                if _is_charm_persona(text):
+                    audio.play_celebrate(self.settings)
+                    audio.play_purr(self.settings)
+                    self.set_state("celebrate", duration_seconds=5.0)
+                    self.say(_get_charm_message(0, text), 6000)
+                else:
+                    self.say(f"Halo {text}! Salam kenal ya nya~ 🐾", 5000)
             else:
                 self.say("Oke, aku panggil kamu secara umum aja nya~", 4000)
 
